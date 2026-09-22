@@ -47,10 +47,10 @@ export default function QuestionBankPage() {
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              Feature 1
+              Dành Cho Giảng Viên
             </span>
-            <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
-              <Cpu className="w-3.5 h-3.5" /> pgvector RAG Active
+            <span className="text-xs text-gray-400">
+              Quản lý câu hỏi & chuẩn hóa Rubric
             </span>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold text-white mt-1.5 flex items-center gap-2">
