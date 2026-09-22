@@ -33,5 +33,5 @@ Khi Backend đang khởi chạy, Frontend developers có thể tra cứu danh s�
 ## 5. Cấu trúc các trang tính năng chính (Scaffold)
 - **Trang chủ (`/`)**: Cổng điều hướng tổng quan hệ thống AIVES.
 - **Ngân Hàng Câu Hỏi RAG (`/questions`)**: Feature 1 - Quản lý câu hỏi kiểm thử và nhãn vector embedding pgvector.
-- **Phòng Thi Vấn Đáp AI (`/viva`)**: Feature 3 - Giao diện phòng thi trực tuyến thời gian thực với AI Giám Khảo tương tác giọng nói.
-- **Quản Trị Hệ Thống (`/admin`)**: Feature 7 - Quản lý phân quyền tài khoản (ADMIN, LECTURER, STUDENT) và giám sát hạ tầng.
+- **Phòng Thi Vấn Đáp AI (`/viva`)**: Feature 2 - Giao diện phòng thi trực tuyến thời gian thực với AI Giám Khảo tương tác giọng nói.
+- **Quản Trị Hệ Thống (`/admin`)**: Feature 3 - Quản lý phân quyền tài khoản (ADMIN, LECTURER, STUDENT) và giám sát hạ tầng.

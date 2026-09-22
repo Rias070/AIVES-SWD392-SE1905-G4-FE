@@ -39,7 +39,7 @@ export default function AdminDashboardPage() {
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-              Feature 7
+              Feature 3
             </span>
             <span className="text-xs text-gray-400">Hạ tầng & Phân quyền RBAC</span>
           </div>

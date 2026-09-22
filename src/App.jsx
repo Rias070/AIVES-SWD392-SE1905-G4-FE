@@ -11,8 +11,8 @@ function NavigationBar() {
   const navLinks = [
     { name: 'Trang Chủ', path: '/' },
     { name: 'Ngân Hàng Câu Hỏi (RAG)', path: '/questions', icon: Database, badge: 'Feature 1' },
-    { name: 'Phòng Thi Vấn Đáp AI', path: '/viva', icon: Mic, badge: 'Feature 3' },
-    { name: 'Quản Trị Hệ Thống', path: '/admin', icon: ShieldCheck, badge: 'Feature 7' },
+    { name: 'Phòng Thi Vấn Đáp AI', path: '/viva', icon: Mic, badge: 'Feature 2' },
+    { name: 'Quản Trị Hệ Thống', path: '/admin', icon: ShieldCheck, badge: 'Feature 3' },
   ];
 
   return (
@@ -92,7 +92,7 @@ function HomePage() {
     },
     {
       title: 'Phòng Thi Vấn Đáp AI Thời Gian Thực',
-      featureNumber: 'Feature 3',
+      featureNumber: 'Feature 2',
       description: 'Môi trường thi trực tuyến có AI Giám Khảo tương tác giọng nói, chuyển đổi giọng nói thành văn bản (STT) và chấm điểm tự động tức thì.',
       icon: Mic,
       link: '/viva',
@@ -102,7 +102,7 @@ function HomePage() {
     },
     {
       title: 'Quản Trị Hệ Thống & Phân Quyền RBAC',
-      featureNumber: 'Feature 7',
+      featureNumber: 'Feature 3',
       description: 'Quản trị viên theo dõi trạng thái cụm dịch vụ CSDL pgvector, quản lý tài khoản 3 cấp độ ADMIN, LECTURER, STUDENT và giám sát ca thi.',
       icon: ShieldCheck,
       link: '/admin',
