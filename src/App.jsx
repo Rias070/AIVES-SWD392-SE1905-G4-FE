@@ -38,13 +38,15 @@ import {
   LayoutDashboard,
   Shield,
   ArrowRight,
-  Plus
+  Plus,
+  Video
 } from 'lucide-react';
 import QuestionBankPage from './pages/QuestionBankPage';
 import VivaRoomPage from './pages/VivaRoomPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import LecturerAIGenerationPage from './pages/LecturerAIGenerationPage';
 import LecturerReviewPage from './pages/LecturerReviewPage';
+import StudentDashboardPage from './pages/StudentDashboardPage';
 
 // Role configurations in Glacier Light style
 const ROLE_CONFIGS = {
@@ -66,12 +68,12 @@ const ROLE_CONFIGS = {
     roleCode: 'STUDENT',
     badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200',
     avatarBg: 'from-cyan-500 to-blue-600',
-    defaultPath: '/viva',
+    defaultPath: '/student',
     menuItems: [
-      { id: 'viva-room', label: 'Phòng Thi Vấn Đáp AI', icon: Mic, path: '/viva', desc: 'Phỏng vấn thời gian thực' },
-      { id: 'practice', label: 'Luyện Tập Phỏng Vấn AI', icon: Sparkles, path: '/viva', desc: 'Hỏi xoáy thích ứng' },
-      { id: 'stu-rubric', label: 'Xem Tiêu Chuẩn Rubric', icon: Award, path: '/viva', desc: 'Thang điểm & tiêu chí' },
-      { id: 'history', label: 'Lịch Sử Ca Thi & Transcript', icon: History, path: '/viva', desc: 'Bản ghi âm & nhận xét' },
+      { id: 'stu-dashboard', label: 'Bảng Điều Khiển Sinh Viên', icon: LayoutDashboard, path: '/student', desc: 'Môn học, ca thi & năng lực' },
+      { id: 'viva-room', label: 'Phòng Thi Vấn Đáp AI', icon: Mic, path: '/viva', desc: 'Phỏng vấn trực tiếp AI' },
+      { id: 'practice', label: 'Luyện Tập Thi Thử (Mock)', icon: Sparkles, path: '/viva', desc: 'Hỏi xoáy thích ứng' },
+      { id: 'history', label: 'Lịch Sử Ca Thi & Nhận Xét', icon: History, path: '/student', desc: 'Bản ghi âm & nhận xét' },
     ],
   },
   ADMIN: {
@@ -181,6 +183,27 @@ function LeftSidebar({ currentUser, onLogout, isOpen, onClose }) {
           </nav>
         </div>
 
+        {/* Student System Readiness Widget from Stitch Design */}
+        {currentUser.role === 'STUDENT' && (
+          <div className="p-3.5 mx-3 mb-2 rounded-2xl bg-sky-50/80 border border-sky-200/80 space-y-2">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-[10px] font-bold text-slate-800 tracking-wider uppercase">Hệ Thống Sẵn Sàng</span>
+            </div>
+            <p className="text-[10px] text-slate-500 leading-tight">
+              Đã kết nối máy chủ AI Viva v4.2 và kiểm tra thiết bị âm thanh.
+            </p>
+            <Link
+              to="/viva"
+              onClick={onClose}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-sky-200 text-sky-700 hover:bg-sky-50 text-xs font-semibold flex items-center justify-center gap-1.5 shadow-2xs transition-colors"
+            >
+              <Video className="w-3.5 h-3.5 text-sky-600" />
+              <span>Vào phòng thi</span>
+            </Link>
+          </div>
+        )}
+
         {/* User Profile in Footer */}
         <div className="p-3 border-t border-slate-200/80 bg-slate-50/70">
           <div className="flex items-center justify-between">
@@ -214,6 +237,7 @@ function LeftSidebar({ currentUser, onLogout, isOpen, onClose }) {
 /* ==================== TOP NAVIGATION HEADER ==================== */
 function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePage }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const roleConfig = currentUser ? (ROLE_CONFIGS[currentUser.role] || ROLE_CONFIGS.STUDENT) : null;
 
   return (
@@ -242,10 +266,25 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
             </div>
           </Link>
 
-          <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 ml-6 pl-6 border-l border-slate-200">
-            <span>Cổng Quản trị Học thuật</span>
+          <div className="hidden md:flex items-center gap-2.5 text-xs text-slate-500 ml-6 pl-6 border-l border-slate-200">
+            <Link
+              to="/"
+              className={`hover:text-sky-700 transition-colors ${location.pathname === '/' ? 'text-sky-700 font-bold' : ''}`}
+            >
+              Bảng Trung Tâm
+            </Link>
             <span className="text-slate-300">/</span>
-            <span className="text-sky-700 font-semibold">Bảng điều khiển Trung tâm</span>
+            <Link
+              to="/student"
+              className={`hover:text-sky-700 transition-colors flex items-center gap-1 px-2 py-0.5 rounded-full border ${
+                location.pathname === '/student'
+                  ? 'bg-sky-50 text-sky-700 border-sky-300 font-bold shadow-2xs'
+                  : 'border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <GraduationCap className="w-3.5 h-3.5 text-sky-600" />
+              <span>Bảng Sinh Viên</span>
+            </Link>
           </div>
         </div>
 
@@ -1115,7 +1154,17 @@ function AppContent() {
 
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Routes>
-            <Route path="/" element={<GlacierCentralDashboard onOpenAuth={openAuth} currentUser={currentUser} />} />
+            <Route
+              path="/"
+              element={
+                currentUser?.role === 'STUDENT' ? (
+                  <StudentDashboardPage currentUser={currentUser} />
+                ) : (
+                  <GlacierCentralDashboard onOpenAuth={openAuth} currentUser={currentUser} />
+                )
+              }
+            />
+            <Route path="/student" element={<StudentDashboardPage currentUser={currentUser} />} />
             <Route path="/questions" element={<QuestionBankPage />} />
             <Route path="/generate" element={<LecturerAIGenerationPage />} />
             <Route path="/review" element={<LecturerReviewPage />} />
