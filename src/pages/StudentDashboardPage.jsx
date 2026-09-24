@@ -307,16 +307,16 @@ export default function StudentDashboardPage({ currentUser }) {
             </Link>
 
             <Link
-              to="/payment"
+              to="/device-check"
               className="flex-1 group p-4 rounded-xl border border-slate-200/90 bg-white/80 backdrop-blur-md text-slate-800 hover:bg-slate-50 transition-all shadow-2xs hover:border-sky-300 flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600">
-                  <Calendar className="w-5 h-5" />
+                  <Video className="w-5 h-5" />
                 </div>
                 <div className="text-left">
-                  <h3 className="text-sm font-bold text-slate-900 leading-tight">Đăng ký luyện thi thử</h3>
-                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">Mock Exam cùng AI 24/7</p>
+                  <h3 className="text-sm font-bold text-slate-900 leading-tight">Kiểm tra thiết bị & Test mic</h3>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">Camera, mic & AI Proctoring</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />

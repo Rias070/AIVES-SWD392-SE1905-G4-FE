@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { 
   Bot, 
   Mic, 
@@ -81,7 +81,6 @@ const ROLE_CONFIGS = {
     defaultPath: '/student',
     menuItems: [
       { id: 'stu-dashboard', label: 'Bảng Điều Khiển Sinh Viên', icon: LayoutDashboard, path: '/student', desc: 'Môn học, ca thi & năng lực' },
-      { id: 'payment', label: 'Thanh Toán & Đăng Ký Thi', icon: CreditCard, path: '/payment', desc: 'Lệ phí & Mock Exam' },
       { id: 'device-check', label: 'Kiểm Tra Thiết Bị Thi', icon: Video, path: '/device-check', desc: 'Camera & micro AI' },
       { id: 'viva-room', label: 'Phòng Thi Vấn Đáp AI', icon: Mic, path: '/viva', desc: 'Phỏng vấn trực tiếp AI' },
       { id: 'results', label: 'Kết Quả & Nhận Xét AI', icon: Award, path: '/exam-result', desc: 'Bảng điểm & Rubric' },
@@ -95,7 +94,7 @@ const ROLE_CONFIGS = {
     defaultPath: '/admin/users',
     menuItems: [
       { id: 'adm-users', label: 'Quản Lý Người Dùng & Phân Công', icon: Users, path: '/admin/users', desc: 'Phân quyền & giảng dạy' },
-      { id: 'adm-revenue', label: 'Quản Trị Giao Dịch & Doanh Thu', icon: DollarSign, path: '/admin/transactions', desc: 'Dòng tiền & đối soát Napas' },
+      { id: 'rag-portal', label: 'Học Liệu & Đề Thi RAG', icon: BookOpen, path: '/questions', desc: 'Quản trị ngân hàng câu hỏi' },
       { id: 'adm-config', label: 'Cấu Hình STT / Whisper / TTS', icon: Languages, path: '/admin', desc: 'Tham số nhận diện giọng nói' },
     ],
   },
@@ -291,12 +290,6 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
               Sinh Viên
             </Link>
             <Link
-              to="/payment"
-              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/payment' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
-            >
-              Lệ Phí
-            </Link>
-            <Link
               to="/device-check"
               className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/device-check' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
             >
@@ -324,13 +317,7 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
               to="/admin/users"
               className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/admin/users' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
             >
-              Users
-            </Link>
-            <Link
-              to="/admin/transactions"
-              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/admin/transactions' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
-            >
-              Doanh Thu
+              Quản Trị Users
             </Link>
           </div>
         </div>
@@ -1221,7 +1208,7 @@ function AppContent() {
               }
             />
             <Route path="/student" element={<StudentDashboardPage currentUser={currentUser} />} />
-            <Route path="/payment" element={<MockPaymentPage currentUser={currentUser} />} />
+            <Route path="/payment" element={<Navigate to="/student" replace />} />
             <Route path="/login" element={<AuthRBACPage onLoginSuccess={handleLoginSuccess} />} />
             <Route path="/register" element={<RegisterPage onLoginSuccess={handleLoginSuccess} />} />
             <Route path="/device-check" element={<PreExamDeviceCheckPage />} />
@@ -1232,7 +1219,7 @@ function AppContent() {
             <Route path="/review" element={<LecturerReviewPage />} />
             <Route path="/admin" element={<UserManagementPage />} />
             <Route path="/admin/users" element={<UserManagementPage />} />
-            <Route path="/admin/transactions" element={<TransactionRevenuePage />} />
+            <Route path="/admin/transactions" element={<Navigate to="/admin/users" replace />} />
           </Routes>
         </main>
 
