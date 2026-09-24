@@ -243,17 +243,14 @@ export default function StudentDashboardPage({ currentUser }) {
 
         <div className="flex items-center flex-wrap gap-2.5">
           {/* Audio readiness badge */}
-          <button
-            onClick={() => {
-              setActiveModal('mic-check');
-              setIsMicTesting(true);
-            }}
+          <Link
+            to="/device-check"
             className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors shadow-2xs"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <Mic className="w-3.5 h-3.5" />
             <span>Micro: Chuẩn bị tốt</span>
-          </button>
+          </Link>
 
           {/* Quick Mock Practice CTA */}
           <Link
@@ -534,15 +531,12 @@ export default function StudentDashboardPage({ currentUser }) {
                       <td className="py-3.5 pl-4 text-right whitespace-nowrap">
                         {exam.status === 'opening_soon' ? (
                           <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => {
-                                setActiveModal('mic-check');
-                                setIsMicTesting(true);
-                              }}
+                            <Link
+                              to="/device-check"
                               className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors"
                             >
                               Kiểm tra mic
-                            </button>
+                            </Link>
                             <Link
                               to="/viva"
                               className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-xs transition-colors"
@@ -705,16 +699,13 @@ export default function StudentDashboardPage({ currentUser }) {
             </div>
 
             <div className="pt-2 text-center border-t border-slate-100">
-              <button
-                onClick={() => {
-                  setSelectedExamReview(recentExams[0]);
-                  setActiveModal('ai-feedback');
-                }}
+              <Link
+                to="/exam-result"
                 className="text-xs font-semibold text-sky-600 hover:text-sky-800 inline-flex items-center gap-1"
               >
                 <span>Xem toàn bộ lịch sử & Bảng điểm chi tiết</span>
                 <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+              </Link>
             </div>
           </div>
 

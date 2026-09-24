@@ -47,6 +47,9 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import LecturerAIGenerationPage from './pages/LecturerAIGenerationPage';
 import LecturerReviewPage from './pages/LecturerReviewPage';
 import StudentDashboardPage from './pages/StudentDashboardPage';
+import PreExamDeviceCheckPage from './pages/PreExamDeviceCheckPage';
+import ExamResultPage from './pages/ExamResultPage';
+import LecturerRAGPage from './pages/LecturerRAGPage';
 
 // Role configurations in Glacier Light style
 const ROLE_CONFIGS = {
@@ -57,7 +60,7 @@ const ROLE_CONFIGS = {
     avatarBg: 'from-sky-500 to-cyan-600',
     defaultPath: '/questions',
     menuItems: [
-      { id: 'qbank', label: 'Ngân Hàng Học Liệu & RAG', icon: BookOpen, path: '/questions', desc: 'Kho câu hỏi & vector' },
+      { id: 'rag-portal', label: 'Cổng Học Liệu & RAG', icon: BookOpen, path: '/questions', desc: 'Quản trị tri thức S3 & Barem' },
       { id: 'generate', label: 'AI Sinh Đề Tự Động', icon: Sparkles, path: '/generate', desc: 'Trích xuất từ syllabus' },
       { id: 'review', label: 'Kiểm Duyệt Câu Hỏi AI', icon: CheckCircle2, path: '/review', desc: 'Duyệt & chỉnh sửa Rubric' },
       { id: 'scoring', label: 'Hội Đồng Chấm Điểm', icon: Scale, path: '/viva', desc: 'Giảng viên chốt điểm cuối' },
@@ -71,9 +74,9 @@ const ROLE_CONFIGS = {
     defaultPath: '/student',
     menuItems: [
       { id: 'stu-dashboard', label: 'Bảng Điều Khiển Sinh Viên', icon: LayoutDashboard, path: '/student', desc: 'Môn học, ca thi & năng lực' },
+      { id: 'device-check', label: 'Kiểm Tra Thiết Bị Thi', icon: Video, path: '/device-check', desc: 'Camera & micro AI' },
       { id: 'viva-room', label: 'Phòng Thi Vấn Đáp AI', icon: Mic, path: '/viva', desc: 'Phỏng vấn trực tiếp AI' },
-      { id: 'practice', label: 'Luyện Tập Thi Thử (Mock)', icon: Sparkles, path: '/viva', desc: 'Hỏi xoáy thích ứng' },
-      { id: 'history', label: 'Lịch Sử Ca Thi & Nhận Xét', icon: History, path: '/student', desc: 'Bản ghi âm & nhận xét' },
+      { id: 'results', label: 'Kết Quả & Nhận Xét AI', icon: Award, path: '/exam-result', desc: 'Bảng điểm & Rubric' },
     ],
   },
   ADMIN: {
@@ -266,24 +269,42 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
             </div>
           </Link>
 
-          <div className="hidden md:flex items-center gap-2.5 text-xs text-slate-500 ml-6 pl-6 border-l border-slate-200">
+          <div className="hidden lg:flex items-center gap-2 text-xs text-slate-500 ml-5 pl-5 border-l border-slate-200">
             <Link
               to="/"
-              className={`hover:text-sky-700 transition-colors ${location.pathname === '/' ? 'text-sky-700 font-bold' : ''}`}
+              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
             >
-              Bảng Trung Tâm
+              Trung Tâm
             </Link>
-            <span className="text-slate-300">/</span>
             <Link
               to="/student"
-              className={`hover:text-sky-700 transition-colors flex items-center gap-1 px-2 py-0.5 rounded-full border ${
-                location.pathname === '/student'
-                  ? 'bg-sky-50 text-sky-700 border-sky-300 font-bold shadow-2xs'
-                  : 'border-slate-200 hover:bg-slate-50'
-              }`}
+              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/student' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
             >
-              <GraduationCap className="w-3.5 h-3.5 text-sky-600" />
-              <span>Bảng Sinh Viên</span>
+              Sinh Viên
+            </Link>
+            <Link
+              to="/device-check"
+              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/device-check' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
+            >
+              Test Mic/Cam
+            </Link>
+            <Link
+              to="/viva"
+              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/viva' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
+            >
+              Phòng Thi AI
+            </Link>
+            <Link
+              to="/exam-result"
+              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/exam-result' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
+            >
+              Kết Quả
+            </Link>
+            <Link
+              to="/questions"
+              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/questions' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
+            >
+              Học Liệu RAG
             </Link>
           </div>
         </div>
@@ -1165,10 +1186,12 @@ function AppContent() {
               }
             />
             <Route path="/student" element={<StudentDashboardPage currentUser={currentUser} />} />
-            <Route path="/questions" element={<QuestionBankPage />} />
+            <Route path="/device-check" element={<PreExamDeviceCheckPage />} />
+            <Route path="/viva" element={<VivaRoomPage />} />
+            <Route path="/exam-result" element={<ExamResultPage />} />
+            <Route path="/questions" element={<LecturerRAGPage />} />
             <Route path="/generate" element={<LecturerAIGenerationPage />} />
             <Route path="/review" element={<LecturerReviewPage />} />
-            <Route path="/viva" element={<VivaRoomPage />} />
             <Route path="/admin" element={<AdminDashboardPage />} />
           </Routes>
         </main>
