@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Database, Search, Plus, Filter, BookOpen, Layers, CheckCircle, Sparkles, Cpu } from 'lucide-react';
 
 export default function QuestionBankPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('ALL');
   const [difficultyFilter, setDifficultyFilter] = useState('ALL');
+  const navigate = useNavigate();
 
   // Sample data showcasing RAG Question Bank with Vector Embeddings
   const sampleQuestions = [
@@ -62,10 +64,10 @@ export default function QuestionBankPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl transition-all shadow-lg shadow-indigo-600/20">
+          <button onClick={() => navigate('/generate')} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl transition-all shadow-lg shadow-indigo-600/20">
             <Plus className="w-4 h-4" /> Thêm Câu Hỏi Mới
           </button>
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium text-sm rounded-xl border border-gray-700 transition-all">
+          <button onClick={() => navigate('/generate')} className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium text-sm rounded-xl border border-gray-700 transition-all">
             <Sparkles className="w-4 h-4 text-amber-400" /> AI Auto-Generate
           </button>
         </div>

@@ -32,6 +32,8 @@ import {
 import QuestionBankPage from './pages/QuestionBankPage';
 import VivaRoomPage from './pages/VivaRoomPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import LecturerAIGenerationPage from './pages/LecturerAIGenerationPage';
+import LecturerReviewPage from './pages/LecturerReviewPage';
 
 // Definitions of Features tailored specifically for each Role
 const ROLE_CONFIGS = {
@@ -42,10 +44,9 @@ const ROLE_CONFIGS = {
     avatarBg: 'from-indigo-600 to-purple-600',
     defaultPath: '/questions',
     menuItems: [
-      { id: 'qbank', label: 'Ngân Hàng Câu Hỏi RAG', icon: BookOpen, path: '/questions', desc: 'Sinh câu hỏi từ slide/giáo trình' },
-      { id: 'bloom', label: 'Phân Cấp Thang Bloom', icon: Layers, path: '/questions', desc: 'Nhớ, Hiểu, Vận dụng, Phân tích' },
-      { id: 'rubric', label: 'Bộ Tiêu Chí Rubric', icon: FileText, path: '/questions', desc: 'Thiết lập tiêu chuẩn chấm điểm' },
-      { id: 'review', label: 'Kiểm Duyệt Đề AI', icon: CheckCircle2, path: '/questions', desc: 'Duyệt & chỉnh sửa câu hỏi AI sinh' },
+      { id: 'qbank', label: 'Ngân Hàng Câu Hỏi', icon: BookOpen, path: '/questions', desc: 'Kho câu hỏi chính thức' },
+      { id: 'generate', label: 'AI Sinh Câu Hỏi', icon: Sparkles, path: '/generate', desc: 'Upload syllabus & slides' },
+      { id: 'review', label: 'Kiểm Duyệt Đề AI', icon: CheckCircle2, path: '/review', desc: 'Duyệt & chỉnh sửa câu hỏi' },
       { id: 'scoring', label: 'Chốt Điểm Ca Thi', icon: Scale, path: '/viva', desc: 'Giảng viên quyết định điểm cuối' },
     ],
   },
@@ -925,6 +926,8 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<HomePage onOpenAuth={openAuth} currentUser={currentUser} />} />
             <Route path="/questions" element={<QuestionBankPage />} />
+            <Route path="/generate" element={<LecturerAIGenerationPage />} />
+            <Route path="/review" element={<LecturerReviewPage />} />
             <Route path="/viva" element={<VivaRoomPage />} />
             <Route path="/admin" element={<AdminDashboardPage />} />
           </Routes>
