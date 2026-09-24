@@ -7,7 +7,7 @@ export default function LecturerReviewPage() {
       id: 1,
       content: 'Trình bày cách thức hoạt động của Inversion of Control (IoC) trong Spring Framework. So sánh với cách khởi tạo object truyền thống.',
       bloom: 'Hiểu (Understand)',
-      bloomColor: 'text-[#E8E2D8] bg-[#C9A876]/20 border-[#C9A876]/40',
+      bloomColor: 'text-sky-700 bg-sky-50 border-sky-200',
       rubrics: 3,
       status: 'pending'
     },
@@ -15,7 +15,7 @@ export default function LecturerReviewPage() {
       id: 2,
       content: 'Phân tích một tình huống cụ thể (Use Case) khi áp dụng Singleton Pattern có thể gây ra hiện tượng Thread-Safety issues trong môi trường Multi-threading.',
       bloom: 'Phân tích (Analyze)',
-      bloomColor: 'text-[#E8E2D8] bg-[#8B6F47]/25 border-[#8B6F47]/45',
+      bloomColor: 'text-cyan-700 bg-cyan-50 border-cyan-200',
       rubrics: 4,
       status: 'pending'
     }
@@ -38,28 +38,28 @@ export default function LecturerReviewPage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#5C554C]/60 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200/80">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full bg-[#C9A876]/15 text-[#E8E2D8] border border-[#C9A876]/35">
+            <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full bg-sky-50 text-sky-700 border border-sky-200">
               Kiểm Duyệt Đề (Review)
             </span>
-            <span className="text-xs text-[#B8B0A6]">
+            <span className="text-xs text-slate-500">
               PRJ301 - Java Web Application
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#F5F0E8] flex items-center gap-2.5">
-            <CheckCircle2 className="w-8 h-8 text-[#C9A876]" />
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 flex items-center gap-2.5">
+            <CheckCircle2 className="w-8 h-8 text-sky-600" />
             Duyệt & Chỉnh Sửa Câu Hỏi AI Sinh
           </h1>
-          <p className="text-sm text-[#B8B0A6] mt-2">
+          <p className="text-sm text-slate-600 mt-2">
             Giảng viên xem xét nội dung, tag độ khó/Bloom và hệ thống Rubric gợi ý trước khi lưu vào Ngân hàng chính thức.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button 
             onClick={approveAll}
-            className="btn-liquid-gold px-6 py-3 text-xs"
+            className="btn-glacier-primary px-5 py-2.5 text-xs font-semibold"
           >
             <Check className="w-4 h-4" /> Duyệt Tất Cả
           </button>
@@ -69,19 +69,19 @@ export default function LecturerReviewPage() {
       {/* List */}
       <div className="space-y-4">
         {questions.length === 0 ? (
-          <div className="glass-panel p-10 rounded-[28px] text-center border border-[#5C554C]/60">
-            <CheckCircle2 className="w-12 h-12 text-[#C9A876] mx-auto mb-4 opacity-60" />
-            <h3 className="text-lg font-bold text-[#F5F0E8]">Không còn câu hỏi nào chờ duyệt</h3>
-            <p className="text-sm text-[#B8B0A6]">Tất cả câu hỏi đã được đưa vào ngân hàng chính thức.</p>
+          <div className="glacier-light-panel p-10 rounded-2xl text-center">
+            <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-4 opacity-70" />
+            <h3 className="text-base font-bold text-slate-900">Không còn câu hỏi nào chờ duyệt</h3>
+            <p className="text-sm text-slate-500">Tất cả câu hỏi đã được đưa vào ngân hàng chính thức.</p>
           </div>
         ) : (
           questions.map(q => (
             <div 
               key={q.id} 
-              className={`glass-card p-6 rounded-[24px] border transition-all space-y-4 ${
+              className={`glacier-light-card p-6 rounded-2xl border-l-4 transition-all space-y-4 ${
                 q.status === 'approved' 
-                  ? 'border-[#C9A876]/70 bg-[#3A332C]/90 shadow-[0_0_25px_rgba(201,168,118,0.18)]' 
-                  : 'border-[#5C554C]/60 hover:border-[#C9A876]/40'
+                  ? 'border-l-emerald-600 bg-emerald-50/20' 
+                  : 'border-l-sky-600'
               }`}
             >
               <div className="flex flex-col md:flex-row gap-4 justify-between">
@@ -90,23 +90,23 @@ export default function LecturerReviewPage() {
                     <span className={`px-3 py-0.5 text-xs font-semibold rounded-full border ${q.bloomColor}`}>
                       {q.bloom}
                     </span>
-                    <span className="text-xs text-[#B8B0A6] flex items-center gap-1.5">
-                      <List className="w-3.5 h-3.5 text-[#C9A876]" /> {q.rubrics} Tiêu chí (Rubric)
+                    <span className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
+                      <List className="w-3.5 h-3.5 text-sky-600" /> {q.rubrics} Tiêu chí (Rubric)
                     </span>
                     {q.status === 'approved' && (
-                      <span className="text-xs text-[#E8E2D8] flex items-center gap-1.5 font-bold ml-2 bg-[#C9A876]/20 px-2.5 py-0.5 rounded-full border border-[#C9A876]/50">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#C9A876]" /> Đã duyệt vào kho
+                      <span className="text-xs text-emerald-700 flex items-center gap-1 font-bold ml-2 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Đã duyệt vào kho
                       </span>
                     )}
                   </div>
                   
                   {editingId === q.id ? (
                     <textarea 
-                      className="liquid-input w-full h-28 text-sm"
+                      className="w-full h-28 p-3 text-sm bg-slate-50 border border-sky-400 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-100"
                       defaultValue={q.content}
                     />
                   ) : (
-                    <p className="text-[#F5F0E8] text-sm font-medium leading-relaxed">
+                    <p className="text-slate-800 text-sm font-medium leading-relaxed">
                       {q.content}
                     </p>
                   )}
@@ -116,7 +116,7 @@ export default function LecturerReviewPage() {
                   {editingId === q.id ? (
                     <button 
                       onClick={() => setEditingId(null)} 
-                      className="p-2.5 btn-liquid-gold text-xs rounded-[14px]" 
+                      className="p-2.5 btn-glacier-primary text-xs rounded-xl" 
                       title="Lưu"
                     >
                       <Save className="w-4 h-4" />
@@ -124,7 +124,7 @@ export default function LecturerReviewPage() {
                   ) : (
                     <button 
                       onClick={() => setEditingId(q.id)} 
-                      className="p-2.5 rounded-[14px] bg-[#1C1815]/70 hover:bg-[#3A332C] text-[#B8B0A6] hover:text-[#F5F0E8] border border-[#5C554C]/50 transition-colors" 
+                      className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors" 
                       title="Chỉnh sửa nội dung"
                     >
                       <Edit3 className="w-4 h-4" />
@@ -134,16 +134,16 @@ export default function LecturerReviewPage() {
                   {q.status !== 'approved' && (
                     <button 
                       onClick={() => approveQuestion(q.id)} 
-                      className="p-2.5 rounded-[14px] bg-[#C9A876]/15 hover:bg-[#C9A876]/25 text-[#E8E2D8] border border-[#C9A876]/35 transition-colors" 
+                      className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors" 
                       title="Duyệt câu hỏi này"
                     >
-                      <Check className="w-4 h-4 text-[#C9A876]" />
+                      <Check className="w-4 h-4" />
                     </button>
                   )}
                   
                   <button 
                     onClick={() => removeQuestion(q.id)} 
-                    className="p-2.5 rounded-[14px] bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/25 transition-colors" 
+                    className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors" 
                     title="Xóa bỏ"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -152,22 +152,22 @@ export default function LecturerReviewPage() {
               </div>
 
               {/* Rubric preview */}
-              <div className="bg-[#1C1815]/60 rounded-[18px] p-4 border border-[#5C554C]/50">
-                <div className="text-xs font-semibold text-[#B8B0A6] mb-2.5 flex items-center gap-2">
-                  <Layers className="w-3.5 h-3.5 text-[#C9A876]" /> Gợi ý Rubric chấm điểm:
+              <div className="bg-slate-50/90 rounded-xl p-4 border border-slate-200/80">
+                <div className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-2">
+                  <Layers className="w-3.5 h-3.5 text-sky-600" /> Gợi ý Rubric chấm điểm:
                 </div>
-                <div className="space-y-1.5 text-xs text-[#B8B0A6]">
+                <div className="space-y-1.5 text-xs text-slate-600">
                   <div className="flex items-start gap-2">
-                    <span className="text-[#C9A876] font-bold shrink-0">30%</span> 
-                    <span><strong className="text-[#F5F0E8]">Mức Khá:</strong> Trả lời được định nghĩa cơ bản, thiếu so sánh chuyên sâu.</span>
+                    <span className="text-sky-700 font-bold shrink-0">30%</span> 
+                    <span><strong className="text-slate-800">Mức Khá:</strong> Trả lời được định nghĩa cơ bản, thiếu so sánh chuyên sâu.</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <span className="text-[#C9A876] font-bold shrink-0">70%</span> 
-                    <span><strong className="text-[#F5F0E8]">Mức Tốt:</strong> Nêu rõ sự khác biệt, đưa ra được ví dụ áp dụng.</span>
+                    <span className="text-sky-700 font-bold shrink-0">70%</span> 
+                    <span><strong className="text-slate-800">Mức Tốt:</strong> Nêu rõ sự khác biệt, đưa ra được ví dụ áp dụng.</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <span className="text-[#C9A876] font-bold shrink-0">100%</span> 
-                    <span><strong className="text-[#F5F0E8]">Xuất sắc:</strong> Giải thích cặn kẽ cơ chế dưới hood, phân tích pros/cons rõ ràng.</span>
+                    <span className="text-sky-700 font-bold shrink-0">100%</span> 
+                    <span><strong className="text-slate-800">Xuất sắc:</strong> Giải thích cặn kẽ cơ chế dưới hood, phân tích pros/cons rõ ràng.</span>
                   </div>
                 </div>
               </div>

@@ -7,51 +7,50 @@ export default {
   theme: {
     extend: {
       colors: {
-        liquid: {
-          darkest: '#1C1815',     // Nền tối nhất: nâu đen ấm
-          surface: '#3A332C',     // Nền trung tính: nâu xám khói
-          silver: '#B8B0A6',      // Bạc kim loại: ánh xám ấm
-          lightSilver: '#E8E2D8', // Bạc sáng cao: ánh kim
-          gold: '#C9A876',        // Vàng đồng: champagne
-          goldDark: '#8B6F47',    // Vàng đồng đậm: viền/shadow
-          ivory: '#F5F0E8',       // Chữ chính: trắng ngà
-          divider: '#5C554C',     // Viền phân tách: xám khói
+        primary: {
+          DEFAULT: "#0284c7",
+          dark: "#0369a1",
+          light: "#38bdf8",
+        },
+        accent: {
+          cyan: "#06b6d4",
+          sky: "#0284c7",
+        },
+        glacier: {
+          surface: "rgba(255, 255, 255, 0.85)",
+          subtle: "rgba(248, 250, 252, 0.75)",
+          border: "rgba(226, 232, 240, 0.85)",
+          borderAccent: "rgba(186, 230, 253, 0.65)"
         },
         brand: {
-          50: '#faf6f0',
-          100: '#f5eee2',
-          200: '#ebd9bf',
-          300: '#dec096',
-          400: '#c9a876',
-          500: '#b8945d',
-          600: '#8b6f47',
-          700: '#6f5738',
-          800: '#52402a',
-          900: '#3a2d1e',
-          950: '#1c1815',
-        },
-        dark: {
-          bg: '#1C1815',
-          card: '#3A332C',
-          border: '#5C554C',
+          50: '#f0f9ff',
+          100: '#e0f2fe',
+          200: '#bae6fd',
+          300: '#7dd3fc',
+          400: '#38bdf8',
+          500: '#0ea5e9',
+          600: '#0284c7',
+          700: '#0369a1',
+          800: '#075985',
+          900: '#0c4a6e',
+          950: '#082f49',
         }
       },
       borderRadius: {
-        'liquid-sm': '16px',
-        'liquid': '20px',
-        'liquid-lg': '24px',
-        'liquid-xl': '28px',
+        'glacier-sm': '8px',
+        'glacier': '12px',
+        'glacier-lg': '16px',
+        'glacier-xl': '20px',
+        'glacier-2xl': '24px',
       },
       boxShadow: {
-        'liquid-glass': '0 8px 32px 0 rgba(0, 0, 0, 0.4), inset 0 1px 1px 0 rgba(232, 226, 216, 0.2)',
-        'liquid-glow': '0 0 25px -4px rgba(201, 168, 118, 0.35)',
-        'liquid-card': '0 12px 36px -8px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(232, 226, 216, 0.15)',
-        'liquid-btn': '0 4px 18px 0 rgba(201, 168, 118, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.6)',
+        'glacier-panel': '0 10px 30px -5px rgba(14, 116, 144, 0.06), 0 4px 12px -2px rgba(15, 23, 42, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.95)',
+        'glacier-card': '0 4px 16px -2px rgba(15, 23, 42, 0.04), 0 1px 3px 0 rgba(15, 23, 42, 0.02), inset 0 1px 0 0 rgba(255, 255, 255, 0.9)',
+        'glacier-btn': '0 4px 16px -2px rgba(2, 132, 199, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.35)',
       },
       backgroundImage: {
-        'liquid-overall': 'linear-gradient(135deg, #1C1815 0%, #3A332C 35%, #B8B0A6 65%, #E8E2D8 100%)',
-        'liquid-gold': 'linear-gradient(180deg, #E8E2D8 0%, #C9A876 50%, #8B6F47 100%)',
-        'liquid-glass': 'linear-gradient(135deg, rgba(232, 226, 216, 0.08) 0%, rgba(58, 51, 44, 0.75) 100%)',
+        'glacier-primary': 'linear-gradient(135deg, #0284c7 0%, #06b6d4 100%)',
+        'glacier-hover': 'linear-gradient(135deg, #0369a1 0%, #0891b2 100%)',
       }
     },
   },
