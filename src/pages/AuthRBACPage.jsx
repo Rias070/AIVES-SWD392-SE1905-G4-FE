@@ -83,15 +83,12 @@ export default function AuthRBACPage({ onLoginSuccess }) {
         </div>
 
         <div className="flex items-center gap-3 text-xs text-slate-500">
-          <button className="hover:text-slate-800 flex items-center gap-1">
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span>Trợ giúp</span>
-          </button>
+          <span>Chưa có tài khoản?</span>
           <Link
-            to="/viva"
-            className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold transition-colors shadow-2xs"
+            to="/register"
+            className="px-3.5 py-1.5 rounded-xl border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 font-bold transition-colors shadow-2xs"
           >
-            Bắt đầu thi
+            Đăng ký tài khoản
           </Link>
         </div>
       </div>
@@ -298,6 +295,14 @@ export default function AuthRBACPage({ onLoginSuccess }) {
                 <Building className="w-3.5 h-3.5 text-sky-600" />
                 <span>Cổng FPT/ĐHQG</span>
               </button>
+            </div>
+
+            {/* Register Link */}
+            <div className="pt-2 text-center text-xs text-slate-500 border-t border-slate-100">
+              <span>Chưa có tài khoản học thuật? </span>
+              <Link to="/register" className="text-sky-600 font-bold hover:underline">
+                Đăng ký ngay
+              </Link>
             </div>
 
             <p className="text-center text-[10px] text-slate-400 flex items-center justify-center gap-1.5 pt-1">

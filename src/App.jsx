@@ -56,6 +56,7 @@ import MockPaymentPage from './pages/MockPaymentPage';
 import AuthRBACPage from './pages/AuthRBACPage';
 import UserManagementPage from './pages/UserManagementPage';
 import TransactionRevenuePage from './pages/TransactionRevenuePage';
+import RegisterPage from './pages/RegisterPage';
 
 // Role configurations in Glacier Light style
 const ROLE_CONFIGS = {
@@ -350,13 +351,22 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
           </div>
 
           {!currentUser ? (
-            <Link
-              to="/login"
-              className="btn-glacier-primary px-4 py-2 text-xs flex items-center gap-1.5"
-            >
-              <LogIn className="w-4 h-4" />
-              <span>Đăng nhập (RBAC)</span>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/login"
+                className="btn-glacier-primary px-3.5 py-2 text-xs flex items-center gap-1.5"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Đăng nhập</span>
+              </Link>
+              <Link
+                to="/register"
+                className="px-3.5 py-2 rounded-xl border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Đăng ký</span>
+              </Link>
+            </div>
           ) : (
             <div className="flex items-center gap-3">
               <Link
@@ -1213,6 +1223,7 @@ function AppContent() {
             <Route path="/student" element={<StudentDashboardPage currentUser={currentUser} />} />
             <Route path="/payment" element={<MockPaymentPage currentUser={currentUser} />} />
             <Route path="/login" element={<AuthRBACPage onLoginSuccess={handleLoginSuccess} />} />
+            <Route path="/register" element={<RegisterPage onLoginSuccess={handleLoginSuccess} />} />
             <Route path="/device-check" element={<PreExamDeviceCheckPage />} />
             <Route path="/viva" element={<VivaRoomPage />} />
             <Route path="/exam-result" element={<ExamResultPage />} />
