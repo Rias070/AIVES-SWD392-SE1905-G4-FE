@@ -306,8 +306,8 @@ export default function StudentDashboardPage({ currentUser }) {
               </div>
             </Link>
 
-            <button
-              onClick={() => setActiveModal('mock-register')}
+            <Link
+              to="/payment"
               className="flex-1 group p-4 rounded-xl border border-slate-200/90 bg-white/80 backdrop-blur-md text-slate-800 hover:bg-slate-50 transition-all shadow-2xs hover:border-sky-300 flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
@@ -320,7 +320,7 @@ export default function StudentDashboardPage({ currentUser }) {
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-            </button>
+            </Link>
           </div>
         </div>
       </div>

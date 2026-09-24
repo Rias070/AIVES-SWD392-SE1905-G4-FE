@@ -39,7 +39,9 @@ import {
   Shield,
   ArrowRight,
   Plus,
-  Video
+  Video,
+  CreditCard,
+  DollarSign
 } from 'lucide-react';
 import QuestionBankPage from './pages/QuestionBankPage';
 import VivaRoomPage from './pages/VivaRoomPage';
@@ -50,6 +52,10 @@ import StudentDashboardPage from './pages/StudentDashboardPage';
 import PreExamDeviceCheckPage from './pages/PreExamDeviceCheckPage';
 import ExamResultPage from './pages/ExamResultPage';
 import LecturerRAGPage from './pages/LecturerRAGPage';
+import MockPaymentPage from './pages/MockPaymentPage';
+import AuthRBACPage from './pages/AuthRBACPage';
+import UserManagementPage from './pages/UserManagementPage';
+import TransactionRevenuePage from './pages/TransactionRevenuePage';
 
 // Role configurations in Glacier Light style
 const ROLE_CONFIGS = {
@@ -74,6 +80,7 @@ const ROLE_CONFIGS = {
     defaultPath: '/student',
     menuItems: [
       { id: 'stu-dashboard', label: 'Bảng Điều Khiển Sinh Viên', icon: LayoutDashboard, path: '/student', desc: 'Môn học, ca thi & năng lực' },
+      { id: 'payment', label: 'Thanh Toán & Đăng Ký Thi', icon: CreditCard, path: '/payment', desc: 'Lệ phí & Mock Exam' },
       { id: 'device-check', label: 'Kiểm Tra Thiết Bị Thi', icon: Video, path: '/device-check', desc: 'Camera & micro AI' },
       { id: 'viva-room', label: 'Phòng Thi Vấn Đáp AI', icon: Mic, path: '/viva', desc: 'Phỏng vấn trực tiếp AI' },
       { id: 'results', label: 'Kết Quả & Nhận Xét AI', icon: Award, path: '/exam-result', desc: 'Bảng điểm & Rubric' },
@@ -84,10 +91,10 @@ const ROLE_CONFIGS = {
     roleCode: 'ADMIN',
     badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     avatarBg: 'from-blue-600 to-indigo-600',
-    defaultPath: '/admin',
+    defaultPath: '/admin/users',
     menuItems: [
-      { id: 'adm-users', label: 'Quản Lý Tài Khoản (RBAC)', icon: Users, path: '/admin', desc: 'Phân quyền hội đồng' },
-      { id: 'adm-assign', label: 'Phân Quyền Giảng Viên & Môn', icon: ShieldCheck, path: '/admin', desc: 'Gán trưởng bộ môn' },
+      { id: 'adm-users', label: 'Quản Lý Người Dùng & Phân Công', icon: Users, path: '/admin/users', desc: 'Phân quyền & giảng dạy' },
+      { id: 'adm-revenue', label: 'Quản Trị Giao Dịch & Doanh Thu', icon: DollarSign, path: '/admin/transactions', desc: 'Dòng tiền & đối soát Napas' },
       { id: 'adm-config', label: 'Cấu Hình STT / Whisper / TTS', icon: Languages, path: '/admin', desc: 'Tham số nhận diện giọng nói' },
     ],
   },
@@ -269,7 +276,7 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
             </div>
           </Link>
 
-          <div className="hidden lg:flex items-center gap-2 text-xs text-slate-500 ml-5 pl-5 border-l border-slate-200">
+          <div className="hidden xl:flex items-center gap-1.5 text-xs text-slate-500 ml-4 pl-4 border-l border-slate-200">
             <Link
               to="/"
               className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
@@ -283,16 +290,22 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
               Sinh Viên
             </Link>
             <Link
+              to="/payment"
+              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/payment' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
+            >
+              Lệ Phí
+            </Link>
+            <Link
               to="/device-check"
               className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/device-check' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
             >
-              Test Mic/Cam
+              Test Mic
             </Link>
             <Link
               to="/viva"
               className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/viva' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
             >
-              Phòng Thi AI
+              Phòng Thi
             </Link>
             <Link
               to="/exam-result"
@@ -306,13 +319,25 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
             >
               Học Liệu RAG
             </Link>
+            <Link
+              to="/admin/users"
+              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/admin/users' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
+            >
+              Users
+            </Link>
+            <Link
+              to="/admin/transactions"
+              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/admin/transactions' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
+            >
+              Doanh Thu
+            </Link>
           </div>
         </div>
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
           {/* Telemetry Pills */}
-          <div className="hidden xl:flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-slate-100/90 border border-slate-200 text-xs">
+          <div className="hidden 2xl:flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-slate-100/90 border border-slate-200 text-xs">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               <span className="text-slate-700 font-medium">Vector DB: 99.8% Online</span>
@@ -325,13 +350,13 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
           </div>
 
           {!currentUser ? (
-            <button
-              onClick={() => onOpenAuth('login')}
-              className="btn-glacier-primary px-4 py-2 text-xs"
+            <Link
+              to="/login"
+              className="btn-glacier-primary px-4 py-2 text-xs flex items-center gap-1.5"
             >
               <LogIn className="w-4 h-4" />
-              <span>Đăng nhập</span>
-            </button>
+              <span>Đăng nhập (RBAC)</span>
+            </Link>
           ) : (
             <div className="flex items-center gap-3">
               <Link
@@ -1186,13 +1211,17 @@ function AppContent() {
               }
             />
             <Route path="/student" element={<StudentDashboardPage currentUser={currentUser} />} />
+            <Route path="/payment" element={<MockPaymentPage currentUser={currentUser} />} />
+            <Route path="/login" element={<AuthRBACPage onLoginSuccess={handleLoginSuccess} />} />
             <Route path="/device-check" element={<PreExamDeviceCheckPage />} />
             <Route path="/viva" element={<VivaRoomPage />} />
             <Route path="/exam-result" element={<ExamResultPage />} />
             <Route path="/questions" element={<LecturerRAGPage />} />
             <Route path="/generate" element={<LecturerAIGenerationPage />} />
             <Route path="/review" element={<LecturerReviewPage />} />
-            <Route path="/admin" element={<AdminDashboardPage />} />
+            <Route path="/admin" element={<UserManagementPage />} />
+            <Route path="/admin/users" element={<UserManagementPage />} />
+            <Route path="/admin/transactions" element={<TransactionRevenuePage />} />
           </Routes>
         </main>
 
