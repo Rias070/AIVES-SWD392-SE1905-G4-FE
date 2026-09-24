@@ -45,55 +45,61 @@ export default function QuestionBankPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#5C554C]/60 pb-5">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full bg-[#C9A876]/15 text-[#E8E2D8] border border-[#C9A876]/35">
               Dành Cho Giảng Viên
             </span>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-[#B8B0A6]">
               Quản lý câu hỏi & chuẩn hóa Rubric
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white mt-1.5 flex items-center gap-2">
-            <Database className="w-8 h-8 text-indigo-400" />
+          <h1 className="text-2xl md:text-3xl font-extrabold text-[#F5F0E8] mt-2 flex items-center gap-2.5">
+            <Database className="w-8 h-8 text-[#C9A876]" />
             Ngân Hàng Câu Hỏi & Vector Embedding
           </h1>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-[#B8B0A6] mt-1">
             Quản lý kho tri thức kiểm thử vấn đáp, gắn nhãn độ khó và tự động vector hóa cho mô hình AI RAG.
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/generate')} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl transition-all shadow-lg shadow-indigo-600/20">
+          <button 
+            onClick={() => navigate('/generate')} 
+            className="btn-liquid-gold px-5 py-2.5 text-xs"
+          >
             <Plus className="w-4 h-4" /> Thêm Câu Hỏi Mới
           </button>
-          <button onClick={() => navigate('/generate')} className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium text-sm rounded-xl border border-gray-700 transition-all">
-            <Sparkles className="w-4 h-4 text-amber-400" /> AI Auto-Generate
+          <button 
+            onClick={() => navigate('/generate')} 
+            className="btn-liquid-secondary px-5 py-2.5 text-xs"
+          >
+            <Sparkles className="w-4 h-4 text-[#C9A876]" /> AI Auto-Generate
           </button>
         </div>
       </div>
 
       {/* Filter Bar */}
-      <div className="glass-panel p-4 rounded-2xl flex flex-col md:flex-row gap-4 items-center justify-between">
+      <div className="glass-panel p-4 md:p-5 rounded-[24px] border border-[#C9A876]/30 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-96">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#B8B0A6]" />
           <input
             type="text"
-            placeholder="Tìm kiếm nội dung câu hỏi, từ khóa, mã môn..."
+            placeholder="Tìm kiếm nội dung, từ khóa, mã môn..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-sm bg-gray-900/60 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-all"
+            className="liquid-input w-full pl-10 pr-4 py-2.5 text-xs"
           />
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            <Filter className="w-3.5 h-3.5" /> Lọc theo:
+          <div className="flex items-center gap-2 text-xs text-[#B8B0A6]">
+            <Filter className="w-3.5 h-3.5 text-[#C9A876]" /> Lọc:
           </div>
           <select
             value={selectedSubject}
             onChange={(e) => setSelectedSubject(e.target.value)}
-            className="px-3 py-2 text-xs bg-gray-900/60 border border-gray-700 rounded-xl text-gray-200 focus:outline-none focus:border-indigo-500"
+            className="liquid-input py-2 text-xs"
           >
             <option value="ALL">Tất cả môn học</option>
             <option value="PRJ301">PRJ301 - Java Web</option>
@@ -103,7 +109,7 @@ export default function QuestionBankPage() {
           <select
             value={difficultyFilter}
             onChange={(e) => setDifficultyFilter(e.target.value)}
-            className="px-3 py-2 text-xs bg-gray-900/60 border border-gray-700 rounded-xl text-gray-200 focus:outline-none focus:border-indigo-500"
+            className="liquid-input py-2 text-xs"
           >
             <option value="ALL">Mọi độ khó</option>
             <option value="EASY">Dễ (Easy)</option>
@@ -118,53 +124,53 @@ export default function QuestionBankPage() {
         {sampleQuestions.map((q) => (
           <div
             key={q.id}
-            className="glass-card p-5 rounded-2xl border border-gray-800 hover:border-indigo-500/40 transition-all space-y-3"
+            className="glass-card p-6 rounded-[22px] border border-[#5C554C]/60 hover:border-[#C9A876]/50 transition-all space-y-3.5 shadow-md"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-gray-800 text-indigo-300">
+              <div className="flex items-center gap-2.5">
+                <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#1C1815] text-[#E8E2D8] border border-[#C9A876]/35">
                   {q.code}
                 </span>
-                <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <BookOpen className="w-3 h-3 text-gray-500" /> {q.subject}
+                <span className="text-xs text-[#B8B0A6] flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-[#C9A876]" /> {q.subject}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span
-                  className={`text-xs px-2.5 py-0.5 font-medium rounded-full ${
+                  className={`text-xs px-3 py-0.5 font-semibold rounded-full border ${
                     q.difficulty === 'HARD'
-                      ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                      ? 'bg-[#8B6F47]/25 text-[#E8E2D8] border-[#8B6F47]/50'
                       : q.difficulty === 'MEDIUM'
-                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                      : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      ? 'bg-[#C9A876]/20 text-[#E8E2D8] border-[#C9A876]/45'
+                      : 'bg-[#B8B0A6]/20 text-[#F5F0E8] border-[#B8B0A6]/40'
                   }`}
                 >
                   {q.difficulty}
                 </span>
-                <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-indigo-950/40 text-indigo-400 border border-indigo-500/30">
-                  <CheckCircle className="w-3 h-3 text-indigo-400" /> {q.vectorStatus}
+                <span className="flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full bg-[#1C1815]/70 text-[#C9A876] border border-[#C9A876]/30">
+                  <CheckCircle className="w-3 h-3 text-[#C9A876]" /> {q.vectorStatus}
                 </span>
               </div>
             </div>
 
-            <p className="text-gray-200 text-sm font-medium leading-relaxed">
+            <p className="text-[#F5F0E8] text-sm font-medium leading-relaxed">
               {q.content}
             </p>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-800/60 text-xs text-gray-400">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[#5C554C]/50 text-xs text-[#B8B0A6]">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-gray-500">Keywords:</span>
+                <span className="text-[#B8B0A6]/70">Keywords:</span>
                 {q.keywords.map((k, idx) => (
-                  <span key={idx} className="px-2 py-0.5 bg-gray-900 rounded text-gray-300">
+                  <span key={idx} className="px-2.5 py-0.5 bg-[#1C1815]/80 rounded-full text-[#E8E2D8] border border-[#5C554C]/40">
                     #{k}
                   </span>
                 ))}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="flex items-center gap-1">
-                  <Layers className="w-3.5 h-3.5 text-gray-500" /> {q.rubricCount} Rubric tiêu chí
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1 text-[#B8B0A6]">
+                  <Layers className="w-3.5 h-3.5 text-[#C9A876]" /> {q.rubricCount} Rubric tiêu chí
                 </span>
-                <button className="text-indigo-400 hover:text-indigo-300 font-medium ml-2">
+                <button className="text-[#C9A876] hover:text-[#E8E2D8] font-bold ml-2 underline underline-offset-2">
                   Chi tiết →
                 </button>
               </div>
