@@ -39,9 +39,7 @@ import {
   Shield,
   ArrowRight,
   Plus,
-  Video,
-  CreditCard,
-  DollarSign
+  Video
 } from 'lucide-react';
 import QuestionBankPage from './pages/QuestionBankPage';
 import VivaRoomPage from './pages/VivaRoomPage';
@@ -52,10 +50,8 @@ import StudentDashboardPage from './pages/StudentDashboardPage';
 import PreExamDeviceCheckPage from './pages/PreExamDeviceCheckPage';
 import ExamResultPage from './pages/ExamResultPage';
 import LecturerRAGPage from './pages/LecturerRAGPage';
-import MockPaymentPage from './pages/MockPaymentPage';
 import AuthRBACPage from './pages/AuthRBACPage';
 import UserManagementPage from './pages/UserManagementPage';
-import TransactionRevenuePage from './pages/TransactionRevenuePage';
 import RegisterPage from './pages/RegisterPage';
 
 // Role configurations in Glacier Light style
