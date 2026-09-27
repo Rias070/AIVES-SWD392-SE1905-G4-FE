@@ -41,18 +41,25 @@ import {
   Plus,
   Video
 } from 'lucide-react';
-import QuestionBankPage from './pages/QuestionBankPage';
-import VivaRoomPage from './pages/VivaRoomPage';
-import AdminDashboardPage from './pages/AdminDashboardPage';
-import LecturerAIGenerationPage from './pages/LecturerAIGenerationPage';
-import LecturerReviewPage from './pages/LecturerReviewPage';
-import StudentDashboardPage from './pages/StudentDashboardPage';
-import PreExamDeviceCheckPage from './pages/PreExamDeviceCheckPage';
-import ExamResultPage from './pages/ExamResultPage';
-import LecturerRAGPage from './pages/LecturerRAGPage';
-import AuthRBACPage from './pages/AuthRBACPage';
-import UserManagementPage from './pages/UserManagementPage';
-import RegisterPage from './pages/RegisterPage';
+// Auth pages
+import AuthRBACPage from './pages/auth/AuthRBACPage';
+import RegisterPage from './pages/auth/RegisterPage';
+
+// Student pages
+import StudentDashboardPage from './pages/student/StudentDashboardPage';
+import PreExamDeviceCheckPage from './pages/student/PreExamDeviceCheckPage';
+import VivaRoomPage from './pages/student/VivaRoomPage';
+import ExamResultPage from './pages/student/ExamResultPage';
+
+// Lecturer pages
+import LecturerRAGPage from './pages/lecturer/LecturerRAGPage';
+import LecturerAIGenerationPage from './pages/lecturer/LecturerAIGenerationPage';
+import LecturerReviewPage from './pages/lecturer/LecturerReviewPage';
+import QuestionBankPage from './pages/lecturer/QuestionBankPage';
+
+// Admin pages
+import AdminDashboardPage from './pages/admin/AdminDashboardPage';
+import UserManagementPage from './pages/admin/UserManagementPage';
 
 // Role configurations in Glacier Light style
 const ROLE_CONFIGS = {
