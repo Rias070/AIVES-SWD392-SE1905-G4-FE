@@ -102,4 +102,24 @@ export const adminSubjectApi = {
   removeAssignment: (assignmentId) => api.delete(`/v1/admin/subjects/assignments/${assignmentId}`),
 };
 
+// ==========================================
+// 5. API SERVICE CẤU HÌNH THAM SỐ AI VIVA (ADMIN ROLE)
+// ==========================================
+export const adminConfigApi = {
+  // Lấy thông số cấu hình AI Viva hiện tại (Ngôn ngữ, Max turns, Timeout duration...)
+  getAIVivaConfig: () => api.get('/v1/admin/config/ai-viva'),
+
+  // Cập nhật cấu hình thông số AI Viva cho toàn hệ thống ca thi
+  updateAIVivaConfig: (configData) => api.put('/v1/admin/config/ai-viva', configData),
+
+  // Lấy chi tiết tham số cài đặt mô hình STT (Whisper) / TTS giọng đọc AI
+  getSTTTTSSettings: () => api.get('/v1/admin/config/stt-tts'),
+
+  // Cập nhật cài đặt mô hình STT / TTS giọng đọc AI
+  updateSTTTTSSettings: (settingsData) => api.put('/v1/admin/config/stt-tts', settingsData),
+
+  // Khôi phục cấu hình thông số AI Viva về mặc định của hệ thống
+  resetAIVivaConfigToDefault: () => api.post('/v1/admin/config/ai-viva/reset'),
+};
+
 export default api;
