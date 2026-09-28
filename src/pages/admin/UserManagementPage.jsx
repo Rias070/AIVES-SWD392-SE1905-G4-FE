@@ -313,7 +313,7 @@ export default function UserManagementPage() {
     fetchUsersFromApi();
   }, [roleTab, searchQuery]);
 
-  // Modal 1: Add / Edit User Modal State
+  // Modal 1: Add / Edit User Modal State & Validation Errors
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [userModalMode, setUserModalMode] = useState('CREATE'); // 'CREATE' | 'EDIT'
   const [userFormData, setUserFormData] = useState({
@@ -324,6 +324,58 @@ export default function UserManagementPage() {
     assigned: '',
     status: 'active',
   });
+  const [userFormErrors, setUserFormErrors] = useState({
+    id: '',
+    name: '',
+    email: '',
+  });
+
+  // Real-time single field validation
+  const validateUserField = (field, value) => {
+    let error = '';
+    const val = value ? value.trim() : '';
+
+    if (field === 'id') {
+      if (!val) {
+        error = 'Mã định danh không được để trống';
+      } else if (!/^[A-Za-z0-9_-]{3,20}$/.test(val)) {
+        error = 'Mã định danh gồm 3-20 ký tự (VD: SE190501, GV-10294)';
+      }
+    }
+
+    if (field === 'name') {
+      if (!val) {
+        error = 'Họ và tên không được để trống';
+      } else if (val.length < 2) {
+        error = 'Họ và tên phải dài ít nhất 2 ký tự';
+      }
+    }
+
+    if (field === 'email') {
+      if (!val) {
+        error = 'Email không được để trống';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+        error = 'Định dạng email không hợp lệ';
+      } else {
+        const domain = val.toLowerCase().split('@')[1];
+        const allowedDomains = ['fpt.edu.vn', 'fe.edu.vn', 'fpt.com'];
+        if (!allowedDomains.includes(domain)) {
+          error = 'Email phải thuộc tên miền @fpt.edu.vn hoặc @fe.edu.vn';
+        }
+      }
+    }
+
+    setUserFormErrors((prev) => ({ ...prev, [field]: error }));
+    return error;
+  };
+
+  // Validate entire user form before submission
+  const validateUserForm = () => {
+    const errId = validateUserField('id', userFormData.id);
+    const errName = validateUserField('name', userFormData.name);
+    const errEmail = validateUserField('email', userFormData.email);
+    return !errId && !errName && !errEmail;
+  };
 
   // Modal 2: Excel Import Modal State
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
@@ -343,13 +395,14 @@ export default function UserManagementPage() {
   const handleOpenCreateModal = () => {
     setUserModalMode('CREATE');
     setUserFormData({
-      id: `STU-${Math.floor(100000 + Math.random() * 900000)}`,
+      id: `SE${Math.floor(100000 + Math.random() * 900000)}`,
       name: '',
       email: '',
       role: 'STUDENT',
       assigned: 'Lớp SE1905',
       status: 'active',
     });
+    setUserFormErrors({ id: '', name: '', email: '' });
     setIsUserModalOpen(true);
   };
 
@@ -364,14 +417,15 @@ export default function UserManagementPage() {
       assigned: user.assigned,
       status: user.status,
     });
+    setUserFormErrors({ id: '', name: '', email: '' });
     setIsUserModalOpen(true);
   };
 
   // Submit Add / Edit User Form (Connected to adminUserApi)
   const handleSaveUserForm = async (e) => {
     e.preventDefault();
-    if (!userFormData.name || !userFormData.email) {
-      showToast('Vui lòng điền đầy đủ Họ và tên, Email!', 'warning');
+    if (!validateUserForm()) {
+      showToast('Vui lòng kiểm tra và sửa các thông tin bị lỗi màu đỏ!', 'warning');
       return;
     }
 
@@ -1108,12 +1162,25 @@ export default function UserManagementPage() {
                   <input
                     type="text"
                     value={userFormData.id}
-                    onChange={(e) => setUserFormData({ ...userFormData, id: e.target.value })}
+                    onChange={(e) => {
+                      setUserFormData({ ...userFormData, id: e.target.value });
+                      validateUserField('id', e.target.value);
+                    }}
                     required
                     readOnly={userModalMode === 'EDIT'}
                     placeholder="VD: SE190501"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900 focus:outline-none focus:border-sky-500"
+                    className={`w-full px-3 py-2 rounded-xl bg-slate-50 border font-mono text-slate-900 focus:outline-none transition-colors ${
+                      userFormErrors.id
+                        ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500'
+                        : 'border-slate-200 focus:border-sky-500'
+                    }`}
                   />
+                  {userFormErrors.id && (
+                    <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      <span>{userFormErrors.id}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -1135,23 +1202,52 @@ export default function UserManagementPage() {
                 <input
                   type="text"
                   value={userFormData.name}
-                  onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
+                  onChange={(e) => {
+                    setUserFormData({ ...userFormData, name: e.target.value });
+                    validateUserField('name', e.target.value);
+                  }}
                   required
                   placeholder="VD: Nguyễn Văn Anh"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-sky-500"
+                  className={`w-full px-3 py-2 rounded-xl bg-slate-50 border text-slate-900 focus:outline-none transition-colors ${
+                    userFormErrors.name
+                      ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500'
+                      : 'border-slate-200 focus:border-sky-500'
+                  }`}
                 />
+                {userFormErrors.name && (
+                  <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{userFormErrors.name}</span>
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1">
-                <label className="block font-semibold text-slate-700">Email FPT / Edu</label>
+                <div className="flex items-center justify-between">
+                  <label className="block font-semibold text-slate-700">Email FPT / Edu</label>
+                  <span className="text-[10px] text-sky-700 font-mono font-medium">Domain: @fpt.edu.vn / @fe.edu.vn</span>
+                </div>
                 <input
                   type="email"
                   value={userFormData.email}
-                  onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                  onChange={(e) => {
+                    setUserFormData({ ...userFormData, email: e.target.value });
+                    validateUserField('email', e.target.value);
+                  }}
                   required
                   placeholder="anhnv@fpt.edu.vn"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-mono text-slate-900 focus:outline-none focus:border-sky-500"
+                  className={`w-full px-3 py-2 rounded-xl bg-slate-50 border font-mono text-slate-900 focus:outline-none transition-colors ${
+                    userFormErrors.email
+                      ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500'
+                      : 'border-slate-200 focus:border-sky-500'
+                  }`}
                 />
+                {userFormErrors.email && (
+                  <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{userFormErrors.email}</span>
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
