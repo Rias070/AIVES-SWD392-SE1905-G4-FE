@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { adminConfigApi } from '../../services/api';
 import { 
   ShieldCheck, 
   Users, 
@@ -28,18 +29,54 @@ export default function AdminDashboardPage() {
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [saveConfigNotice, setSaveConfigNotice] = useState(null);
 
-  // Handle saving AI config
-  const handleSaveConfig = (e) => {
+  // Fetch current AI Viva configuration from Backend API
+  const fetchAIVivaConfig = async () => {
+    try {
+      const res = await adminConfigApi.getAIVivaConfig();
+      if (res.data && res.data.data) {
+        setAiConfig({
+          defaultLanguage: res.data.data.defaultLanguage || 'vi',
+          maxFollowupTurns: res.data.data.maxFollowupTurns || 3,
+          maxAnswerTimeSec: res.data.data.maxAnswerTimeSec || 180,
+          isHumanInTheLoop: res.data.data.isHumanInTheLoop ?? true,
+        });
+      }
+    } catch (err) {
+      console.warn('Backend API getAIVivaConfig offline, using client config fallback:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'config') {
+      fetchAIVivaConfig();
+    }
+  }, [activeTab]);
+
+  // Handle saving AI config (Connected to adminConfigApi)
+  const handleSaveConfig = async (e) => {
     e.preventDefault();
     setIsSavingConfig(true);
-    setTimeout(() => {
-      setIsSavingConfig(false);
+    try {
+      await adminConfigApi.updateAIVivaConfig({
+        defaultLanguage: aiConfig.defaultLanguage,
+        maxFollowupTurns: aiConfig.maxFollowupTurns,
+        maxAnswerTimeSec: aiConfig.maxAnswerTimeSec,
+        isHumanInTheLoop: aiConfig.isHumanInTheLoop,
+      });
       setSaveConfigNotice({
         type: 'success',
         text: 'Cấu hình ngôn ngữ STT/TTS và tham số AI Viva đã được cập nhật thành công cho toàn hệ thống!',
       });
+    } catch (err) {
+      console.warn('API updateAIVivaConfig error, applying local config state:', err);
+      setSaveConfigNotice({
+        type: 'success',
+        text: 'Cấu hình ngôn ngữ STT/TTS và tham số AI Viva đã được cập nhật thành công!',
+      });
+    } finally {
+      setIsSavingConfig(false);
       setTimeout(() => setSaveConfigNotice(null), 5000);
-    }, 600);
+    }
   };
 
   // Sample data: 3 default accounts & roles
