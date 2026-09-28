@@ -78,4 +78,28 @@ export const adminUserApi = {
     }),
 };
 
+// ==========================================
+// 4. API SERVICE PHÂN CÔNG MÔN HỌC (ADMIN ROLE)
+// ==========================================
+export const adminSubjectApi = {
+  // Lấy danh mục tất cả môn học trong hệ thống
+  getSubjects: (params) => api.get('/v1/admin/subjects', { params }),
+
+  // Lấy danh sách phân công môn học cho toàn bộ giảng viên
+  getSubjectAssignments: (params) => api.get('/v1/admin/subjects/assignments', { params }),
+
+  // Lấy danh sách môn học & quyền chi tiết của 1 Giảng viên cụ thể
+  getLecturerAssignments: (lecturerId) => api.get(`/v1/admin/subjects/assignments/lecturers/${lecturerId}`),
+
+  // Gán môn học mới cho Giảng viên (kèm quyền canApproveRAG, canEditRubric)
+  assignSubject: (assignmentData) => api.post('/v1/admin/subjects/assignments', assignmentData),
+
+  // Cập nhật quyền hạn RAG & Rubric cho 1 phân công môn học
+  updateAssignmentPermissions: (assignmentId, permissionsData) =>
+    api.put(`/v1/admin/subjects/assignments/${assignmentId}/permissions`, permissionsData),
+
+  // Hủy phân công môn học khỏi Giảng viên
+  removeAssignment: (assignmentId) => api.delete(`/v1/admin/subjects/assignments/${assignmentId}`),
+};
+
 export default api;
