@@ -22,7 +22,8 @@ import {
   ExternalLink,
   Edit,
   Trash2,
-  Lock
+  Lock,
+  RefreshCw
 } from 'lucide-react';
 
 // Available course catalog to choose from when assigning to lecturers
@@ -698,7 +699,7 @@ export default function UserManagementPage() {
             </div>
 
             {/* Filter Search Bars */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs">
               <div className="relative sm:col-span-2">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -719,6 +720,16 @@ export default function UserManagementPage() {
                 <option>Đang hoạt động (Active)</option>
                 <option>Chờ kích hoạt</option>
               </select>
+
+              <button
+                onClick={fetchUsersFromApi}
+                disabled={isLoadingUsers}
+                title="Tải lại danh sách"
+                className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition-colors flex items-center justify-center gap-1 font-semibold disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingUsers ? 'animate-spin text-sky-600' : ''}`} />
+                <span className="hidden sm:inline">Tải lại</span>
+              </button>
             </div>
 
             {/* Users Table */}
@@ -736,71 +747,134 @@ export default function UserManagementPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredUsers.map((u) => {
-                    const isSelected = selectedLecturer?.id === u.id;
-                    return (
-                      <tr
-                        key={u.id}
-                        onClick={() => handleSelectLecturerRow(u)}
-                        className={`cursor-pointer transition-colors ${
-                          isSelected ? 'bg-sky-50/80' : 'hover:bg-slate-50/60'
-                        }`}
-                      >
-                        <td className="py-3.5 pr-3 font-mono font-bold text-sky-700">
-                          {u.id}
+                  {isLoadingUsers ? (
+                    Array.from({ length: 5 }).map((_, idx) => (
+                      <tr key={`skeleton-user-${idx}`} className="animate-pulse">
+                        <td className="py-4 pr-3">
+                          <div className="h-4 w-16 bg-slate-200/80 rounded-md"></div>
                         </td>
-
-                        <td className="py-3.5 px-3 whitespace-nowrap">
+                        <td className="py-4 px-3">
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px]">
-                              {u.avatarText}
-                            </div>
-                            <span className="font-bold text-slate-900">{u.name}</span>
+                            <div className="w-6 h-6 rounded-full bg-slate-200/80"></div>
+                            <div className="h-4 w-28 bg-slate-200/80 rounded-md"></div>
                           </div>
                         </td>
-
-                        <td className="py-3.5 px-3 text-slate-600 font-mono text-[11px]">
-                          {u.email}
+                        <td className="py-4 px-3">
+                          <div className="h-4 w-36 bg-slate-200/80 rounded-md"></div>
                         </td>
-
-                        <td className="py-3.5 px-3 whitespace-nowrap">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${u.roleBadgeColor}`}>
-                            {u.roleBadge}
-                          </span>
+                        <td className="py-4 px-3">
+                          <div className="h-5 w-24 bg-slate-200/80 rounded-full"></div>
                         </td>
-
-                        <td className="py-3.5 px-3 text-slate-700 font-medium">
-                          {u.assigned}
+                        <td className="py-4 px-3">
+                          <div className="h-4 w-28 bg-slate-200/80 rounded-md"></div>
                         </td>
-
-                        <td className="py-3.5 px-3 whitespace-nowrap">
-                          {u.status === 'active' ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                              Hoạt động
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                              Chờ SSO
-                            </span>
-                          )}
+                        <td className="py-4 px-3">
+                          <div className="h-5 w-20 bg-slate-200/80 rounded-full"></div>
                         </td>
-
-                        <td className="py-3.5 pl-3 text-right whitespace-nowrap">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEditModal(u);
-                            }}
-                            className="px-2.5 py-1 text-[11px] font-bold text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded-lg border border-sky-100 transition-colors"
-                          >
-                            Chỉnh sửa
-                          </button>
+                        <td className="py-4 pl-3 text-right">
+                          <div className="h-6 w-16 bg-slate-200/80 rounded-lg ml-auto"></div>
                         </td>
                       </tr>
-                    );
-                  })}
+                    ))
+                  ) : filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center">
+                        <div className="flex flex-col items-center justify-center max-w-sm mx-auto space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 shadow-2xs">
+                            <Search className="w-6 h-6" />
+                          </div>
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-bold text-slate-800">Không tìm thấy người dùng phù hợp</h4>
+                            <p className="text-xs text-slate-500">
+                              Không có tài khoản nào khớp với từ khóa{' '}
+                              {searchQuery && <span className="font-semibold text-slate-700">"{searchQuery}"</span>}
+                              {roleTab !== 'ALL' && (
+                                <span> tại vai trò <strong className="text-slate-700">{roleTab}</strong></span>
+                              )}.
+                            </p>
+                          </div>
+                          {(searchQuery || roleTab !== 'ALL') && (
+                            <button
+                              onClick={() => {
+                                setSearchQuery('');
+                                setRoleTab('ALL');
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition-colors flex items-center gap-1.5"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              <span>Xóa bộ lọc tìm kiếm</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((u) => {
+                      const isSelected = selectedLecturer?.id === u.id;
+                      return (
+                        <tr
+                          key={u.id}
+                          onClick={() => handleSelectLecturerRow(u)}
+                          className={`cursor-pointer transition-colors ${
+                            isSelected ? 'bg-sky-50/80' : 'hover:bg-slate-50/60'
+                          }`}
+                        >
+                          <td className="py-3.5 pr-3 font-mono font-bold text-sky-700">
+                            {u.id}
+                          </td>
+
+                          <td className="py-3.5 px-3 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-[10px]">
+                                {u.avatarText}
+                              </div>
+                              <span className="font-bold text-slate-900">{u.name}</span>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-3 text-slate-600 font-mono text-[11px]">
+                            {u.email}
+                          </td>
+
+                          <td className="py-3.5 px-3 whitespace-nowrap">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${u.roleBadgeColor}`}>
+                              {u.roleBadge}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-3 text-slate-700 font-medium">
+                            {u.assigned}
+                          </td>
+
+                          <td className="py-3.5 px-3 whitespace-nowrap">
+                            {u.status === 'active' ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                Hoạt động
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                Chờ SSO
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 pl-3 text-right whitespace-nowrap">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditModal(u);
+                              }}
+                              className="px-2.5 py-1 text-[11px] font-bold text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded-lg border border-sky-100 transition-colors"
+                            >
+                              Chỉnh sửa
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
