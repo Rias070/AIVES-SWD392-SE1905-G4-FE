@@ -37,34 +37,29 @@ api.interceptors.response.use(
   }
 );
 
-// API Service for Admin User Management
+// ==========================================
+// 3. API SERVICE QUẢN LÝ USER (ADMIN ROLE)
+// ==========================================
 export const adminUserApi = {
-  // Get paginated and filtered list of users
-  getUsers: (params = {}) => {
-    return api.get('/v1/admin/users', { params });
-  },
+  // Lấy danh sách người dùng (hỗ trợ phân trang, tìm kiếm, lọc role, status)
+  getUsers: (params) => api.get('/v1/admin/users', { params }),
 
-  // Get details of a single user by ID / UUID
-  getUserById: (userId) => {
-    return api.get(`/v1/admin/users/${userId}`);
-  },
+  // Lấy chi tiết thông tin 1 người dùng theo ID / UUID
+  getUserById: (userId) => api.get(`/v1/admin/users/${userId}`),
 
-  // Create a new user (Student, Lecturer, or Admin)
-  createUser: (userData) => {
-    return api.post('/v1/admin/users', userData);
-  },
+  // Tạo tài khoản người dùng mới
+  createUser: (userData) => api.post('/v1/admin/users', userData),
 
-  // Update existing user details, status, or role
-  updateUser: (userId, userData) => {
-    return api.put(`/v1/admin/users/${userId}`, userData);
-  },
+  // Cập nhật thông tin / vai trò / phân công người dùng
+  updateUser: (userId, userData) => api.put(`/v1/admin/users/${userId}`, userData),
 
-  // Delete or deactivate a user
-  deleteUser: (userId) => {
-    return api.delete(`/v1/admin/users/${userId}`);
-  },
+  // Cập nhật nhanh trạng thái tài khoản (ACTIVE / INACTIVE / PENDING_SSO)
+  updateUserStatus: (userId, status) => api.patch(`/v1/admin/users/${userId}/status`, { status }),
 
-  // Upload Excel file (.xlsx / .csv) for bulk user import
+  // Xóa tài khoản người dùng
+  deleteUser: (userId) => api.delete(`/v1/admin/users/${userId}`),
+
+  // Import danh sách sinh viên / giảng viên hàng loạt từ tệp Excel (.xlsx)
   importUserExcel: (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -75,13 +70,12 @@ export const adminUserApi = {
     });
   },
 
-  // Export users list as Excel file
-  exportUserExcel: (params = {}) => {
-    return api.get('/v1/admin/users/export-excel', {
+  // Xuất danh sách người dùng ra tệp Excel (.xlsx)
+  exportUserExcel: (params) =>
+    api.get('/v1/admin/users/export-excel', {
       params,
       responseType: 'blob',
-    });
-  },
+    }),
 };
 
 export default api;
