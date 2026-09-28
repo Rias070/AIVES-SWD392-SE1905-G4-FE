@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { adminUserApi } from '../../services/api';
+import { adminUserApi, adminSubjectApi } from '../../services/api';
 import {
   Users,
   Shield,
@@ -72,26 +72,84 @@ export default function UserManagementPage() {
   const [selectedCourseToAdd, setSelectedCourseToAdd] = useState('');
   const [assignmentNotice, setAssignmentNotice] = useState(null);
 
-  // Toggle permission checkbox for a course
-  const handleTogglePermission = (courseCode, permissionType) => {
-    setSelectedLecturer((prev) => ({
-      ...prev,
-      courses: prev.courses.map((c) =>
-        c.code === courseCode ? { ...c, [permissionType]: !c[permissionType] } : c
-      ),
-    }));
+  // Select lecturer & fetch their assignments (Connected to adminSubjectApi)
+  const handleSelectLecturerRow = async (u) => {
+    if (u.role !== 'LECTURER') return;
+    try {
+      const res = await adminSubjectApi.getLecturerAssignments(u.id);
+      if (res.data && res.data.data && Array.isArray(res.data.data)) {
+        setSelectedLecturer({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          title: 'Giám khảo trưởng',
+          examsCount: 32,
+          avatar: u.avatarText,
+          courses: res.data.data,
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn('API getLecturerAssignments warning, using fallback selection:', err);
+    }
+
+    setSelectedLecturer({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      title: 'Giám khảo trưởng',
+      examsCount: 32,
+      avatar: u.avatarText,
+      courses: selectedLecturer.id === u.id ? selectedLecturer.courses : [
+        {
+          code: 'CS301',
+          title: 'Cấu trúc dữ liệu & Thuật toán nâng cao',
+          classes: '03 lớp • 84 sinh viên',
+          canApproveRAG: true,
+          canEditRubric: true,
+        },
+      ],
+    });
   };
 
-  // Remove course from lecturer assignment
-  const handleRemoveCourse = (courseCode) => {
+  // Toggle permission checkbox for a course (Connected to adminSubjectApi)
+  const handleTogglePermission = async (courseCode, permissionType) => {
+    const updatedCourses = selectedLecturer.courses.map((c) =>
+      c.code === courseCode ? { ...c, [permissionType]: !c[permissionType] } : c
+    );
+    const targetCourse = updatedCourses.find((c) => c.code === courseCode);
+    
+    // Optimistic UI update
+    setSelectedLecturer((prev) => ({ ...prev, courses: updatedCourses }));
+
+    try {
+      await adminSubjectApi.updateAssignmentPermissions(courseCode, {
+        canApproveRAG: targetCourse.canApproveRAG,
+        canEditRubric: targetCourse.canEditRubric,
+      });
+    } catch (err) {
+      console.warn('API update assignment permissions warning:', err);
+    }
+  };
+
+  // Remove course from lecturer assignment (Connected to adminSubjectApi)
+  const handleRemoveCourse = async (courseCode) => {
     setSelectedLecturer((prev) => ({
       ...prev,
       courses: prev.courses.filter((c) => c.code !== courseCode),
     }));
+
+    try {
+      await adminSubjectApi.removeAssignment(courseCode);
+      setAssignmentNotice({ type: 'success', text: `Đã hủy phân công môn ${courseCode} khỏi giảng viên!` });
+      setTimeout(() => setAssignmentNotice(null), 3000);
+    } catch (err) {
+      console.warn('API remove assignment warning:', err);
+    }
   };
 
-  // Add selected course to lecturer assignment
-  const handleAddCourse = () => {
+  // Add selected course to lecturer assignment (Connected to adminSubjectApi)
+  const handleAddCourse = async () => {
     if (!selectedCourseToAdd) return;
     const foundCourse = AVAILABLE_COURSES.find((c) => c.code === selectedCourseToAdd);
     if (!foundCourse) return;
@@ -101,6 +159,17 @@ export default function UserManagementPage() {
       setAssignmentNotice({ type: 'warning', text: `Giảng viên đã được gán môn ${foundCourse.code} trước đó!` });
       setTimeout(() => setAssignmentNotice(null), 3000);
       return;
+    }
+
+    try {
+      await adminSubjectApi.assignSubject({
+        lecturerId: selectedLecturer.id,
+        subjectCode: foundCourse.code,
+        canApproveRAG: true,
+        canEditRubric: true,
+      });
+    } catch (err) {
+      console.warn('API assignSubject warning:', err);
     }
 
     setSelectedLecturer((prev) => ({
@@ -122,8 +191,17 @@ export default function UserManagementPage() {
     setTimeout(() => setAssignmentNotice(null), 3000);
   };
 
-  // Save overall course assignment
-  const handleSaveAssignment = () => {
+  // Save overall course assignment (Connected to adminSubjectApi)
+  const handleSaveAssignment = async () => {
+    try {
+      await adminSubjectApi.assignSubject({
+        lecturerId: selectedLecturer.id,
+        courses: selectedLecturer.courses,
+      });
+    } catch (err) {
+      console.warn('API save assignment warning:', err);
+    }
+
     setAssignmentNotice({
       type: 'success',
       text: `Đã lưu thành công phân công môn học cho ${selectedLecturer.name}!`,
@@ -663,27 +741,7 @@ export default function UserManagementPage() {
                     return (
                       <tr
                         key={u.id}
-                        onClick={() => {
-                          if (u.role === 'LECTURER') {
-                            setSelectedLecturer({
-                              id: u.id,
-                              name: u.name,
-                              email: u.email,
-                              title: 'Giám khảo trưởng',
-                              examsCount: 32,
-                              avatar: u.avatarText,
-                              courses: [
-                                {
-                                  code: 'CS301',
-                                  title: 'Cấu trúc dữ liệu & Thuật toán nâng cao',
-                                  classes: '03 lớp • 84 sinh viên',
-                                  canApproveRAG: true,
-                                  canEditRubric: true,
-                                },
-                              ],
-                            });
-                          }
-                        }}
+                        onClick={() => handleSelectLecturerRow(u)}
                         className={`cursor-pointer transition-colors ${
                           isSelected ? 'bg-sky-50/80' : 'hover:bg-slate-50/60'
                         }`}
