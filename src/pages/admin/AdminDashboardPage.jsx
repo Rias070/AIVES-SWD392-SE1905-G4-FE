@@ -68,10 +68,11 @@ export default function AdminDashboardPage() {
         text: 'Cấu hình ngôn ngữ STT/TTS và tham số AI Viva đã được cập nhật thành công cho toàn hệ thống!',
       });
     } catch (err) {
-      console.warn('API updateAIVivaConfig error, applying local config state:', err);
+      const msg = err.friendlyMessage || 'Đã áp dụng cấu hình cục bộ (Backend API chưa sẵn sàng).';
+      console.warn('API updateAIVivaConfig warning:', err);
       setSaveConfigNotice({
-        type: 'success',
-        text: 'Cấu hình ngôn ngữ STT/TTS và tham số AI Viva đã được cập nhật thành công!',
+        type: 'warning',
+        text: `Đã lưu cấu hình giao diện. (${msg})`,
       });
     } finally {
       setIsSavingConfig(false);

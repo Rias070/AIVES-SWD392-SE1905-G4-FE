@@ -298,10 +298,12 @@ export default function UserManagementPage() {
   // API Loading & Submitting States
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
+  const [apiStatusNotice, setApiStatusNotice] = useState(null);
 
   // Fetch users list from Backend API with local fallback
   const fetchUsersFromApi = async () => {
     setIsLoadingUsers(true);
+    setApiStatusNotice(null);
     try {
       const params = {
         search: searchQuery || undefined,
@@ -312,7 +314,13 @@ export default function UserManagementPage() {
         setUsersListState(response.data.data);
       }
     } catch (error) {
-      console.warn('Backend API offline / not running yet. Using client-side state fallback:', error);
+      const friendlyMsg = error.friendlyMessage || 'Không thể kết nối máy chủ API (localhost:8080). Đang chạy ở chế độ dự phòng Offline Demo Mode.';
+      setApiStatusNotice({
+        type: 'warning',
+        text: friendlyMsg,
+        code: error.response?.status || 'OFFLINE',
+      });
+      console.warn('Backend API error fallback:', error);
     } finally {
       setIsLoadingUsers(false);
     }
@@ -644,6 +652,28 @@ export default function UserManagementPage() {
           </div>
           <button onClick={() => setPageToast(null)} className="text-slate-400 hover:text-slate-600">
             <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* API Connection & Fallback Banner */}
+      {apiStatusNotice && (
+        <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-amber-900 text-xs flex items-center justify-between gap-3 shadow-2xs animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-800 font-mono font-bold text-[10px] flex items-center justify-center shrink-0 border border-amber-200">
+              {apiStatusNotice.code}
+            </div>
+            <div>
+              <span className="font-bold block text-slate-900">Chế độ dữ liệu dự phòng (Offline Fallback Mode):</span>
+              <p className="text-[11px] text-amber-800">{apiStatusNotice.text}</p>
+            </div>
+          </div>
+          <button
+            onClick={fetchUsersFromApi}
+            className="px-3 py-1.5 rounded-xl bg-amber-200/70 hover:bg-amber-200 font-bold text-amber-900 transition-colors shrink-0 flex items-center gap-1.5 text-xs shadow-2xs"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Thử lại API</span>
           </button>
         </div>
       )}

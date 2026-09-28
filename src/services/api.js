@@ -23,16 +23,43 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor: Handle common HTTP responses
+// Response interceptor: Handle common HTTP responses & format error messages
 api.interceptors.response.use(
   (response) => {
     return response;
   },
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Unauthorized: clear token and redirect to login if required
-      console.warn('Unauthorized request - invalid or expired token.');
+    let message = 'Đã xảy ra lỗi khi kết nối tới hệ thống.';
+
+    if (error.response) {
+      const status = error.response.status;
+      const backendMsg = error.response.data?.message;
+
+      switch (status) {
+        case 401:
+          message = backendMsg || 'Phiên làm việc đã hết hạn hoặc chưa được xác thực. Vui lòng đăng nhập lại.';
+          break;
+        case 403:
+          message = backendMsg || 'Tài khoản của bạn không có quyền thực hiện thao tác Quản trị viên này.';
+          break;
+        case 404:
+          message = backendMsg || 'Không tìm thấy dữ liệu yêu cầu trên máy chủ Backend.';
+          break;
+        case 422:
+          message = backendMsg || 'Dữ liệu gửi lên không đúng định dạng quy định.';
+          break;
+        case 500:
+          message = backendMsg || 'Lỗi máy chủ nội bộ Backend (Internal Server Error 500).';
+          break;
+        default:
+          message = backendMsg || `Yêu cầu thất bại với mã lỗi HTTP ${status}.`;
+      }
+    } else if (error.request) {
+      message = 'Không thể kết nối máy chủ API (localhost:8080). Đang chạy ở chế độ dự phòng Offline Demo Mode.';
     }
+
+    error.friendlyMessage = message;
+    console.warn(`[AIVES API Error ${error.response?.status || 'Network'}]:`, message);
     return Promise.reject(error);
   }
 );
