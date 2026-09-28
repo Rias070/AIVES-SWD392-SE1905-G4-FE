@@ -23,7 +23,8 @@ import {
   Edit,
   Trash2,
   Lock,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 
 // Available course catalog to choose from when assigning to lecturers
@@ -133,20 +134,28 @@ export default function UserManagementPage() {
     }
   };
 
-  // Remove course from lecturer assignment (Connected to adminSubjectApi)
-  const handleRemoveCourse = async (courseCode) => {
-    setSelectedLecturer((prev) => ({
-      ...prev,
-      courses: prev.courses.filter((c) => c.code !== courseCode),
-    }));
+  // Remove course from lecturer assignment with confirmation
+  const handleRemoveCourse = (courseCode, courseTitle = '') => {
+    openConfirmModal({
+      title: `Hủy phân công môn ${courseCode}?`,
+      message: `Bạn có chắc muốn hủy phân công môn "${courseTitle || courseCode}" khỏi giảng viên ${selectedLecturer.name}? Giảng viên sẽ mất quyền duyệt RAG và hiệu chỉnh Barem môn này.`,
+      confirmText: 'Xác nhận hủy môn',
+      confirmType: 'warning',
+      onConfirm: async () => {
+        setSelectedLecturer((prev) => ({
+          ...prev,
+          courses: prev.courses.filter((c) => c.code !== courseCode),
+        }));
 
-    try {
-      await adminSubjectApi.removeAssignment(courseCode);
-      setAssignmentNotice({ type: 'success', text: `Đã hủy phân công môn ${courseCode} khỏi giảng viên!` });
-      setTimeout(() => setAssignmentNotice(null), 3000);
-    } catch (err) {
-      console.warn('API remove assignment warning:', err);
-    }
+        try {
+          await adminSubjectApi.removeAssignment(courseCode);
+        } catch (err) {
+          console.warn('API remove assignment warning:', err);
+        }
+        setAssignmentNotice({ type: 'success', text: `Đã hủy phân công môn ${courseCode} khỏi giảng viên!` });
+        setTimeout(() => setAssignmentNotice(null), 3000);
+      },
+    });
   };
 
   // Add selected course to lecturer assignment (Connected to adminSubjectApi)
@@ -375,6 +384,50 @@ export default function UserManagementPage() {
     const errName = validateUserField('name', userFormData.name);
     const errEmail = validateUserField('email', userFormData.email);
     return !errId && !errName && !errEmail;
+  };
+
+  // Modal 3: Custom Confirm Dialog State
+  const [confirmModalState, setConfirmModalState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Xác nhận',
+    confirmType: 'danger', // 'danger' | 'warning' | 'info'
+    onConfirm: null,
+  });
+
+  const openConfirmModal = ({ title, message, confirmText = 'Xác nhận', confirmType = 'danger', onConfirm }) => {
+    setConfirmModalState({
+      isOpen: true,
+      title,
+      message,
+      confirmText,
+      confirmType,
+      onConfirm,
+    });
+  };
+
+  const closeConfirmModal = () => {
+    setConfirmModalState((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  // Prompt user deletion confirmation
+  const handlePromptDeleteUser = (user) => {
+    openConfirmModal({
+      title: `Xóa tài khoản ${user.name}?`,
+      message: `Bạn có chắc chắn muốn xóa tài khoản định danh ${user.id} (${user.email}) khỏi hệ thống AIVES? Thao tác này sẽ gỡ bỏ toàn bộ lịch phân công môn thi và không thể khôi phục.`,
+      confirmText: 'Xác nhận xóa tài khoản',
+      confirmType: 'danger',
+      onConfirm: async () => {
+        try {
+          await adminUserApi.deleteUser(user.id);
+        } catch (err) {
+          console.warn('API deleteUser warning:', err);
+        }
+        setUsersListState((prev) => prev.filter((u) => u.id !== user.id));
+        showToast(`Đã xóa thành công tài khoản ${user.name} (${user.id})!`, 'success');
+      },
+    });
   };
 
   // Modal 2: Excel Import Modal State
@@ -915,15 +968,28 @@ export default function UserManagementPage() {
                           </td>
 
                           <td className="py-3.5 pl-3 text-right whitespace-nowrap">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenEditModal(u);
-                              }}
-                              className="px-2.5 py-1 text-[11px] font-bold text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded-lg border border-sky-100 transition-colors"
-                            >
-                              Chỉnh sửa
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditModal(u);
+                                }}
+                                className="px-2.5 py-1 text-[11px] font-bold text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded-lg border border-sky-100 transition-colors flex items-center gap-1"
+                              >
+                                <Edit className="w-3 h-3" />
+                                <span>Chỉnh sửa</span>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePromptDeleteUser(u);
+                                }}
+                                className="p-1 text-[11px] font-bold text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-100 transition-colors"
+                                title="Xóa tài khoản người dùng"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1023,7 +1089,7 @@ export default function UserManagementPage() {
                         <p className="text-[11px] text-slate-500 mt-1">{c.classes}</p>
                       </div>
                       <button
-                        onClick={() => handleRemoveCourse(c.code)}
+                        onClick={() => handleRemoveCourse(c.code, c.title)}
                         title="Hủy gán môn này"
                         className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition-colors"
                       >
@@ -1409,6 +1475,51 @@ export default function UserManagementPage() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 3: CUSTOM CONFIRM DIALOG ================= */}
+      {confirmModalState.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 p-6 space-y-4 text-xs">
+            <div className="flex items-start gap-3">
+              <div
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+                  confirmModalState.confirmType === 'danger'
+                    ? 'bg-rose-50 text-rose-600 border border-rose-100'
+                    : 'bg-amber-50 text-amber-600 border border-amber-100'
+                }`}
+              >
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900">{confirmModalState.title}</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">{confirmModalState.message}</p>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                onClick={closeConfirmModal}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-100"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={() => {
+                  if (confirmModalState.onConfirm) confirmModalState.onConfirm();
+                  closeConfirmModal();
+                }}
+                className={`px-4 py-2 rounded-xl font-bold text-white transition-colors shadow-xs ${
+                  confirmModalState.confirmType === 'danger'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-amber-600 hover:bg-amber-700'
+                }`}
+              >
+                {confirmModalState.confirmText}
+              </button>
             </div>
           </div>
         </div>
