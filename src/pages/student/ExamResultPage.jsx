@@ -144,11 +144,26 @@ export default function ExamResultPage() {
       const item = history[currentIdx];
       setCurrentlySpeakingIdx(currentIdx);
 
-      const prefix = item.sender === 'ai' ? 'Giám khảo hỏi: ' : 'Thí sinh trả lời: ';
+      const examLang = vivaResult.examLang || 'vi-VN';
+      const isJa = examLang.startsWith('ja');
+      const isEn = examLang.startsWith('en');
+
+      const prefix = isJa
+        ? (item.sender === 'ai' ? '面接官の質問：' : '受験者の回答：')
+        : isEn
+        ? (item.sender === 'ai' ? 'Examiner: ' : 'Candidate: ')
+        : (item.sender === 'ai' ? 'Giám khảo hỏi: ' : 'Thí sinh trả lời: ');
+
       const utterance = new SpeechSynthesisUtterance(prefix + item.text);
-      utterance.lang = 'vi-VN';
-      utterance.rate = item.sender === 'ai' ? 1.05 : 1.0;
-      utterance.pitch = item.sender === 'ai' ? 1.08 : 0.95;
+      utterance.lang = examLang;
+      
+      const voices = window.speechSynthesis.getVoices();
+      const prefixCode = examLang.split('-')[0].toLowerCase();
+      const voice = voices.find(v => (v.lang || '').toLowerCase().startsWith(prefixCode));
+      if (voice) utterance.voice = voice;
+
+      utterance.rate = isJa ? 1.0 : (isEn ? 1.0 : 0.95);
+      utterance.pitch = item.sender === 'ai' ? 1.05 : 0.98;
 
       utterance.onend = () => {
         currentIdx++;
