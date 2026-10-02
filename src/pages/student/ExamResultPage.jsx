@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Award,
@@ -93,6 +93,9 @@ export default function ExamResultPage() {
   // Dynamic Exam Result State
   const [vivaResult, setVivaResult] = useState(FALLBACK_VIVA_RESULT);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const isPlayingAudioRef = useRef(false);
+  isPlayingAudioRef.current = isPlayingAudio;
+
   const [currentlySpeakingIdx, setCurrentlySpeakingIdx] = useState(null);
   const [copiedShare, setCopiedShare] = useState(false);
   const [expandedDialogue, setExpandedDialogue] = useState(true);
@@ -115,11 +118,32 @@ export default function ExamResultPage() {
     }
 
     return () => {
+      isPlayingAudioRef.current = false;
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
     };
   }, []);
+
+  // Chromium SpeechSynthesis watchdog to prevent TTS queue freeze (Chrome 15s bug / backgrounding)
+  useEffect(() => {
+    let watchdogTimer = null;
+    if (isPlayingAudio && 'speechSynthesis' in window) {
+      watchdogTimer = setInterval(() => {
+        if (!('speechSynthesis' in window)) return;
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        } else if (window.speechSynthesis.speaking) {
+          // Keep active queue running without dropping audio in Chromium
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        }
+      }, 4000);
+    }
+    return () => {
+      if (watchdogTimer) clearInterval(watchdogTimer);
+    };
+  }, [isPlayingAudio]);
 
   // Text-To-Speech Replay Engine
   const playDialogueAudio = (startIndex = 0) => {
@@ -129,13 +153,17 @@ export default function ExamResultPage() {
     }
 
     window.speechSynthesis.cancel();
+    isPlayingAudioRef.current = true;
     setIsPlayingAudio(true);
 
     const history = vivaResult.dialogueHistory || [];
     let currentIdx = startIndex;
 
     const playNext = () => {
+      if (!isPlayingAudioRef.current) return;
+
       if (currentIdx >= history.length) {
+        isPlayingAudioRef.current = false;
         setIsPlayingAudio(false);
         setCurrentlySpeakingIdx(null);
         return;
@@ -166,13 +194,19 @@ export default function ExamResultPage() {
       utterance.pitch = item.sender === 'ai' ? 1.05 : 0.98;
 
       utterance.onend = () => {
+        if (!isPlayingAudioRef.current) return;
         currentIdx++;
-        setTimeout(playNext, 600);
+        setTimeout(() => {
+          if (isPlayingAudioRef.current) playNext();
+        }, 600);
       };
 
       utterance.onerror = () => {
+        if (!isPlayingAudioRef.current) return;
         currentIdx++;
-        setTimeout(playNext, 400);
+        setTimeout(() => {
+          if (isPlayingAudioRef.current) playNext();
+        }, 400);
       };
 
       window.speechSynthesis.speak(utterance);
@@ -182,6 +216,7 @@ export default function ExamResultPage() {
   };
 
   const stopAudio = () => {
+    isPlayingAudioRef.current = false;
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -201,17 +236,27 @@ export default function ExamResultPage() {
   const handlePlaySingle = (idx) => {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
+    isPlayingAudioRef.current = true;
     setIsPlayingAudio(true);
     setCurrentlySpeakingIdx(idx);
 
     const item = vivaResult.dialogueHistory[idx];
+    const examLang = vivaResult.examLang || 'vi-VN';
     const utterance = new SpeechSynthesisUtterance(item.text);
-    utterance.lang = 'vi-VN';
+    utterance.lang = examLang;
+
+    const voices = window.speechSynthesis.getVoices();
+    const prefixCode = examLang.split('-')[0].toLowerCase();
+    const voice = voices.find(v => (v.lang || '').toLowerCase().startsWith(prefixCode));
+    if (voice) utterance.voice = voice;
+
     utterance.onend = () => {
+      isPlayingAudioRef.current = false;
       setIsPlayingAudio(false);
       setCurrentlySpeakingIdx(null);
     };
     utterance.onerror = () => {
+      isPlayingAudioRef.current = false;
       setIsPlayingAudio(false);
       setCurrentlySpeakingIdx(null);
     };
@@ -319,7 +364,7 @@ export default function ExamResultPage() {
         {/* ================= LEFT COLUMN: SCORE & METRICS (4 COLS) ================= */}
         <div className="lg:col-span-4 space-y-5">
           {/* Official Score Card */}
-          <div className="p-6 rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-5 print:border-slate-300 print:shadow-none">
+          <div className="p-6 rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-5 print:border-slate-300 print:shadow-none print-score-card print-avoid-break">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 ĐIỂM TỔNG KẾT CHÍNH THỨC
@@ -399,12 +444,12 @@ export default function ExamResultPage() {
             </div>
 
             {/* Rubric Breakdown Score Bars */}
-            <div className="space-y-3 pt-3 border-t border-slate-100">
+            <div className="space-y-3 pt-3 border-t border-slate-100 print-avoid-break">
               <span className="text-[11px] font-bold text-slate-500 uppercase block">
                 Điểm thành phần Rubric
               </span>
               {vivaResult.rubricScores.map((rubric, idx) => (
-                <div key={idx} className="space-y-1">
+                <div key={idx} className="space-y-1 print-rubric-item print-avoid-break">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="text-slate-600 font-medium">{rubric.name}</span>
                     <span className="font-bold text-slate-900 font-mono">{rubric.score}</span>
@@ -513,7 +558,7 @@ export default function ExamResultPage() {
                   return (
                     <div
                       key={idx}
-                      className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all ${isSpeakingThis
+                      className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all print-dialogue-item print-avoid-break ${isSpeakingThis
                           ? 'border-sky-500 bg-sky-50/70 shadow-sm'
                           : isAI
                             ? 'border-slate-200/90 bg-slate-50/50'
@@ -576,7 +621,7 @@ export default function ExamResultPage() {
             </div>
 
             {/* AI Overall Feedback */}
-            <div className="p-4 rounded-xl bg-sky-50/60 border border-sky-100 space-y-1">
+            <div className="p-4 rounded-xl bg-sky-50/60 border border-sky-100 space-y-1 print-avoid-break print-section-block">
               <div className="flex items-center gap-1.5 text-sky-800 text-xs font-bold">
                 <Bot className="w-4 h-4 text-sky-600" />
                 <span>Nhận xét tổng quát từ Hội đồng AI</span>
@@ -587,7 +632,7 @@ export default function ExamResultPage() {
             </div>
 
             {/* Strengths */}
-            <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-100 space-y-1">
+            <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-100 space-y-1 print-avoid-break print-section-block">
               <div className="flex items-center gap-1.5 text-emerald-800 text-xs font-bold">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                 <span>Điểm mạnh nổi bật</span>
@@ -598,7 +643,7 @@ export default function ExamResultPage() {
             </div>
 
             {/* Knowledge Gaps */}
-            <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-100 space-y-1">
+            <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-100 space-y-1 print-avoid-break print-section-block">
               <div className="flex items-center gap-1.5 text-amber-800 text-xs font-bold">
                 <AlertCircle className="w-4 h-4 text-amber-600" />
                 <span>Khoảng trống kiến thức cần lưu ý</span>
@@ -609,7 +654,7 @@ export default function ExamResultPage() {
             </div>
 
             {/* Recommended Reading */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1 print-avoid-break print-section-block">
               <div className="flex items-center gap-1.5 text-slate-800 text-xs font-bold">
                 <BookOpen className="w-4 h-4 text-sky-600" />
                 <span>Tài liệu đề xuất ôn tập thêm (Đối chiếu RAG Giáo trình CS301)</span>
@@ -655,7 +700,7 @@ export default function ExamResultPage() {
       </div>
 
       {/* ================= PRINT-ONLY OFFICIAL SIGNATURES ================= */}
-      <div className="hidden print:grid grid-cols-2 gap-8 pt-8 mt-6 border-t-2 border-slate-900 text-center text-xs">
+      <div className="hidden print:grid grid-cols-2 gap-8 pt-8 mt-6 border-t-2 border-slate-900 text-center text-xs print-signature-block print-avoid-break">
         <div>
           <p className="font-bold text-slate-900 uppercase">Thí sinh cam kết</p>
           <p className="text-[10px] text-slate-500 italic mt-0.5">(Ký và ghi rõ họ tên)</p>
@@ -676,7 +721,7 @@ export default function ExamResultPage() {
       </div>
 
       {/* Footer Security Blockchain Hash */}
-      <div className="p-4 rounded-2xl bg-white/60 border border-slate-200/60 text-center text-[11px] text-slate-400 print:border-none print:pt-2">
+      <div className="p-4 rounded-2xl bg-white/60 border border-slate-200/60 text-center text-[11px] text-slate-400 print:border-none print:pt-2 print-avoid-break">
         <span>
           Chứng thực bảo mật không thể đảo ngược số: <strong>AIVES-ETH-8942</strong> • Mã xác thực Blockchain:{' '}
           <strong>0x4F9E7B3A2C...88D1</strong>
@@ -688,7 +733,7 @@ export default function ExamResultPage() {
         @media print {
           @page {
             size: A4;
-            margin: 12mm 15mm;
+            margin: 10mm 14mm;
           }
           body {
             background: white !important;
@@ -703,6 +748,33 @@ export default function ExamResultPage() {
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
+          }
+
+          /* ISO Standard Page Break Protection */
+          .print-avoid-break,
+          .print-score-card,
+          .print-rubric-item,
+          .print-dialogue-item,
+          .print-signature-block,
+          .print-section-block {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            -webkit-column-break-inside: avoid !important;
+          }
+
+          /* Paper contrast enhancements */
+          .print-dialogue-item {
+            margin-bottom: 8px !important;
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          .print-signature-block {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            margin-top: 24px !important;
           }
         }
       `}</style>
