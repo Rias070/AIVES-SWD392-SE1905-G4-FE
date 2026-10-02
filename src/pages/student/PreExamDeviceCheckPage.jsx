@@ -28,6 +28,16 @@ import {
 export default function PreExamDeviceCheckPage() {
   const navigate = useNavigate();
 
+  // Active examination session details
+  const currentSession = (() => {
+    try {
+      const stored = localStorage.getItem('aives_current_session');
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      return null;
+    }
+  })();
+
   // Hardware device lists & selected IDs
   const [cameras, setCameras] = useState([]);
   const [mics, setMics] = useState([]);
@@ -120,12 +130,60 @@ export default function PreExamDeviceCheckPage() {
     }
   };
 
-  // Helper: Setup Web Audio API with AnalyserNode
-  const setupWebAudio = (activeStream) => {
-    try {
-      const audioTracks = activeStream.getAudioTracks();
-      if (audioTracks.length === 0) return;
+  // Helper: Start/resume visualizer loop
+  const startVisualizerLoop = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
 
+    const updateAudioVisualizer = () => {
+      if (!analyserRef.current) return;
+      const bufferLength = analyserRef.current.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      analyserRef.current.getByteFrequencyData(dataArray);
+
+      // Calculate average amplitude
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i];
+      }
+      const avg = sum / bufferLength;
+
+      // Calculate Decibel (-60 dB to 0 dB)
+      let db = -60;
+      const normalized = avg / 128;
+      if (normalized > 0.01) {
+        db = Math.round(-60 + normalized * 50);
+        if (db > 0) db = 0;
+      }
+      setCurrentDb(db);
+
+      // Check voice activity during mic test
+      if (testRecordingRef.current && (avg > 15 || db > -48)) {
+        voiceActivityDetectedRef.current = true;
+      }
+
+      // Map to 14 Wave Visualizer bars
+      const barsCount = 14;
+      const step = Math.max(1, Math.floor(bufferLength / barsCount));
+      const newBars = [];
+      for (let i = 0; i < barsCount; i++) {
+        const val = dataArray[i * step] || 0;
+        // Scale from min 12% to max 100%
+        const percent = Math.max(12, Math.min(100, Math.round((val / 255) * 100)));
+        newBars.push(percent);
+      }
+      setWaveBars(newBars);
+
+      animationFrameRef.current = requestAnimationFrame(updateAudioVisualizer);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(updateAudioVisualizer);
+  };
+
+  // Helper: Attach an audio track to the Web Audio AnalyserNode (Hot-swapping friendly)
+  const attachAudioTrackToAnalyser = (audioTrack) => {
+    try {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) return;
 
@@ -145,67 +203,31 @@ export default function PreExamDeviceCheckPage() {
         } catch (e) { }
       }
 
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 64;
-      analyser.smoothingTimeConstant = 0.75;
-      analyserRef.current = analyser;
-
-      const sourceNode = audioCtx.createMediaStreamSource(activeStream);
-      sourceNodeRef.current = sourceNode;
-      // Do NOT connect to audioCtx.destination to prevent acoustic feedback loop!
-      sourceNode.connect(analyser);
-
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
+      // Reuse or create analyser
+      if (!analyserRef.current) {
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        analyser.smoothingTimeConstant = 0.75;
+        analyserRef.current = analyser;
       }
 
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
+      const singleTrackStream = new MediaStream([audioTrack]);
+      const sourceNode = audioCtx.createMediaStreamSource(singleTrackStream);
+      sourceNodeRef.current = sourceNode;
+      // Do NOT connect to audioCtx.destination to prevent acoustic feedback loop!
+      sourceNode.connect(analyserRef.current);
 
-      const updateAudioVisualizer = () => {
-        if (!analyserRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
-
-        // Calculate average amplitude
-        let sum = 0;
-        for (let i = 0; i < bufferLength; i++) {
-          sum += dataArray[i];
-        }
-        const avg = sum / bufferLength;
-
-        // Calculate Decibel (-60 dB to 0 dB)
-        let db = -60;
-        const normalized = avg / 128;
-        if (normalized > 0.01) {
-          db = Math.round(-60 + normalized * 50);
-          if (db > 0) db = 0;
-        }
-        setCurrentDb(db);
-
-        // Check voice activity during mic test
-        if (testRecordingRef.current && (avg > 15 || db > -48)) {
-          voiceActivityDetectedRef.current = true;
-        }
-
-        // Map to 14 Wave Visualizer bars
-        const barsCount = 14;
-        const step = Math.max(1, Math.floor(bufferLength / barsCount));
-        const newBars = [];
-        for (let i = 0; i < barsCount; i++) {
-          const val = dataArray[i * step] || 0;
-          // Scale from min 12% to max 100%
-          const percent = Math.max(12, Math.min(100, Math.round((val / 255) * 100)));
-          newBars.push(percent);
-        }
-        setWaveBars(newBars);
-
-        animationFrameRef.current = requestAnimationFrame(updateAudioVisualizer);
-      };
-
-      animationFrameRef.current = requestAnimationFrame(updateAudioVisualizer);
+      startVisualizerLoop();
     } catch (err) {
-      console.error('Lỗi khởi tạo Web Audio API:', err);
+      console.error('Lỗi khi gắn audio track vào AnalyserNode:', err);
     }
+  };
+
+  // Helper: Setup Web Audio API with AnalyserNode
+  const setupWebAudio = (activeStream) => {
+    const audioTracks = activeStream.getAudioTracks();
+    if (audioTracks.length === 0) return;
+    attachAudioTrackToAnalyser(audioTracks[0]);
   };
 
   // Main: Request media stream with selected devices
@@ -300,6 +322,29 @@ export default function PreExamDeviceCheckPage() {
     }
   }, [stream]);
 
+  // Resume AudioContext on first user interaction to comply with browser Autoplay Policy
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume().then(() => {
+          console.log('AudioContext resumed via user interaction');
+        }).catch((e) => {
+          console.warn('Failed to resume AudioContext:', e);
+        });
+      }
+    };
+
+    window.addEventListener('click', handleUserInteraction, { passive: true });
+    window.addEventListener('keydown', handleUserInteraction, { passive: true });
+    window.addEventListener('touchstart', handleUserInteraction, { passive: true });
+
+    return () => {
+      window.removeEventListener('click', handleUserInteraction);
+      window.removeEventListener('keydown', handleUserInteraction);
+      window.removeEventListener('touchstart', handleUserInteraction);
+    };
+  }, []);
+
   // Initial mount & unmount cleanup
   useEffect(() => {
     initMediaStream('', '');
@@ -333,18 +378,97 @@ export default function PreExamDeviceCheckPage() {
     };
   }, []);
 
-  // Handle switching camera
-  const handleCameraChange = (e) => {
+  // Handle switching camera (Optimized Track Hot-swapping)
+  const handleCameraChange = async (e) => {
     const newCamId = e.target.value;
     setSelectedCameraId(newCamId);
-    initMediaStream(newCamId, selectedMicId);
+
+    // If stream is not active or has no video tracks, fallback to full initialization
+    if (!streamRef.current || streamRef.current.getVideoTracks().length === 0) {
+      await initMediaStream(newCamId, selectedMicId);
+      return;
+    }
+
+    try {
+      // 1. Chỉ lấy video track mới thông qua deviceId
+      const newVideoStream = await navigator.mediaDevices.getUserMedia({
+        video: newCamId ? { deviceId: { exact: newCamId } } : true
+      });
+      const newVideoTrack = newVideoStream.getVideoTracks()[0];
+      if (!newVideoTrack) return;
+
+      // 2. Dừng và gỡ bỏ video track cũ trong streamRef.current (không ảnh hưởng tới audio track và AudioContext)
+      const oldVideoTracks = streamRef.current.getVideoTracks();
+      oldVideoTracks.forEach((track) => {
+        try {
+          streamRef.current.removeTrack(track);
+          track.stop();
+        } catch (err) { }
+      });
+
+      // 3. Thêm video track mới vào streamRef.current
+      streamRef.current.addTrack(newVideoTrack);
+
+      // Cập nhật thông số độ phân giải video
+      if (newVideoTrack.getSettings) {
+        const s = newVideoTrack.getSettings();
+        if (s.width && s.height) {
+          setVideoResolution(`${s.width}x${s.height} • ${Math.round(s.frameRate || 30)} FPS`);
+        }
+      }
+
+      // Đồng bộ video element và cập nhật React state
+      if (videoRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+      }
+      setStream(new MediaStream(streamRef.current.getTracks()));
+      setCameraError(null);
+    } catch (err) {
+      console.error('Lỗi khi chuyển đổi camera (hot-swap):', err);
+      setCameraError('Không thể chuyển sang camera đã chọn. Vui lòng thử lại!');
+    }
   };
 
-  // Handle switching mic
-  const handleMicChange = (e) => {
+  // Handle switching mic (Optimized Track Hot-swapping)
+  const handleMicChange = async (e) => {
     const newMicId = e.target.value;
     setSelectedMicId(newMicId);
-    initMediaStream(selectedCameraId, newMicId);
+
+    // If stream is not active or has no audio tracks, fallback to full initialization
+    if (!streamRef.current || streamRef.current.getAudioTracks().length === 0) {
+      await initMediaStream(selectedCameraId, newMicId);
+      return;
+    }
+
+    try {
+      // 1. Chỉ lấy audio track mới thông qua deviceId
+      const newAudioStream = await navigator.mediaDevices.getUserMedia({
+        audio: newMicId ? { deviceId: { exact: newMicId } } : true
+      });
+      const newAudioTrack = newAudioStream.getAudioTracks()[0];
+      if (!newAudioTrack) return;
+
+      // 2. Dừng và gỡ bỏ audio track cũ trong streamRef.current (không tắt/mở lại webcam)
+      const oldAudioTracks = streamRef.current.getAudioTracks();
+      oldAudioTracks.forEach((track) => {
+        try {
+          streamRef.current.removeTrack(track);
+          track.stop();
+        } catch (err) { }
+      });
+
+      // 3. Thêm audio track mới vào streamRef.current
+      streamRef.current.addTrack(newAudioTrack);
+
+      // 4. Ngắt sourceNode cũ và kết nối audio track mới vào AnalyserNode
+      attachAudioTrackToAnalyser(newAudioTrack);
+
+      setStream(new MediaStream(streamRef.current.getTracks()));
+      setMicError(null);
+    } catch (err) {
+      console.error('Lỗi khi chuyển đổi microphone (hot-swap):', err);
+      setMicError('Không thể chuyển sang micro đã chọn. Vui lòng thử lại!');
+    }
   };
 
   // Run voice test
@@ -671,7 +795,7 @@ export default function PreExamDeviceCheckPage() {
             </div>
 
             <div className="p-3 bg-white rounded-xl border border-sky-100 text-xs italic text-slate-700">
-              "Tôi là Nguyễn Văn An, sẵn sàng tham gia ca thi CS301."
+              "Tôi là Nguyễn Văn An, sẵn sàng tham gia ca thi {currentSession?.subject || 'CS301'}."
             </div>
 
             <div className="flex items-center justify-between text-xs pt-1">
@@ -793,7 +917,7 @@ export default function PreExamDeviceCheckPage() {
               alert('Vui lòng tích chọn đồng ý cam kết tuân thủ quy chế thi trước khi vào phòng!');
               return;
             }
-            navigate('/viva');
+            navigate('/viva' + (window.location.search || ''));
           }}
           className={`w-full sm:w-auto px-7 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer ${rulesAccepted
             ? 'bg-gradient-to-r from-sky-600 to-cyan-600 text-white hover:from-sky-700 hover:to-cyan-700 shadow-sky-500/25 hover:scale-[1.02]'
