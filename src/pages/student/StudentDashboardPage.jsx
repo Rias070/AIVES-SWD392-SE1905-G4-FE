@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   GraduationCap,
@@ -127,16 +127,37 @@ export default function StudentDashboardPage({ currentUser }) {
   // Language configuration (STT/TTS parameter: vi-VN / en-US)
   const [examLang, setExamLang] = useState(() => localStorage.getItem('aives_exam_lang') || 'vi-VN');
 
-  // Dynamic exams history & stats
+  // Dynamic exams history
   const [recentExams, setRecentExams] = useState(DEFAULT_RECENT_EXAMS);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [stats, setStats] = useState({
-    totalExams: 3,
-    avgScore: '8.7',
-    avgAccuracy: 90,
-    avgReasoning: 84,
-    avgFluency: 86
-  });
+
+  // Performance Optimization 1: Memoized dynamic statistics
+  const stats = useMemo(() => {
+    if (!recentExams || recentExams.length === 0) {
+      return {
+        totalExams: 0,
+        avgScore: '0.0',
+        avgAccuracy: 0,
+        avgReasoning: 0,
+        avgFluency: 0
+      };
+    }
+    const total = recentExams.length;
+    const sumScores = recentExams.reduce((acc, curr) => acc + (curr.numericScore || 8.5), 0);
+    const avg = (sumScores / total).toFixed(1);
+
+    const sumAcc = recentExams.reduce((acc, curr) => acc + (curr.details?.rubricPercentages?.accuracy || 88), 0);
+    const sumReas = recentExams.reduce((acc, curr) => acc + (curr.details?.rubricPercentages?.reasoning || 84), 0);
+    const sumFlu = recentExams.reduce((acc, curr) => acc + (curr.details?.rubricPercentages?.fluency || 86), 0);
+
+    return {
+      totalExams: total,
+      avgScore: avg,
+      avgAccuracy: Math.round(sumAcc / total),
+      avgReasoning: Math.round(sumReas / total),
+      avgFluency: Math.round(sumFlu / total)
+    };
+  }, [recentExams]);
 
   // Modals state
   const [activeModal, setActiveModal] = useState(null); // 'mic-check' | 'ai-feedback' | 'course-detail' | 'mock-register'
@@ -154,7 +175,64 @@ export default function StudentDashboardPage({ currentUser }) {
   const [isMicTesting, setIsMicTesting] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
 
-  // Load and calculate dynamic data from localStorage
+  // Unified Cross-page Navigation & Session Persistence Handler
+  const handleStartExamSession = ({
+    subject = 'CS301',
+    mode = 'official',
+    difficulty = 'Chuẩn đề',
+    lang = examLang,
+    examId
+  }) => {
+    const courseTitles = {
+      CS301: 'Cấu trúc Dữ liệu & Giải thuật',
+      AI204: 'Học máy & Thị giác máy tính',
+      SE102: 'Kiến trúc Phần mềm nâng cao',
+      NE302: 'An toàn Mạng & Mật mã học',
+      CS201: 'Thuật toán ứng dụng',
+      DB101: 'Cơ sở Dữ liệu quan hệ',
+      PR102: 'Lập trình hướng đối tượng'
+    };
+
+    const finalExamId =
+      examId ||
+      (mode === 'mock'
+        ? `MOCK-${subject}-${Date.now().toString().slice(-4)}`
+        : `EX-${subject}-99127`);
+
+    const sessionConfig = {
+      subject,
+      courseCode: subject,
+      courseName: courseTitles[subject] || `Môn học ${subject}`,
+      difficulty,
+      lang,
+      mode,
+      examId: finalExamId,
+      startedAt: new Date().toISOString()
+    };
+
+    try {
+      localStorage.setItem('aives_current_session', JSON.stringify(sessionConfig));
+      localStorage.setItem('aives_exam_lang', lang);
+    } catch (e) {
+      console.warn('LocalStorage session saving error:', e);
+    }
+
+    if (activeModal) {
+      setActiveModal(null);
+    }
+
+    const queryParams = new URLSearchParams({
+      subject,
+      mode,
+      difficulty,
+      lang,
+      examId: finalExamId
+    });
+
+    navigate(`/device-check?${queryParams.toString()}`);
+  };
+
+  // Load dynamic exam history from localStorage
   const loadDynamicData = () => {
     try {
       let history = [];
@@ -212,25 +290,6 @@ export default function StudentDashboardPage({ currentUser }) {
       }
 
       setRecentExams(history);
-
-      // Calculate dynamic stats
-      if (history.length > 0) {
-        const total = history.length;
-        const sumScores = history.reduce((acc, curr) => acc + (curr.numericScore || 8.5), 0);
-        const avg = (sumScores / total).toFixed(1);
-
-        const sumAcc = history.reduce((acc, curr) => acc + (curr.details?.rubricPercentages?.accuracy || 88), 0);
-        const sumReas = history.reduce((acc, curr) => acc + (curr.details?.rubricPercentages?.reasoning || 84), 0);
-        const sumFlu = history.reduce((acc, curr) => acc + (curr.details?.rubricPercentages?.fluency || 86), 0);
-
-        setStats({
-          totalExams: total,
-          avgScore: avg,
-          avgAccuracy: Math.round(sumAcc / total),
-          avgReasoning: Math.round(sumReas / total),
-          avgFluency: Math.round(sumFlu / total)
-        });
-      }
     } catch (err) {
       console.warn('Lỗi loadDynamicData:', err);
     }
@@ -269,134 +328,148 @@ export default function StudentDashboardPage({ currentUser }) {
     return () => clearInterval(timer);
   }, [isMicTesting]);
 
-  // Registered courses
-  const registeredCourses = [
-    {
-      id: 'CS301',
-      code: 'CS301',
-      title: 'Cấu trúc Dữ liệu & Giải thuật',
-      lecturer: 'PGS. TS. Hoàng Nam',
-      examTag: 'Ca thi: 14:30 Hôm nay',
-      tagColor: 'amber',
-      ragCount: 12,
-      ragStatus: '12 học liệu RAG chuẩn hóa',
-      progress: 85,
-      actionText: 'Ôn luyện với AI',
-      primaryAction: () => {
-        setMockForm({ subject: 'CS301', difficulty: 'Chuẩn đề', lang: examLang });
-        setActiveModal('mock-register');
+  // Performance Optimization 2: Memoized registered courses
+  const registeredCourses = useMemo(
+    () => [
+      {
+        id: 'CS301',
+        code: 'CS301',
+        title: 'Cấu trúc Dữ liệu & Giải thuật',
+        lecturer: 'PGS. TS. Hoàng Nam',
+        examTag: 'Ca thi: 14:30 Hôm nay',
+        tagColor: 'amber',
+        ragCount: 12,
+        ragStatus: '12 học liệu RAG chuẩn hóa',
+        progress: 85,
+        actionText: 'Ôn luyện với AI',
+        primaryAction: () => {
+          setMockForm({ subject: 'CS301', difficulty: 'Chuẩn đề', lang: examLang });
+          setActiveModal('mock-register');
+        },
       },
-    },
-    {
-      id: 'AI204',
-      code: 'AI204',
-      title: 'Học máy & Thị giác máy tính',
-      lecturer: 'TS. Lê Quang',
-      examTag: 'Ca thi: 28/11',
-      tagColor: 'blue',
-      ragCount: 18,
-      ragStatus: '18 học liệu RAG chuẩn hóa',
-      progress: 65,
-      actionText: 'Ôn luyện với AI',
-      primaryAction: () => {
-        setMockForm({ subject: 'AI204', difficulty: 'Chuẩn đề', lang: examLang });
-        setActiveModal('mock-register');
+      {
+        id: 'AI204',
+        code: 'AI204',
+        title: 'Học máy & Thị giác máy tính',
+        lecturer: 'TS. Lê Quang',
+        examTag: 'Ca thi: 28/11',
+        tagColor: 'blue',
+        ragCount: 18,
+        ragStatus: '18 học liệu RAG chuẩn hóa',
+        progress: 65,
+        actionText: 'Ôn luyện với AI',
+        primaryAction: () => {
+          setMockForm({ subject: 'AI204', difficulty: 'Chuẩn đề', lang: examLang });
+          setActiveModal('mock-register');
+        },
       },
-    },
-    {
-      id: 'SE102',
-      code: 'SE102',
-      title: 'Kiến trúc Phần mềm nâng cao',
-      lecturer: 'ThS. Trần Đình Trọng',
-      examTag: 'Sẵn sàng thi',
-      tagColor: 'emerald',
-      ragCount: 15,
-      ragStatus: '15 học liệu RAG chuẩn hóa',
-      progress: 92,
-      actionText: 'Chi tiết môn',
-      primaryAction: () => {
-        setSelectedCourse(registeredCourses[2]);
-        setActiveModal('course-detail');
+      {
+        id: 'SE102',
+        code: 'SE102',
+        title: 'Kiến trúc Phần mềm nâng cao',
+        lecturer: 'ThS. Trần Đình Trọng',
+        examTag: 'Sẵn sàng thi',
+        tagColor: 'emerald',
+        ragCount: 15,
+        ragStatus: '15 học liệu RAG chuẩn hóa',
+        progress: 92,
+        actionText: 'Chi tiết môn',
+        primaryAction: () => {
+          setSelectedCourse({
+            id: 'SE102',
+            code: 'SE102',
+            title: 'Kiến trúc Phần mềm nâng cao',
+            lecturer: 'ThS. Trần Đình Trọng',
+            examTag: 'Sẵn sàng thi',
+            ragCount: 15,
+            progress: 92
+          });
+          setActiveModal('course-detail');
+        },
       },
-    },
-    {
-      id: 'NE302',
-      code: 'NE302',
-      title: 'An toàn Mạng & Mật mã học',
-      lecturer: 'TS. Vũ Hải Nam',
-      examTag: 'Đang nạp RAG',
-      tagColor: 'slate',
-      ragCount: 8,
-      ragStatus: 'Đang cập nhật câu hỏi RAG',
-      progress: 40,
-      actionText: 'Chi tiết môn',
-      primaryAction: () => {
-        setSelectedCourse(registeredCourses[3]);
-        setActiveModal('course-detail');
+      {
+        id: 'NE302',
+        code: 'NE302',
+        title: 'An toàn Mạng & Mật mã học',
+        lecturer: 'TS. Vũ Hải Nam',
+        examTag: 'Đang nạp RAG',
+        tagColor: 'slate',
+        ragCount: 8,
+        ragStatus: 'Đang cập nhật câu hỏi RAG',
+        progress: 40,
+        actionText: 'Chi tiết môn',
+        primaryAction: () => {
+          setSelectedCourse({
+            id: 'NE302',
+            code: 'NE302',
+            title: 'An toàn Mạng & Mật mã học',
+            lecturer: 'TS. Vũ Hải Nam',
+            examTag: 'Đang nạp RAG',
+            ragCount: 8,
+            progress: 40
+          });
+          setActiveModal('course-detail');
+        },
       },
-    },
-  ];
+    ],
+    [examLang]
+  );
 
-  // Upcoming exams
-  const upcomingExams = [
-    {
-      id: 1,
-      code: 'CS301',
-      name: 'Cấu trúc Dữ liệu & Giải thuật',
-      session: 'Ca #04',
-      time: '14:30 - 15:00 Hôm nay',
-      duration: 'Thời lượng 30 phút',
-      room: 'AI - B2',
-      status: 'opening_soon',
-      statusText: 'Phòng mở sau 15p',
-      canEnter: true,
-      examId: 'EX-99127'
-    },
-    {
-      id: 2,
-      code: 'AI204',
-      name: 'Học máy & Thị giác máy tính',
-      session: 'Ca #09',
-      time: '09:00 - 09:30 Ngày 28/11/2026',
-      duration: 'Thời lượng 30 phút',
-      room: 'AI - B5',
-      status: 'confirmed',
-      statusText: 'Đã xác nhận phòng',
-      canEnter: false,
-      examId: 'EX-88219'
-    },
-    {
-      id: 3,
-      code: 'SE102',
-      name: 'Kiến trúc phần mềm nâng cao',
-      session: 'Mock Viva',
-      isMock: true,
-      time: 'Tự do luyện thi 24/7',
-      duration: 'Không giới hạn số lượt',
-      room: 'SANDBOX',
-      status: 'ready',
-      statusText: 'Sẵn sàng',
-      canEnter: true,
-      examId: 'MOCK-SE102'
-    },
-  ];
+  // Performance Optimization 3: Memoized upcoming exams
+  const upcomingExams = useMemo(
+    () => [
+      {
+        id: 1,
+        code: 'CS301',
+        name: 'Cấu trúc Dữ liệu & Giải thuật',
+        session: 'Ca #04',
+        time: '14:30 - 15:00 Hôm nay',
+        duration: 'Thời lượng 30 phút',
+        room: 'AI - B2',
+        status: 'opening_soon',
+        statusText: 'Phòng mở sau 15p',
+        canEnter: true,
+        examId: 'EX-99127'
+      },
+      {
+        id: 2,
+        code: 'AI204',
+        name: 'Học máy & Thị giác máy tính',
+        session: 'Ca #09',
+        time: '09:00 - 09:30 Ngày 28/11/2026',
+        duration: 'Thời lượng 30 phút',
+        room: 'AI - B5',
+        status: 'confirmed',
+        statusText: 'Đã xác nhận phòng',
+        canEnter: false,
+        examId: 'EX-88219'
+      },
+      {
+        id: 3,
+        code: 'SE102',
+        name: 'Kiến trúc phần mềm nâng cao',
+        session: 'Mock Viva',
+        isMock: true,
+        time: 'Tự do luyện thi 24/7',
+        duration: 'Không giới hạn số lượt',
+        room: 'SANDBOX',
+        status: 'ready',
+        statusText: 'Sẵn sàng',
+        canEnter: true,
+        examId: 'MOCK-SE102'
+      },
+    ],
+    []
+  );
 
   // Handle Start Mock Exam from Modal
   const handleStartMockExam = () => {
-    const sessionConfig = {
+    handleStartExamSession({
       subject: mockForm.subject,
+      mode: 'mock',
       difficulty: mockForm.difficulty,
-      lang: mockForm.lang,
-      startedAt: new Date().toISOString(),
-      mode: 'mock'
-    };
-    try {
-      localStorage.setItem('aives_current_session', JSON.stringify(sessionConfig));
-      localStorage.setItem('aives_exam_lang', mockForm.lang);
-    } catch (e) { }
-
-    setActiveModal(null);
-    navigate(`/device-check?subject=${mockForm.subject}&mode=mock&difficulty=${encodeURIComponent(mockForm.difficulty)}&lang=${mockForm.lang}`);
+      lang: mockForm.lang
+    });
   };
 
   return (
@@ -452,14 +525,20 @@ export default function StudentDashboardPage({ currentUser }) {
           </button>
 
           {/* Audio readiness badge */}
-          <Link
-            to="/device-check"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors shadow-2xs"
+          <button
+            onClick={() =>
+              handleStartExamSession({
+                subject: 'CS301',
+                mode: 'check',
+                difficulty: 'Chuẩn đề'
+              })
+            }
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors shadow-2xs cursor-pointer"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <Mic className="w-3.5 h-3.5" />
             <span>Phần cứng: Sẵn sàng</span>
-          </Link>
+          </button>
 
           {/* Quick Mock Practice CTA */}
           <button
@@ -501,7 +580,14 @@ export default function StudentDashboardPage({ currentUser }) {
           {/* Right Action Cards */}
           <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-3">
             <button
-              onClick={() => navigate('/device-check?subject=CS301&examId=EX-99127')}
+              onClick={() =>
+                handleStartExamSession({
+                  subject: 'CS301',
+                  mode: 'official',
+                  difficulty: 'Chuẩn đề',
+                  examId: 'EX-99127'
+                })
+              }
               className="flex-1 group relative p-4 rounded-xl border border-sky-300/80 bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-md shadow-sky-500/25 hover:shadow-lg hover:shadow-sky-500/35 transition-all hover:-translate-y-0.5 text-left cursor-pointer"
             >
               <div className="flex items-center justify-between">
@@ -518,8 +604,14 @@ export default function StudentDashboardPage({ currentUser }) {
               </div>
             </button>
 
-            <Link
-              to="/device-check?subject=CS301"
+            <button
+              onClick={() =>
+                handleStartExamSession({
+                  subject: 'CS301',
+                  mode: 'check',
+                  difficulty: 'Chuẩn đề'
+                })
+              }
               className="flex-1 group p-4 rounded-xl border border-slate-200/90 bg-white/80 backdrop-blur-md text-slate-800 hover:bg-slate-50 transition-all shadow-2xs hover:border-sky-300 flex items-center justify-between cursor-pointer"
             >
               <div className="flex items-center gap-3">
@@ -532,7 +624,7 @@ export default function StudentDashboardPage({ currentUser }) {
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
+            </button>
           </div>
         </div>
       </div>
@@ -741,13 +833,27 @@ export default function StudentDashboardPage({ currentUser }) {
                         {exam.status === 'opening_soon' ? (
                           <div className="flex items-center justify-end gap-2">
                             <button
-                              onClick={() => navigate(`/device-check?subject=${exam.code}&examId=${exam.examId}`)}
+                              onClick={() =>
+                                handleStartExamSession({
+                                  subject: exam.code,
+                                  mode: exam.isMock ? 'mock' : 'official',
+                                  difficulty: 'Chuẩn đề',
+                                  examId: exam.examId
+                                })
+                              }
                               className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors cursor-pointer"
                             >
                               Kiểm tra mic
                             </button>
                             <button
-                              onClick={() => navigate(`/device-check?subject=${exam.code}&examId=${exam.examId}`)}
+                              onClick={() =>
+                                handleStartExamSession({
+                                  subject: exam.code,
+                                  mode: 'official',
+                                  difficulty: 'Chuẩn đề',
+                                  examId: exam.examId
+                                })
+                              }
                               className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                             >
                               Vào thi
@@ -1160,8 +1266,11 @@ export default function StudentDashboardPage({ currentUser }) {
               </button>
               <button
                 onClick={() => {
-                  setActiveModal(null);
-                  navigate(`/device-check?subject=${selectedCourse.code}&mode=mock`);
+                  handleStartExamSession({
+                    subject: selectedCourse.code,
+                    mode: 'mock',
+                    difficulty: 'Chuẩn đề'
+                  });
                 }}
                 className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-xs cursor-pointer"
               >
