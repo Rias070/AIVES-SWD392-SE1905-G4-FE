@@ -1,4 +1,4 @@
-/* stylelint-disable at-rule-no-unknown, unknown-at-rules */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -138,4 +138,3 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
-/* stylelint-enable at-rule-no-unknown, unknown-at-rules */
