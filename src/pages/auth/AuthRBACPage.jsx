@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   GraduationCap,
   BookOpen,
@@ -15,43 +15,82 @@ import {
   Fingerprint,
   Video,
   CheckCircle2,
-  Building
+  Building,
+  AlertCircle
 } from 'lucide-react';
+
+import { authenticateUser, findUserByEmail, ensureDemoAccountActive } from '../../services/userService';
 
 export default function AuthRBACPage({ onLoginSuccess }) {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Form states
+  // Form states - Empty defaults so registered accounts can be entered directly
   const [selectedRole, setSelectedRole] = useState('STUDENT'); // 'STUDENT' | 'LECTURER' | 'ADMIN'
-  const [email, setEmail] = useState('khanhmq@fpt.edu.vn');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [loginError, setLoginError] = useState(null);
+
+  // Catch security errors passed from ProtectedRoute (e.g., account deleted/deactivated while in session)
+  useEffect(() => {
+    if (location.state?.accountStatusError) {
+      setLoginError(location.state.accountStatusError);
+    }
+  }, [location.state]);
+
+  const demoAccounts = {
+    STUDENT: { email: 'student@aives.edu.vn', pass: 'password123' },
+    LECTURER: { email: 'lecturer@aives.edu.vn', pass: 'password123' },
+    ADMIN: { email: 'admin@aives.edu.vn', pass: 'password123' },
+  };
 
   const handleRoleChange = (role) => {
     setSelectedRole(role);
-    if (role === 'STUDENT') {
-      setEmail('khanhmq@fpt.edu.vn');
-    } else if (role === 'LECTURER') {
-      setEmail('quanglt@fpt.edu.vn');
-    } else if (role === 'ADMIN') {
-      setEmail('annv.sys@fpt.edu.vn');
+    setLoginError(null);
+  };
+
+  const handleFillDemo = (role = selectedRole) => {
+    const demo = demoAccounts[role];
+    if (demo) {
+      ensureDemoAccountActive(demo.email);
+      setEmail(demo.email);
+      setPassword(demo.pass);
+      setSelectedRole(role);
+      setLoginError(null);
     }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const userRoleNames = {
-      STUDENT: 'Đặng Nhật Minh',
-      LECTURER: 'TS. Lê Quang',
-      ADMIN: 'Nguyễn Văn An (SysAdmin)',
-    };
+    setLoginError(null);
 
-    const userData = {
-      name: userRoleNames[selectedRole],
-      email: email,
-      role: selectedRole,
-    };
+    // Validate email format
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!email || !emailRegex.test(email.trim())) {
+      setLoginError('Địa chỉ email không đúng định dạng (ví dụ: student@aives.edu.vn hoặc user@domain.com)!');
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setLoginError('Vui lòng nhập mật khẩu tối thiểu 6 ký tự!');
+      return;
+    }
+
+    // Authenticate with user registry (blocks deleted and deactivated accounts!)
+    const cleanEmail = email.trim();
+    const existing = findUserByEmail(cleanEmail);
+    const targetRole = existing ? existing.role : selectedRole;
+
+    const authResult = authenticateUser(cleanEmail, password, targetRole);
+
+    if (!authResult || !authResult.success) {
+      setLoginError(authResult?.message || 'Đăng nhập không thành công: Sai mật khẩu hoặc email, hoặc tài khoản đã bị xóa khỏi hệ thống!');
+      return;
+    }
+
+    const userData = authResult.user || authResult;
 
     if (onLoginSuccess) {
       onLoginSuccess(userData);
@@ -59,9 +98,10 @@ export default function AuthRBACPage({ onLoginSuccess }) {
       localStorage.setItem('aives_user', JSON.stringify(userData));
     }
 
-    if (selectedRole === 'STUDENT') {
+    const effectiveRole = (userData.role || selectedRole).toUpperCase().replace(/^ROLE_/, '');
+    if (effectiveRole === 'STUDENT') {
       navigate('/student');
-    } else if (selectedRole === 'LECTURER') {
+    } else if (effectiveRole === 'LECTURER') {
       navigate('/questions');
     } else {
       navigate('/admin/users');
@@ -203,17 +243,46 @@ export default function AuthRBACPage({ onLoginSuccess }) {
               </button>
             </div>
 
+            {/* Quick Demo Fill Helper */}
+            <div className="flex items-center justify-between px-1 text-[11px] text-slate-500">
+              <span>Đăng nhập với email đã đăng ký hoặc:</span>
+              <button
+                type="button"
+                onClick={() => handleFillDemo(selectedRole)}
+                className="text-sky-600 hover:text-sky-800 font-bold underline"
+              >
+                ⚡ Điền tài khoản {selectedRole === 'STUDENT' ? 'Sinh viên' : selectedRole === 'LECTURER' ? 'Giảng viên' : 'Admin'} mẫu
+              </button>
+            </div>
+
+            {/* Error Message */}
+            {loginError && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 flex items-center justify-between gap-2.5 animate-in fade-in shadow-xs">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{loginError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLoginError(null)}
+                  className="text-rose-400 hover:text-rose-700 text-xs font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700 block">
-                  Email học đường / FPT Edu
+                  Email đăng nhập
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="khanhmq@fpt.edu.vn"
+                  placeholder="Nhập email của bạn (ví dụ: student@aives.edu.vn hoặc email đã đăng ký)"
                   required
                   className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-sky-500 transition-colors"
                 />

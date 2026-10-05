@@ -81,7 +81,7 @@ export const adminUserApi = {
   updateUser: (userId, userData) => api.put(`/v1/admin/users/${userId}`, userData),
 
   // Cập nhật nhanh trạng thái tài khoản (ACTIVE / INACTIVE / PENDING_SSO)
-  updateUserStatus: (userId, status) => api.patch(`/v1/admin/users/${userId}/status`, { status }),
+  updateUserStatus: (userId, status) => api.put(`/v1/admin/users/${userId}/status`, { status }),
 
   // Xóa tài khoản người dùng
   deleteUser: (userId) => api.delete(`/v1/admin/users/${userId}`),
@@ -147,6 +147,94 @@ export const adminConfigApi = {
 
   // Khôi phục cấu hình thông số AI Viva về mặc định của hệ thống
   resetAIVivaConfigToDefault: () => api.post('/v1/admin/config/ai-viva/reset'),
+};
+
+// ==========================================
+// 6. API SERVICE HỌC LIỆU & RAG (LECTURER ROLE)
+// ==========================================
+export const lecturerDocumentApi = {
+  // Lấy danh sách tài liệu đề cương / học liệu RAG theo mã môn
+  getDocuments: (params) => api.get('/v1/lecturer/documents', { params }),
+
+  // Tải lên / đăng ký tài liệu học liệu mới
+  uploadDocument: (docData) => api.post('/v1/lecturer/documents/upload', docData),
+
+  // Kích hoạt tiến trình chia đoạn (chunking) và vector hóa học liệu
+  vectorizeDocument: (docId) => api.post(`/v1/lecturer/documents/${docId}/vectorize`),
+
+  // Xóa tài liệu học liệu khỏi cơ sở tri thức RAG
+  deleteDocument: (docId) => api.delete(`/v1/lecturer/documents/${docId}`),
+};
+
+// ==========================================
+// 7. API SERVICE NGÂN HÀNG CÂU HỎI & BLOOM (LECTURER ROLE)
+// ==========================================
+export const lecturerQuestionApi = {
+  // Lấy danh sách câu hỏi theo bộ lọc (môn học, độ khó, từ khóa)
+  getQuestions: (params) => api.get('/v1/lecturer/questions', { params }),
+
+  // Lấy chi tiết 1 câu hỏi kèm rubric
+  getQuestionById: (questionId) => api.get(`/v1/lecturer/questions/${questionId}`),
+
+  // Tạo câu hỏi mới trong ngân hàng
+  createQuestion: (questionData) => api.post('/v1/lecturer/questions', questionData),
+
+  // Cập nhật câu hỏi
+  updateQuestion: (questionId, questionData) => api.put(`/v1/lecturer/questions/${questionId}`, questionData),
+
+  // Xóa câu hỏi
+  deleteQuestion: (questionId) => api.delete(`/v1/lecturer/questions/${questionId}`),
+
+  // Duyệt hoặc chuyển trạng thái câu hỏi
+  toggleApprove: (questionId) => api.patch(`/v1/lecturer/questions/${questionId}/approve`),
+};
+
+// ==========================================
+// 8. API SERVICE TIÊU CHÍ CHẤM RUBRIC (LECTURER ROLE)
+// ==========================================
+export const lecturerRubricApi = {
+  // Lấy danh sách tiêu chí rubric của một môn học
+  getRubricsBySubject: (subjectId) => api.get(`/v1/lecturer/rubrics/by-subject/${subjectId}`),
+
+  // Tạo tiêu chí chấm điểm rubric mới
+  createRubric: (rubricData) => api.post('/v1/lecturer/rubrics', rubricData),
+
+  // Cập nhật tiêu chí chấm điểm rubric
+  updateRubric: (rubricId, rubricData) => api.put(`/v1/lecturer/rubrics/${rubricId}`, rubricData),
+
+  // Xóa tiêu chí rubric
+  deleteRubric: (rubricId) => api.delete(`/v1/lecturer/rubrics/${rubricId}`),
+};
+
+// ==========================================
+// 9. API SERVICE CA THI & VIVA (STUDENT ROLE)
+// ==========================================
+export const studentExamApi = {
+  // Lấy danh sách ca thi của sinh viên
+  getSessions: (params) => api.get('/v1/student/exam-sessions', { params }),
+
+  // Lấy chi tiết ca thi
+  getSessionById: (sessionId) => api.get(`/v1/student/exam-sessions/${sessionId}`),
+
+  // Lấy danh sách các lượt vấn đáp trong ca thi
+  getSessionTurns: (sessionId) => api.get(`/v1/student/exam-sessions/${sessionId}/turns`),
+
+  // Bắt đầu / Check-in ca thi
+  startExam: (params, data) => api.post('/v1/student/exam-sessions/start', data, { params }),
+
+  // Nộp câu trả lời cho lượt vấn đáp và nhận nhận xét AI
+  submitTurn: (sessionId, turnData) => api.post(`/v1/student/exam-sessions/${sessionId}/turns`, turnData),
+
+  // Kết thúc ca thi và nhận tổng điểm rubric
+  finishExam: (sessionId) => api.post(`/v1/student/exam-sessions/${sessionId}/finish`),
+};
+
+// ==========================================
+// 10. API SERVICE DANH MỤC MÔN HỌC CHUNG (PUBLIC / SHARED)
+// ==========================================
+export const subjectApi = {
+  getSubjects: () => api.get('/v1/subjects'),
+  getSubjectById: (id) => api.get(`/v1/subjects/${id}`),
 };
 
 export default api;

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { registerUser, isEmailRegistered } from '../../services/userService';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   GraduationCap,
@@ -21,7 +22,9 @@ import {
   CheckSquare,
   Square,
   Fingerprint,
-  RefreshCw
+  RefreshCw,
+  Calendar,
+  AlertCircle
 } from 'lucide-react';
 
 export default function RegisterPage({ onLoginSuccess }) {
@@ -34,6 +37,7 @@ export default function RegisterPage({ onLoginSuccess }) {
   const [fullName, setFullName] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [email, setEmail] = useState('');
+  const [dob, setDob] = useState('2004-05-15');
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('CNTT');
   const [password, setPassword] = useState('');
@@ -42,6 +46,7 @@ export default function RegisterPage({ onLoginSuccess }) {
   const [hasFaceCaptured, setHasFaceCaptured] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [formError, setFormError] = useState(null);
 
   // Calculate password strength
   const getPasswordStrength = () => {
@@ -62,34 +67,89 @@ export default function RegisterPage({ onLoginSuccess }) {
     }, 1500);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError(null);
+
+    // 1. Email format validation
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!email || !emailRegex.test(email.trim())) {
+      setFormError('Địa chỉ email không đúng định dạng (ví dụ: student@fpt.edu.vn hoặc user@domain.com)!');
+      return;
+    }
+
+    // 2. Date of birth validation (Real-world higher education standard)
+    if (!dob) {
+      setFormError('Vui lòng chọn ngày tháng năm sinh!');
+      return;
+    }
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) {
+      setFormError('Ngày sinh không hợp lệ!');
+      return;
+    }
+    const today = new Date();
+    if (birthDate > today) {
+      setFormError('Ngày sinh không thể ở tương lai!');
+      return;
+    }
+
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      calculatedAge--;
+    }
+
+    if (role === 'STUDENT' && calculatedAge < 16) {
+      setFormError('Sinh viên phải từ đủ 16 tuổi trở lên để tham gia khảo thí (Quy chế tuyển sinh đại học)!');
+      return;
+    }
+    if (role === 'LECTURER' && calculatedAge < 21) {
+      setFormError('Giảng viên / Cán bộ khảo thí phải từ đủ 21 tuổi trở lên!');
+      return;
+    }
+    if (calculatedAge > 80) {
+      setFormError('Độ tuổi vượt quá giới hạn hợp lệ (16 - 80 tuổi)!');
+      return;
+    }
+
+    // 3. Password match and length
+    if (!password || password.length < 6) {
+      setFormError('Mật khẩu bảo mật phải có độ dài tối thiểu 6 ký tự!');
+      return;
+    }
 
     if (password !== confirmPassword) {
-      alert('Mật khẩu và xác nhận mật khẩu không khớp!');
+      setFormError('Mật khẩu và xác nhận mật khẩu không khớp nhau!');
       return;
     }
 
     if (!agreedToTerms) {
-      alert('Vui lòng đồng ý với cam kết liêm chính học thuật!');
+      setFormError('Vui lòng tích chọn đồng ý với cam kết liêm chính học thuật!');
       return;
     }
 
-    const newUser = {
-      name: fullName || (role === 'STUDENT' ? 'Sinh Viên Mới' : 'Giảng Viên Mới'),
-      email: email,
-      role: role,
-      idNumber: idNumber,
-      department: department,
-    };
-
-    if (onLoginSuccess) {
-      onLoginSuccess(newUser);
-    } else {
-      localStorage.setItem('aives_user', JSON.stringify(newUser));
+    if (isEmailRegistered(email.trim())) {
+      setFormError('Email này đã được sử dụng cho một tài khoản khác trong hệ thống! Vui lòng chọn email khác hoặc đăng nhập.');
+      return;
     }
 
-    alert('Đăng ký tài khoản thành công! Chào mừng bạn gia nhập hệ thống AIVES.');
+    const registeredUser = await registerUser({
+      name: fullName.trim(),
+      email: email.trim(),
+      password: password,
+      dob: dob,
+      role: role,
+      idNumber: idNumber.trim(),
+      department: department,
+    });
+
+    if (onLoginSuccess) {
+      onLoginSuccess(registeredUser);
+    } else {
+      localStorage.setItem('aives_user', JSON.stringify(registeredUser));
+    }
+
     if (role === 'STUDENT') {
       navigate('/student');
     } else {
@@ -255,6 +315,23 @@ export default function RegisterPage({ onLoginSuccess }) {
               </div>
             </div>
 
+            {/* Form Error Banner */}
+            {formError && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 flex items-center justify-between gap-2.5 animate-in fade-in shadow-xs">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{formError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormError(null)}
+                  className="text-rose-400 hover:text-rose-700 text-xs font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* Form Fields */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -330,22 +407,41 @@ export default function RegisterPage({ onLoginSuccess }) {
                 </div>
               </div>
 
-              {/* Department selection */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 block">
-                  Khoa / Ngành đào tạo *
-                </label>
-                <select
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-sky-500"
-                >
-                  <option value="CNTT">Khoa Công nghệ Thông tin (CNTT)</option>
-                  <option value="SE">Kỹ thuật Phần mềm (Software Engineering)</option>
-                  <option value="AI">Trí tuệ Nhân tạo & Khoa học Dữ liệu (AI & DS)</option>
-                  <option value="IS">Hệ thống Thông tin & An toàn Mạng (IS & CyberSec)</option>
-                  <option value="GD">Thiết kế Đồ họa & Truyền thông số</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* Date of Birth */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Ngày tháng năm sinh *
+                  </label>
+                  <div className="relative">
+                    <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="date"
+                      value={dob}
+                      onChange={(e) => setDob(e.target.value)}
+                      required
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-sky-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Department selection */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Khoa / Ngành đào tạo *
+                  </label>
+                  <select
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-sky-500"
+                  >
+                    <option value="CNTT">Khoa Công nghệ Thông tin (CNTT)</option>
+                    <option value="SE">Kỹ thuật Phần mềm (Software Engineering)</option>
+                    <option value="AI">Trí tuệ Nhân tạo & Khoa học Dữ liệu (AI & DS)</option>
+                    <option value="IS">Hệ thống Thông tin & An toàn Mạng (IS & CyberSec)</option>
+                    <option value="GD">Thiết kế Đồ họa & Truyền thông số</option>
+                  </select>
+                </div>
               </div>
 
               {/* Password & Confirm Password */}
