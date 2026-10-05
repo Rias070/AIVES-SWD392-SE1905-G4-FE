@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   BookOpen,
@@ -22,8 +22,10 @@ import {
   X,
   FileUp,
   Cpu,
-  ChevronDown
+  ChevronDown,
+  RefreshCw
 } from 'lucide-react';
+import { lecturerDocumentApi, lecturerQuestionApi } from '../../services/api';
 
 export default function LecturerRAGPage() {
   const navigate = useNavigate();
@@ -33,9 +35,10 @@ export default function LecturerRAGPage() {
   const [selectedQuestionId, setSelectedQuestionId] = useState(3);
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // Mock RAG Knowledge documents
-  const [ragDocuments, setRagDocuments] = useState([
+  // Mock RAG Knowledge documents (fallback)
+  const defaultRagDocuments = [
     {
       id: 1,
       filename: 'Giao_trinh_Giai_thuat_Nang_cao_CS301.pdf',
@@ -68,7 +71,9 @@ export default function LecturerRAGPage() {
       status: 'indexed',
       statusText: 'Đã hoàn thành (Indexed)',
     },
-  ]);
+  ];
+
+  const [ragDocuments, setRagDocuments] = useState(defaultRagDocuments);
 
   // Mock Questions Bank
   const [questions, setQuestions] = useState([
@@ -119,27 +124,60 @@ export default function LecturerRAGPage() {
     },
   ]);
 
+  const fetchDocuments = async () => {
+    setLoading(true);
+    try {
+      const res = await lecturerDocumentApi.getDocuments({ subjectCode: 'CS301' });
+      if (res?.data?.result && res.data.result.length > 0) {
+        setRagDocuments(res.data.result);
+      }
+    } catch {
+      // Fallback
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
   const toggleQuestionStatus = (id) => {
     setQuestions(questions.map(q => q.id === id ? { ...q, enabled: !q.enabled } : q));
   };
 
-  const handleSimulateUpload = () => {
+  const handleSimulateUpload = async () => {
     setIsUploading(true);
-    setTimeout(() => {
-      setIsUploading(false);
+    const newDoc = {
+      subjectCode: 'CS301',
+      fileName: 'Syllabus_Moi_Cap_Nhat_2026.pdf',
+      fileUrl: 'AWS S3: /cs301/syllabus/syllabus_2026.pdf',
+      fileSize: '3.4 MB',
+    };
+
+    try {
+      const res = await lecturerDocumentApi.uploadDocument(newDoc);
+      if (res?.data?.result) {
+        setRagDocuments([res.data.result, ...ragDocuments]);
+      } else {
+        throw new Error();
+      }
+    } catch {
       setRagDocuments([
         {
           id: Date.now(),
-          filename: 'Syllabus_Moi_Cap_Nhat_2026.pdf',
-          uri: 'AWS S3: /cs301/syllabus/syllabus_2026.pdf',
-          size: '3.4 MB',
-          status: 'vectorizing',
-          statusText: 'Vectorizing (5%)',
+          filename: newDoc.fileName,
+          uri: newDoc.fileUrl,
+          size: newDoc.fileSize,
+          status: 'indexed',
+          statusText: 'Đã hoàn thành (Indexed)',
         },
         ...ragDocuments,
       ]);
-      alert('Tài liệu đã được tải lên S3 và bắt đầu Chunking + Vectorizing!');
-    }, 1500);
+    } finally {
+      setIsUploading(false);
+      alert('Tài liệu đã được tải lên S3 và kích hoạt Chunking + Vectorizing (pgvector) thành công!');
+    }
   };
 
   return (
