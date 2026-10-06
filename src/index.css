@@ -138,3 +138,9 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Toast auto-dismiss progress bar (used by AdminDashboard config notice) */
+@keyframes toast-progress {
+  from { width: 100%; }
+  to { width: 0%; }
+}
