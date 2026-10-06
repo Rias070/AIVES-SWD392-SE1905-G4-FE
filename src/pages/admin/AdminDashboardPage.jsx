@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { adminConfigApi } from '../../services/api';
-import { 
-  ShieldCheck, 
-  Users, 
-  UserCheck, 
-  Settings, 
-  Languages, 
-  BookOpen, 
-  CheckCircle2, 
-  Search, 
-  Plus, 
+import {
+  ShieldCheck,
+  Users,
+  UserCheck,
+  Settings,
+  Languages,
+  BookOpen,
+  CheckCircle2,
+  Search,
+  Plus,
   SlidersHorizontal,
-  UserPlus
+  UserPlus,
+  X,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -78,9 +81,8 @@ export default function AdminDashboardPage() {
       setIsSavingConfig(false);
       setTimeout(() => setSaveConfigNotice(null), 5000);
     }
-  };
-
-  // Sample data: 3 default accounts & roles
+  };  // Sample data: 3 default accounts & roles
+  // [MOCK] Hard-coded seed for offline demo. Replace by adminUserApi.getUsers() once backend is ready.
   const usersList = [
     {
       id: 'usr-1',
@@ -112,6 +114,7 @@ export default function AdminDashboardPage() {
   ];
 
   // Sample subject assignments for lecturers
+  // [MOCK] Hard-coded seed. Replace by adminSubjectApi.getSubjectAssignments() once backend is ready.
   const subjectAssignments = [
     {
       subjectCode: 'SWD392',
@@ -330,20 +333,30 @@ export default function AdminDashboardPage() {
             </p>
           </div>
 
-          {/* Toast Notice */}
+          {/* Toast Notice with auto-dismiss progress bar */}
           {saveConfigNotice && (
-            <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-semibold flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+            <div
+              role="status"
+              aria-live="polite"
+              className="relative overflow-hidden p-3.5 pr-10 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-semibold flex items-center gap-2"
+            >
+              <div className="flex items-center gap-2 flex-1">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>{saveConfigNotice.text}</span>
               </div>
               <button
                 type="button"
                 onClick={() => setSaveConfigNotice(null)}
-                className="text-slate-400 hover:text-slate-600"
+                aria-label="Đóng thông báo"
+                className="absolute top-2 right-2 text-slate-400 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
+              {/* Auto-dismiss progress bar (5s) */}
+              <div
+                className="absolute bottom-0 left-0 h-0.5 bg-emerald-500/70 toast-progress"
+                style={{ animation: 'toast-progress 5s linear forwards' }}
+              />
             </div>
           )}
 

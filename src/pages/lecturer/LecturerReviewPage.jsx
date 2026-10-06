@@ -22,6 +22,31 @@ export default function LecturerReviewPage() {
   ]);
 
   const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState('');
+
+  const startEdit = (q) => {
+    setEditingId(q.id);
+    setEditDraft(q.content);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft('');
+  };
+
+  const saveEdit = () => {
+    if (editingId == null) return;
+    const trimmed = editDraft.trim();
+    if (!trimmed) {
+      alert('Nội dung câu hỏi không được để trống.');
+      return;
+    }
+    setQuestions((prev) =>
+      prev.map((q) => (q.id === editingId ? { ...q, content: trimmed } : q))
+    );
+    setEditingId(null);
+    setEditDraft('');
+  };
 
   const approveAll = () => {
     setQuestions(questions.map(q => ({ ...q, status: 'approved' })));
@@ -33,6 +58,7 @@ export default function LecturerReviewPage() {
 
   const removeQuestion = (id) => {
     setQuestions(questions.filter(q => q.id !== id));
+    if (editingId === id) cancelEdit();
   };
 
   return (
@@ -101,9 +127,10 @@ export default function LecturerReviewPage() {
                   </div>
                   
                   {editingId === q.id ? (
-                    <textarea 
+                    <textarea
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
                       className="w-full h-28 p-3 text-sm bg-slate-50 border border-sky-400 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-100"
-                      defaultValue={q.content}
                     />
                   ) : (
                     <p className="text-slate-800 text-sm font-medium leading-relaxed">
@@ -114,17 +141,26 @@ export default function LecturerReviewPage() {
 
                 <div className="flex md:flex-col gap-2 shrink-0">
                   {editingId === q.id ? (
-                    <button 
-                      onClick={() => setEditingId(null)} 
-                      className="p-2.5 btn-glacier-primary text-xs rounded-xl" 
-                      title="Lưu"
-                    >
-                      <Save className="w-4 h-4" />
-                    </button>
+                    <>
+                      <button
+                        onClick={saveEdit}
+                        className="p-2.5 btn-glacier-primary text-xs rounded-xl"
+                        title="Lưu thay đổi"
+                      >
+                        <Save className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors"
+                        title="Hủy chỉnh sửa"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </>
                   ) : (
-                    <button 
-                      onClick={() => setEditingId(q.id)} 
-                      className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors" 
+                    <button
+                      onClick={() => startEdit(q)}
+                      className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors"
                       title="Chỉnh sửa nội dung"
                     >
                       <Edit3 className="w-4 h-4" />

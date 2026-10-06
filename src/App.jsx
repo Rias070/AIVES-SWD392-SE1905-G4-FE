@@ -1220,7 +1220,7 @@ function AppContent() {
             <Route path="/questions" element={<LecturerRAGPage />} />
             <Route path="/generate" element={<LecturerAIGenerationPage />} />
             <Route path="/review" element={<LecturerReviewPage />} />
-            <Route path="/admin" element={<UserManagementPage />} />
+            <Route path="/admin" element={<AdminDashboardPage />} />
             <Route path="/admin/users" element={<UserManagementPage />} />
             <Route path="/admin/transactions" element={<Navigate to="/admin/users" replace />} />
           </Routes>

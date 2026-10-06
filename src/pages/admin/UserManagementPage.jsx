@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { adminUserApi, adminSubjectApi } from '../../services/api';
 import {
@@ -115,22 +115,33 @@ export default function UserManagementPage() {
   };
 
   // Toggle permission checkbox for a course (Connected to adminSubjectApi)
+  // Note: Backend expects assignmentId. We keep courseCode as fallback id for UI
+  // that does not yet have a persisted assignmentId (offline / unsynced state).
   const handleTogglePermission = async (courseCode, permissionType) => {
     const updatedCourses = selectedLecturer.courses.map((c) =>
       c.code === courseCode ? { ...c, [permissionType]: !c[permissionType] } : c
     );
     const targetCourse = updatedCourses.find((c) => c.code === courseCode);
-    
+    const assignmentId = targetCourse?.assignmentId || courseCode;
+    const previousCourses = selectedLecturer.courses;
+
     // Optimistic UI update
     setSelectedLecturer((prev) => ({ ...prev, courses: updatedCourses }));
 
     try {
-      await adminSubjectApi.updateAssignmentPermissions(courseCode, {
+      await adminSubjectApi.updateAssignmentPermissions(assignmentId, {
         canApproveRAG: targetCourse.canApproveRAG,
         canEditRubric: targetCourse.canEditRubric,
       });
     } catch (err) {
-      console.warn('API update assignment permissions warning:', err);
+      // Rollback on failure so UI does not drift from server
+      console.warn('API update assignment permissions warning, rolling back:', err);
+      setSelectedLecturer((prev) => ({ ...prev, courses: previousCourses }));
+      setAssignmentNotice({
+        type: 'error',
+        text: `Không thể cập nhật quyền môn ${courseCode}. Đã khôi phục trạng thái cũ.`,
+      });
+      setTimeout(() => setAssignmentNotice(null), 4000);
     }
   };
 
@@ -142,18 +153,29 @@ export default function UserManagementPage() {
       confirmText: 'Xác nhận hủy môn',
       confirmType: 'warning',
       onConfirm: async () => {
+        const previousCourses = selectedLecturer.courses;
+        const targetCourse = previousCourses.find((c) => c.code === courseCode);
+        const assignmentId = targetCourse?.assignmentId || courseCode;
+
+        // Optimistic UI update
         setSelectedLecturer((prev) => ({
           ...prev,
           courses: prev.courses.filter((c) => c.code !== courseCode),
         }));
 
         try {
-          await adminSubjectApi.removeAssignment(courseCode);
+          await adminSubjectApi.removeAssignment(assignmentId);
+          setAssignmentNotice({ type: 'success', text: `Đã hủy phân công môn ${courseCode} khỏi giảng viên!` });
         } catch (err) {
-          console.warn('API remove assignment warning:', err);
+          // Rollback on failure
+          console.warn('API remove assignment warning, rolling back:', err);
+          setSelectedLecturer((prev) => ({ ...prev, courses: previousCourses }));
+          setAssignmentNotice({
+            type: 'error',
+            text: `Không thể hủy phân công môn ${courseCode}. Đã khôi phục trạng thái cũ.`,
+          });
         }
-        setAssignmentNotice({ type: 'success', text: `Đã hủy phân công môn ${courseCode} khỏi giảng viên!` });
-        setTimeout(() => setAssignmentNotice(null), 3000);
+        setTimeout(() => setAssignmentNotice(null), 4000);
       },
     });
   };
@@ -171,34 +193,51 @@ export default function UserManagementPage() {
       return;
     }
 
+    const previousCourses = selectedLecturer.courses;
+    const optimisticCourse = {
+      code: foundCourse.code,
+      title: foundCourse.title,
+      classes: foundCourse.classes,
+      canApproveRAG: true,
+      canEditRubric: true,
+    };
+
+    // Optimistic UI update (show the course first, sync later)
+    setSelectedLecturer((prev) => ({
+      ...prev,
+      courses: [...prev.courses, optimisticCourse],
+    }));
+    setIsAddingCourse(false);
+    setSelectedCourseToAdd('');
+
     try {
-      await adminSubjectApi.assignSubject({
+      const res = await adminSubjectApi.assignSubject({
         lecturerId: selectedLecturer.id,
         subjectCode: foundCourse.code,
         canApproveRAG: true,
         canEditRubric: true,
       });
+      // Capture assignmentId from response so future updates can target the persisted row
+      const newAssignmentId = res?.data?.data?.id;
+      if (newAssignmentId) {
+        setSelectedLecturer((prev) => ({
+          ...prev,
+          courses: prev.courses.map((c) =>
+            c.code === foundCourse.code ? { ...c, assignmentId: newAssignmentId } : c
+          ),
+        }));
+      }
+      setAssignmentNotice({ type: 'success', text: `Đã bổ sung môn ${foundCourse.code} vào danh sách phân công!` });
     } catch (err) {
-      console.warn('API assignSubject warning:', err);
+      // Rollback optimistic update
+      console.warn('API assignSubject warning, rolling back:', err);
+      setSelectedLecturer((prev) => ({ ...prev, courses: previousCourses }));
+      setAssignmentNotice({
+        type: 'error',
+        text: `Không thể gán môn ${foundCourse.code}. Đã khôi phục trạng thái cũ.`,
+      });
     }
-
-    setSelectedLecturer((prev) => ({
-      ...prev,
-      courses: [
-        ...prev.courses,
-        {
-          code: foundCourse.code,
-          title: foundCourse.title,
-          classes: foundCourse.classes,
-          canApproveRAG: true,
-          canEditRubric: true,
-        },
-      ],
-    }));
-    setIsAddingCourse(false);
-    setSelectedCourseToAdd('');
-    setAssignmentNotice({ type: 'success', text: `Đã bổ sung môn ${foundCourse.code} vào danh sách phân công!` });
-    setTimeout(() => setAssignmentNotice(null), 3000);
+    setTimeout(() => setAssignmentNotice(null), 4000);
   };
 
   // Save overall course assignment (Connected to adminSubjectApi)
@@ -347,6 +386,11 @@ export default function UserManagementPage() {
     email: '',
   });
 
+  // Refs to focus the first invalid field on submit
+  const userIdInputRef = useRef(null);
+  const userNameInputRef = useRef(null);
+  const userEmailInputRef = useRef(null);
+
   // Real-time single field validation
   const validateUserField = (field, value) => {
     let error = '';
@@ -486,6 +530,10 @@ export default function UserManagementPage() {
   const handleSaveUserForm = async (e) => {
     e.preventDefault();
     if (!validateUserForm()) {
+      // Auto-focus the first invalid field for better keyboard accessibility
+      if (userFormErrors.id) userIdInputRef.current?.focus();
+      else if (userFormErrors.name) userNameInputRef.current?.focus();
+      else if (userFormErrors.email) userEmailInputRef.current?.focus();
       showToast('Vui lòng kiểm tra và sửa các thông tin bị lỗi màu đỏ!', 'warning');
       return;
     }
@@ -1254,8 +1302,10 @@ export default function UserManagementPage() {
             <form onSubmit={handleSaveUserForm} className="p-6 space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="block font-semibold text-slate-700">Mã định danh (MSSV/MSGV)</label>
+                  <label htmlFor="user-id-input" className="block font-semibold text-slate-700">Mã định danh (MSSV/MSGV)</label>
                   <input
+                    id="user-id-input"
+                    ref={userIdInputRef}
                     type="text"
                     value={userFormData.id}
                     onChange={(e) => {
@@ -1265,6 +1315,8 @@ export default function UserManagementPage() {
                     required
                     readOnly={userModalMode === 'EDIT'}
                     placeholder="VD: SE190501"
+                    aria-invalid={!!userFormErrors.id}
+                    aria-describedby={userFormErrors.id ? 'user-id-error' : undefined}
                     className={`w-full px-3 py-2 rounded-xl bg-slate-50 border font-mono text-slate-900 focus:outline-none transition-colors ${
                       userFormErrors.id
                         ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500'
@@ -1272,7 +1324,7 @@ export default function UserManagementPage() {
                     }`}
                   />
                   {userFormErrors.id && (
-                    <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
+                    <p id="user-id-error" className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
                       <AlertCircle className="w-3 h-3 shrink-0" />
                       <span>{userFormErrors.id}</span>
                     </p>
@@ -1294,8 +1346,10 @@ export default function UserManagementPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block font-semibold text-slate-700">Họ và Tên</label>
+                <label htmlFor="user-name-input" className="block font-semibold text-slate-700">Họ và Tên</label>
                 <input
+                  id="user-name-input"
+                  ref={userNameInputRef}
                   type="text"
                   value={userFormData.name}
                   onChange={(e) => {
@@ -1304,6 +1358,8 @@ export default function UserManagementPage() {
                   }}
                   required
                   placeholder="VD: Nguyễn Văn Anh"
+                  aria-invalid={!!userFormErrors.name}
+                  aria-describedby={userFormErrors.name ? 'user-name-error' : undefined}
                   className={`w-full px-3 py-2 rounded-xl bg-slate-50 border text-slate-900 focus:outline-none transition-colors ${
                     userFormErrors.name
                       ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500'
@@ -1311,7 +1367,7 @@ export default function UserManagementPage() {
                   }`}
                 />
                 {userFormErrors.name && (
-                  <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
+                  <p id="user-name-error" className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
                     <AlertCircle className="w-3 h-3 shrink-0" />
                     <span>{userFormErrors.name}</span>
                   </p>
@@ -1320,10 +1376,12 @@ export default function UserManagementPage() {
 
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="block font-semibold text-slate-700">Email FPT / Edu</label>
+                  <label htmlFor="user-email-input" className="block font-semibold text-slate-700">Email FPT / Edu</label>
                   <span className="text-[10px] text-sky-700 font-mono font-medium">Domain: @fpt.edu.vn / @fe.edu.vn</span>
                 </div>
                 <input
+                  id="user-email-input"
+                  ref={userEmailInputRef}
                   type="email"
                   value={userFormData.email}
                   onChange={(e) => {
@@ -1332,6 +1390,8 @@ export default function UserManagementPage() {
                   }}
                   required
                   placeholder="anhnv@fpt.edu.vn"
+                  aria-invalid={!!userFormErrors.email}
+                  aria-describedby={userFormErrors.email ? 'user-email-error' : undefined}
                   className={`w-full px-3 py-2 rounded-xl bg-slate-50 border font-mono text-slate-900 focus:outline-none transition-colors ${
                     userFormErrors.email
                       ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500'
@@ -1339,7 +1399,7 @@ export default function UserManagementPage() {
                   }`}
                 />
                 {userFormErrors.email && (
-                  <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
+                  <p id="user-email-error" className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
                     <AlertCircle className="w-3 h-3 shrink-0" />
                     <span>{userFormErrors.email}</span>
                   </p>

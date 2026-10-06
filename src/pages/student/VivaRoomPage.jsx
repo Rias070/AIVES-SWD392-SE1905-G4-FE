@@ -20,15 +20,23 @@ import {
   Eye,
   Camera
 } from 'lucide-react';
+import { adminConfigApi } from '../../services/api';
+
+// Fallback used only when the admin config endpoint is unreachable.
+// Must match the server default declared in services/api.js.
+const DEFAULT_MAX_TURNS = 3;
+const DEFAULT_MAX_ANSWER_TIME_SEC = 180;
 
 export default function VivaRoomPage() {
   const navigate = useNavigate();
 
   // Session state
-  const [timerSeconds, setTimerSeconds] = useState(1122); // 18:42
+  const [maxTurns, setMaxTurns] = useState(DEFAULT_MAX_TURNS);
+  const [maxAnswerTimeSec, setMaxAnswerTimeSec] = useState(DEFAULT_MAX_ANSWER_TIME_SEC);
+  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
+  const [timerSeconds, setTimerSeconds] = useState(1122); // 18:42 - will be reset from config
   const [isRecording, setIsRecording] = useState(true);
   const [speechTurn, setSpeechTurn] = useState(1);
-  const maxTurns = 3;
   const [micLevel, setMicLevel] = useState(65);
   const [liveTranscript, setLiveTranscript] = useState(
     'Dạ thưa Hội đồng, thuật toán Dijkstra sử dụng chiến lược tham lam (Greedy). Khi một đỉnh đã được đưa vào tập hợp đã xét (settled), Dijkstra mặc định khoảng cách đó là tối ưu vĩnh viễn và không bao giờ cập nhật lại. Do đó, nếu đồ thị tồn tại cạnh âm, đặc biệt là chu trình âm, Dijkstra sẽ cho kết quả sai lệch hoặc rơi vào vòng lặp vô tận...'
@@ -36,15 +44,44 @@ export default function VivaRoomPage() {
   const [isMarked, setIsMarked] = useState(false);
   const transcriptBottomRef = useRef(null);
 
-  // Timer countdown
+  // Load AI Viva configuration from admin endpoint so maxTurns & timer
+  // stay in sync with whatever the admin has configured for the whole system.
   useEffect(() => {
+    let cancelled = false;
+    const loadConfig = async () => {
+      try {
+        const res = await adminConfigApi.getAIVivaConfig();
+        const data = res?.data?.data;
+        if (cancelled || !data) return;
+        const turns = Number(data.maxFollowupTurns) || DEFAULT_MAX_TURNS;
+        const answerTime = Number(data.maxAnswerTimeSec) || DEFAULT_MAX_ANSWER_TIME_SEC;
+        setMaxTurns(turns);
+        setMaxAnswerTimeSec(answerTime);
+        // Initialise the session timer from the admin-configured answer budget
+        setTimerSeconds(answerTime);
+      } catch (err) {
+        // Backend offline: keep defaults
+        console.warn('VivaRoom: cannot load admin config, using defaults:', err);
+      } finally {
+        if (!cancelled) setIsConfigLoaded(true);
+      }
+    };
+    loadConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Timer countdown - cleanup guaranteed on unmount or dependency change
+  useEffect(() => {
+    if (!isConfigLoaded) return; // Wait for config to seed initial timer value
     const timer = setInterval(() => {
       setTimerSeconds((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isConfigLoaded]);
 
-  // Mic level animation
+  // Mic level animation - cleanup guaranteed on unmount or recording toggle
   useEffect(() => {
     if (!isRecording) return;
     const interval = setInterval(() => {
@@ -201,13 +238,15 @@ export default function VivaRoomPage() {
           <div className="p-3 md:px-5 rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setIsRecording(!isRecording)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                  isRecording
-                    ? 'bg-sky-500 text-white shadow-sm shadow-sky-500/30'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
+            onClick={() => setIsRecording(!isRecording)}
+            aria-label={isRecording ? 'Tạm dừng micro' : 'Bật micro thu âm'}
+            aria-pressed={isRecording}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+              isRecording
+                ? 'bg-sky-500 text-white shadow-sm shadow-sky-500/30'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
                 {isRecording ? <Mic className="w-4 h-4 animate-pulse" /> : <MicOff className="w-4 h-4" />}
                 <span>{isRecording ? 'Mic Đang Thu' : 'Mic Tạm Dừng'}</span>
                 <span className="text-[10px] opacity-80 border-l border-white/30 pl-1.5">
@@ -217,6 +256,7 @@ export default function VivaRoomPage() {
 
               <button
                 onClick={() => alert('AI Giám khảo đang phát lại âm thanh câu hỏi...')}
+                aria-label="Yêu cầu AI giám khảo nhắc lại đề bài"
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-medium text-slate-700 transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
@@ -225,6 +265,8 @@ export default function VivaRoomPage() {
 
               <button
                 onClick={() => setIsMarked(!isMarked)}
+                aria-label="Đánh dấu câu hỏi để xem lại"
+                aria-pressed={isMarked}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-colors ${
                   isMarked
                     ? 'bg-amber-50 border-amber-300 text-amber-700'
