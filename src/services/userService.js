@@ -355,13 +355,17 @@ export const registerUser = async (data) => {
 
   // Attempt backend registration in background if server is online
   try {
-    await api.post('/v1/auth/register', {
+    const res = await api.post('/v1/auth/register', {
       email: newUser.email,
       password: newUser.password,
       fullName: newUser.name,
+      phoneNumber: data.phone || data.phoneNumber || null,
       userCode: newUser.id,
       roleName: newUser.role,
     });
+    if (res?.data?.result?.token) {
+      localStorage.setItem('token', res.data.result.token);
+    }
   } catch (apiErr) {
     // Fallback: If auth/register doesn't exist, try admin createUser
     try {
@@ -369,6 +373,7 @@ export const registerUser = async (data) => {
         email: newUser.email,
         password: newUser.password,
         fullName: newUser.name,
+        phoneNumber: data.phone || data.phoneNumber || null,
         userCode: newUser.id,
         roleName: newUser.role,
       });

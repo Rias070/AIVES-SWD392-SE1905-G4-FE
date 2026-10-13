@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 import {
   Mic,
   MicOff,
@@ -27,6 +29,7 @@ import {
   Globe,
   X
 } from 'lucide-react';
+import { subjectApi } from '../../services/api';
 
 // Finite State Machine States
 const STATES = {
@@ -588,26 +591,6 @@ export default function VivaRoomPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Language Resolution: URL param -> localStorage -> default 'vi-VN'
-  const getInitialLang = () => {
-    const urlLang = searchParams.get('lang');
-    if (urlLang) {
-      const l = urlLang.toLowerCase();
-      if (l === 'vi' || l === 'vi-vn') return 'vi-VN';
-      if (l === 'en' || l === 'en-us') return 'en-US';
-      if (l === 'ja' || l === 'ja-jp') return 'ja-JP';
-    }
-    const saved = localStorage.getItem('aives_exam_lang');
-    if (saved && (saved === 'vi-VN' || saved === 'en-US' || saved === 'ja-JP')) {
-      return saved;
-    }
-    return 'vi-VN';
-  };
-
-  const [examLang, setExamLang] = useState(getInitialLang);
-  const examLangRef = useRef(examLang);
-  examLangRef.current = examLang;
-
   // Active session and course resolution from localStorage / URL
   const currentSession = (() => {
     try {
@@ -620,6 +603,84 @@ export default function VivaRoomPage() {
 
   const rawSubject = searchParams.get('subject') || currentSession?.subject || 'CS301';
   const activeSubject = (rawSubject || 'CS301').toUpperCase();
+
+  // Language Resolution: Subject Config -> Session Config -> Subject LocalCache -> URL Param -> default 'vi-VN'
+  const getInitialLang = () => {
+    if (currentSession?.language) {
+      const sl = currentSession.language.toLowerCase();
+      if (sl.startsWith('en')) return 'en-US';
+      if (sl.startsWith('vi')) return 'vi-VN';
+    }
+    if (activeSubject) {
+      const subjectConfig = localStorage.getItem(`aives_subject_lang_${activeSubject}`);
+      if (subjectConfig) {
+        if (subjectConfig.toLowerCase().startsWith('en')) return 'en-US';
+        if (subjectConfig.toLowerCase().startsWith('vi')) return 'vi-VN';
+      }
+    }
+    const urlLang = searchParams.get('lang');
+    if (urlLang) {
+      const l = urlLang.toLowerCase();
+      if (l === 'vi' || l === 'vi-vn') return 'vi-VN';
+      if (l === 'en' || l === 'en-us') return 'en-US';
+    }
+    return 'vi-VN';
+  };
+
+  const [examLang, setExamLang] = useState(getInitialLang);
+  const examLangRef = useRef(examLang);
+  examLangRef.current = examLang;
+
+  // Stable UUID for real-time WebSocket STOMP exam room
+  const sessionUuid = useRef((() => {
+    const urlId = searchParams.get('sessionId') || searchParams.get('id');
+    if (urlId && /^[0-9a-fA-F-]{36}$/.test(urlId)) return urlId;
+    if (currentSession?.sessionId && /^[0-9a-fA-F-]{36}$/.test(currentSession.sessionId)) return currentSession.sessionId;
+    if (currentSession?.id && /^[0-9a-fA-F-]{36}$/.test(currentSession.id)) return currentSession.id;
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  })()).current;
+
+  // Real-time STOMP WebSocket Client & Turn Score Tracking
+  const stompClientRef = useRef(null);
+  const [isWsConnected, setIsWsConnected] = useState(false);
+  const turnScoresRef = useRef([]);
+  const [turnScores, setTurnScores] = useState([]);
+  const handleWsTurnResponseRef = useRef(null);
+
+  // Dynamic Subject Language Synchronization from Backend
+  useEffect(() => {
+    let isMounted = true;
+    const syncSubjectLanguage = async () => {
+      try {
+        const res = await subjectApi.getSubjectByCode(activeSubject);
+        const subjData = res?.data?.result || res?.data;
+        if (isMounted && subjData?.language) {
+          const resolvedLang = subjData.language.toLowerCase().startsWith('en') ? 'en-US' : 'vi-VN';
+          localStorage.setItem(`aives_subject_lang_${activeSubject}`, resolvedLang);
+          if (resolvedLang !== examLangRef.current) {
+            setExamLang(resolvedLang);
+            examLangRef.current = resolvedLang;
+            const updatedContent = getCourseContent(activeSubject, resolvedLang);
+            if (speechTurnRef.current === 1) {
+              setCurrentQuestion({
+                title: updatedContent.initialQuestion.title,
+                bloom: updatedContent.initialQuestion.bloom
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[AIVES VivaRoom] Subject language config fetch warning:', err);
+      }
+    };
+    syncSubjectLanguage();
+    return () => { isMounted = false; };
+  }, [activeSubject]);
+
   const catalogEntry = COURSE_CATALOG[activeSubject] || {
     code: activeSubject,
     name: activeSubject === 'AI204' ? 'Học máy & Thị giác máy tính' : activeSubject === 'SE102' ? 'Kiến trúc Phần mềm' : 'Cấu trúc Dữ liệu & Giải thuật'
@@ -705,6 +766,61 @@ export default function VivaRoomPage() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // STOMP WebSocket Room Connection & Subscription
+  useEffect(() => {
+    let isMounted = true;
+    const wsUrl = 'http://localhost:8080/ws';
+
+    const client = new Client({
+      webSocketFactory: () => new SockJS(wsUrl),
+      reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+      onConnect: () => {
+        if (!isMounted) return;
+        setIsWsConnected(true);
+        console.log(`[AIVES STOMP] Connected to room: /topic/exam/${sessionUuid}`);
+
+        client.subscribe(`/topic/exam/${sessionUuid}`, (message) => {
+          try {
+            const data = JSON.parse(message.body);
+            console.log('[AIVES STOMP] Received AI turn payload:', data);
+            handleWsTurnResponseRef.current?.(data);
+          } catch (e) {
+            console.error('[AIVES STOMP] Parse error on incoming turn message:', e);
+          }
+        });
+      },
+      onDisconnect: () => {
+        if (isMounted) setIsWsConnected(false);
+      },
+      onStompError: (frame) => {
+        console.warn('[AIVES STOMP] Broker error:', frame.headers['message']);
+        if (isMounted) setIsWsConnected(false);
+      },
+      onWebSocketClose: () => {
+        if (isMounted) setIsWsConnected(false);
+      }
+    });
+
+    try {
+      client.activate();
+      stompClientRef.current = client;
+    } catch (err) {
+      console.warn('[AIVES STOMP] Activation caught:', err);
+    }
+
+    return () => {
+      isMounted = false;
+      if (stompClientRef.current) {
+        try {
+          stompClientRef.current.deactivate();
+        } catch (e) { }
+        stompClientRef.current = null;
+      }
+    };
+  }, [sessionUuid]);
 
   // Answer Turn Countdown Timer (runs only in STUDENT_ANSWERING)
   useEffect(() => {
@@ -1264,6 +1380,63 @@ export default function VivaRoomPage() {
     startSpeechRecognition(examLangRef.current);
   };
 
+  // Handle broadcasted AI turn evaluation from Backend WebSocket STOMP (/topic/exam/{sessionId})
+  const handleWsTurnResponse = (wsData) => {
+    if (!wsData) return;
+
+    const suggestedScore = wsData.suggestedScore != null ? Number(wsData.suggestedScore) : 8.5;
+    const aiEval = wsData.aiEvaluation || 'Đánh giá AI: Luận điểm rõ ràng, phản xạ vấn đáp tốt.';
+    const followup = wsData.followupQuestion;
+    const bloom = wsData.bloomLevel || 'Bloom 4 - Phân tích';
+    const isLast = wsData.lastTurn || speechTurnRef.current >= maxTurns;
+
+    const newScore = {
+      turnOrder: wsData.turnOrder || speechTurnRef.current,
+      score: suggestedScore,
+      aiEvaluation: aiEval,
+      bloomLevel: bloom,
+      ragContextSnippets: wsData.ragContextSnippets || []
+    };
+    turnScoresRef.current = [...turnScoresRef.current, newScore];
+    setTurnScores([...turnScoresRef.current]);
+
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now
+      .getMinutes()
+      .toString()
+      .padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+    if (isLast) {
+      finishExamSession(turnScoresRef.current, aiEval);
+    } else {
+      setSpeechTurn((prev) => prev + 1);
+
+      setDialogue((prev) => [
+        ...prev,
+        {
+          sender: 'ai',
+          time: timeStr,
+          text: followup,
+          isMainQuestion: true
+        }
+      ]);
+
+      setCurrentQuestion({
+        title: followup,
+        bloom: bloom
+      });
+
+      setFsmState(STATES.AI_SPEAKING);
+      isProcessingTurnRef.current = false;
+
+      // Speak adaptive follow-up immediately via Web Speech TTS
+      speakAIQuestion(followup, () => {
+        transitionToStudentAnswering();
+      });
+    }
+  };
+  handleWsTurnResponseRef.current = handleWsTurnResponse;
+
   // Student clicks "Hoàn thành câu trả lời" or Timer expires
   const handleCompleteAnswer = () => {
     if (isProcessingTurnRef.current) return;
@@ -1292,16 +1465,63 @@ export default function VivaRoomPage() {
       }
     ]);
 
-    // AI Thinking Delay (1.8s) before follow-up or finished
-    setTimeout(() => {
-      if (speechTurnRef.current >= maxTurns) {
-        // Exam Finished!
-        finishExamSession();
-      } else {
-        // Generate Adaptive Follow-up in active language
-        generateFollowUpQuestion(studentAnswer);
+    const turnData = {
+      sessionId: sessionUuid,
+      questionUuid: null,
+      questionContent: currentQuestion.title,
+      turnOrder: speechTurnRef.current,
+      studentTranscript: studentAnswer,
+      studentAnswer: studentAnswer,
+      turnDurationSeconds: 90 - turnSeconds,
+      examLang: examLangRef.current
+    };
+
+    let sentViaWs = false;
+    if (stompClientRef.current && stompClientRef.current.connected) {
+      try {
+        stompClientRef.current.publish({
+          destination: `/app/exam/${sessionUuid}/submit-turn`,
+          body: JSON.stringify(turnData)
+        });
+        sentViaWs = true;
+        console.log(`[AIVES STOMP] Sent turn #${speechTurnRef.current} to /app/exam/${sessionUuid}/submit-turn`);
+      } catch (wsErr) {
+        console.warn('[AIVES STOMP] Publish error:', wsErr);
       }
-    }, 1800);
+    }
+
+    // Safety fallback: if STOMP message doesn't receive a response within 6.5s or offline, execute local fallback
+    if (sentViaWs) {
+      const turnSnapshot = speechTurnRef.current;
+      setTimeout(() => {
+        if (isProcessingTurnRef.current && speechTurnRef.current === turnSnapshot && fsmStateRef.current === STATES.AI_THINKING) {
+          console.warn('[AIVES STOMP] Response timeout, activating local reasoning fallback');
+          executeLocalTurnFallback(studentAnswer);
+        }
+      }, 6500);
+    } else {
+      setTimeout(() => {
+        executeLocalTurnFallback(studentAnswer);
+      }, 1600);
+    }
+  };
+
+  const executeLocalTurnFallback = (studentAnswer) => {
+    const mockScore = Number((7.8 + Math.random() * 1.6).toFixed(1));
+    const newScore = {
+      turnOrder: speechTurnRef.current,
+      score: mockScore,
+      aiEvaluation: 'Đánh giá AI: Luận điểm tốt, lập luận tự tin và phản xạ nhanh.',
+      bloomLevel: 'Bloom 4 - Phân tích'
+    };
+    turnScoresRef.current = [...turnScoresRef.current, newScore];
+    setTurnScores([...turnScoresRef.current]);
+
+    if (speechTurnRef.current >= maxTurns) {
+      finishExamSession(turnScoresRef.current);
+    } else {
+      generateFollowUpQuestion(studentAnswer);
+    }
   };
 
   // Mock Engine sinh câu hỏi xoáy thích ứng dựa trên từ khóa câu trả lời
@@ -1352,26 +1572,42 @@ export default function VivaRoomPage() {
   };
 
   // Finish exam and navigate to /exam-result
-  const finishExamSession = () => {
+  const finishExamSession = (customTurnScores, customFeedback) => {
     isProcessingTurnRef.current = false;
     setFsmState(STATES.FINISHED);
     const langPack = getCourseContent(activeSubject, examLangRef.current);
 
+    const scoresToUse = customTurnScores || turnScoresRef.current || [];
+    let avgScore = 8.5;
+    if (scoresToUse.length > 0) {
+      const sum = scoresToUse.reduce((acc, curr) => acc + (Number(curr.score) || 8.0), 0);
+      avgScore = Number((sum / scoresToUse.length).toFixed(1));
+    }
+
     const latestResult = {
+      sessionId: sessionUuid,
       examCode: currentSession?.examId || `${activeSubject}-VIVA-2026-99127`,
       courseName: activeCourseName,
+      subjectCode: activeSubject,
       studentName: 'Nguyễn Văn An',
+      studentId: 'SE190504',
       examLang: examLangRef.current,
       completedAt: new Date().toISOString(),
       turnsCompleted: maxTurns,
-      overallScore: 8.5,
+      overallScore: avgScore,
+      turnScores: scoresToUse.length > 0 ? scoresToUse : [
+        { turnOrder: 1, score: 8.5, bloomLevel: 'Bloom 4 - Phân tích & Đánh giá' },
+        { turnOrder: 2, score: 8.0, bloomLevel: 'Bloom 5 - Phản biện phản hồi' },
+        { turnOrder: 3, score: 9.0, bloomLevel: 'Bloom 5 - Đánh giá chuyên sâu' }
+      ],
+      status: 'PENDING_LECTURER_CONFIRMATION',
       dialogueHistory: dialogue,
       rubricScores: [
-        { name: 'Tính chính xác giải thuật & Cấu trúc', score: '4.5 / 5.0' },
-        { name: 'Khả năng phản biện câu hỏi xoáy', score: '4.0 / 5.0' },
-        { name: 'Diễn đạt lưu loát & Tự tin', score: '4.5 / 5.0' }
+        { name: 'Tính chính xác giải thuật & Cấu trúc', score: `${(avgScore * 0.5).toFixed(1)} / 5.0` },
+        { name: 'Khả năng phản biện câu hỏi xoáy', score: `${(avgScore * 0.45).toFixed(1)} / 5.0` },
+        { name: 'Diễn đạt lưu loát & Tự tin', score: `${(avgScore * 0.5).toFixed(1)} / 5.0` }
       ],
-      aiFeedback:
+      aiFeedback: customFeedback || (
         activeSubject === 'AI204'
           ? (examLangRef.current === 'ja-JP'
               ? '過学習・学習不足のメカニズム、正則化手法（L1/L2）、およびCNNの畳み込み層の特性に関する質問に対し、学術的根拠に基づき非常に的確に回答できています。'
@@ -1385,10 +1621,11 @@ export default function VivaRoomPage() {
               ? 'The candidate exhibited strong architectural maturity regarding eventual consistency, Saga pattern trade-offs, and CAP theorem implications in distributed environments.'
               : 'Thí sinh nắm rất vững nguyên lý thiết kế Microservices, cơ chế Saga Pattern với bù trừ giao dịch và đánh đổi trong định lý CAP. Tư duy kiến trúc hệ thống sắc bén.')
           : (examLangRef.current === 'ja-JP'
-              ? '負閉路の検出とフィボナッチヒープの最適化に関する深掘り試問に対し、論理的かつ的確に回答できています。'
+              ? '負閉路の検出とフィボナッチヒープの最適化に関する深掘り試問に対し、論理적かつ的確に回答できています。'
               : examLangRef.current === 'en-US'
               ? 'The candidate demonstrated sharp problem-solving skills regarding negative weight cycles and heap structures. Arguments were coherent and well-structured.'
               : 'Thí sinh phản xạ nhanh với các câu hỏi xoáy về chu trình âm và tối ưu cấu trúc Heap trong Dijkstra. Lập luận chặt chẽ và mạch lạc.')
+      )
     };
 
     try {
@@ -1452,27 +1689,11 @@ export default function VivaRoomPage() {
 
         {/* Middle Status Indicators & Language Selector */}
         <div className="flex items-center gap-3 md:gap-4 text-xs flex-wrap">
-          {/* ============ LANGUAGE SWITCHER PILLS ============ */}
-          <div className="flex items-center p-1 bg-slate-100/90 border border-slate-200/90 rounded-xl gap-1 shadow-2xs">
-            {SUPPORTED_LANGUAGES.map((langItem) => {
-              const isActive = examLang === langItem.code;
-              return (
-                <button
-                  key={langItem.code}
-                  onClick={() => handleLanguageChange(langItem.code)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-white text-sky-700 shadow-xs border border-sky-200/80 font-bold scale-[1.02]'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                  }`}
-                  title={`Chuyển ngôn ngữ thi sang ${langItem.label}`}
-                >
-                  <span className="text-sm leading-none">{langItem.flag}</span>
-                  <span className="hidden sm:inline">{langItem.label}</span>
-                  <span className="sm:hidden text-[10px]">{langItem.shortLabel}</span>
-                </button>
-              );
-            })}
+          {/* ============ EXAM LANGUAGE BADGE (READ-ONLY, CONFIGURED BY SUBJECT) ============ */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100/90 border border-slate-200/90 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs">
+            <span className="text-sm leading-none">{examLang === 'en-US' ? '🇺🇸' : '🇻🇳'}</span>
+            <span className="text-slate-500 font-normal">Ngôn ngữ thi:</span>
+            <span className="font-bold text-sky-700">{examLang === 'en-US' ? 'English (en-US)' : 'Tiếng Việt (vi-VN)'}</span>
           </div>
 
           {/* Main Exam Timer */}
@@ -1505,26 +1726,26 @@ export default function VivaRoomPage() {
               ))}
             </div>
           </div>
+
+          {/* Live Connection Indicator */}
+          <div
+            className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border transition-all ${
+              isWsConnected
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-slate-50 text-slate-600 border-slate-200'
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isWsConnected ? 'bg-emerald-500' : 'bg-slate-400'
+              }`}
+            />
+            <span>{isWsConnected ? 'Trực tuyến' : 'Ngoại tuyến'}</span>
+          </div>
         </div>
 
         {/* Right Actions */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              if ('speechSynthesis' in window) {
-                setDetectedVoices(window.speechSynthesis.getVoices());
-              }
-              setShowVoiceModal(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-            title="Xem danh sách giọng đọc AI và chẩn đoán TTS"
-          >
-            <Volume2 className="w-3.5 h-3.5 text-sky-600" />
-            <span className="hidden sm:inline">
-              Giọng: {findVoiceForLang(detectedVoices, examLang) ? 'Voice Máy' : 'Google TTS'}
-            </span>
-          </button>
-
           <button
             onClick={handleManualExit}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-semibold transition-colors cursor-pointer"
@@ -1545,9 +1766,6 @@ export default function VivaRoomPage() {
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800">
                   LƯỢT HỎI {speechTurn} / {maxTurns}
-                </span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  {currentQuestion.bloom}
                 </span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
                   <span>{SUPPORTED_LANGUAGES.find((l) => l.code === examLang)?.flag}</span>
@@ -1657,39 +1875,30 @@ export default function VivaRoomPage() {
               {fsmState === STATES.AI_SPEAKING && (
                 <>
                   <Volume2 className="w-3.5 h-3.5 text-sky-600 animate-bounce" />
-                  <span className="text-sky-800">
-                    AI Giám khảo đang đọc ({SUPPORTED_LANGUAGES.find((l) => l.code === examLang)?.label})...
-                  </span>
+                  <span className="text-sky-800">Giám khảo đang đọc câu hỏi...</span>
                   <span className="w-2 h-2 rounded-full bg-sky-500 animate-ping"></span>
                 </>
               )}
               {fsmState === STATES.STUDENT_ANSWERING && (
                 <>
                   <Mic className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
-                  <span className="text-rose-800">
-                    Sinh viên đang trả lời ({SUPPORTED_LANGUAGES.find((l) => l.code === examLang)?.label} - Mic Đang Thu)
-                  </span>
+                  <span className="text-rose-800">Đang ghi âm câu trả lời...</span>
                   <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
                 </>
               )}
               {fsmState === STATES.AI_THINKING && (
                 <>
                   <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
-                  <span className="text-indigo-800">AI đang phân tích câu trả lời & chuẩn bị câu hỏi xoáy...</span>
+                  <span className="text-indigo-800">Đang xử lý câu trả lời...</span>
                 </>
               )}
               {fsmState === STATES.FINISHED && (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-emerald-800">Ca thi hoàn thành! Đang tổng hợp điểm...</span>
+                  <span className="text-emerald-800">Ca thi hoàn thành</span>
                 </>
               )}
             </div>
-
-            {/* Meta text */}
-            <p className="mt-3 text-[11px] text-slate-500 text-center max-w-md">
-              Hệ thống AI Speech-To-Text & TTS thời gian thực • Hỗ trợ Tiếng Việt, English & 日本語 • Rubric: Chính xác giải thuật (40%), Tư duy phản biện (30%), Diễn đạt (30%)
-            </p>
           </div>
 
           {/* Bottom Controls Bar */}
@@ -1702,7 +1911,7 @@ export default function VivaRoomPage() {
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
                 >
                   <FastForward className="w-3.5 h-3.5" />
-                  <span>Bỏ qua đọc (Bắt đầu nói ngay)</span>
+                  <span>Bắt đầu trả lời</span>
                 </button>
               ) : (
                 <div
@@ -1756,7 +1965,7 @@ export default function VivaRoomPage() {
               }`}
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Hoàn thành câu trả lời</span>
+              <span>Nộp câu trả lời</span>
             </button>
           </div>
         </div>
@@ -1770,12 +1979,12 @@ export default function VivaRoomPage() {
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Real-time Transcript
+                  Nội dung đối thoại
                 </h3>
               </div>
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 flex items-center gap-1">
                 <Languages className="w-3 h-3 text-sky-600" />
-                <span>STT: {examLang}</span>
+                <span>{examLang}</span>
               </span>
             </div>
 
@@ -1809,10 +2018,8 @@ export default function VivaRoomPage() {
                     >
                       <span className="font-bold">
                         {item.sender === 'ai'
-                          ? item.isMainQuestion
-                            ? 'AI Giám khảo • Câu hỏi vấn đáp'
-                            : 'AI Giám khảo'
-                          : 'Bạn (Thí sinh)'}
+                          ? 'Giám khảo AI'
+                          : 'Bạn'}
                       </span>
                       <span>{item.time}</span>
                     </div>
@@ -1833,9 +2040,9 @@ export default function VivaRoomPage() {
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="font-bold text-rose-700 flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-                      Bản ghi trực tiếp giọng nói thí sinh ({examLang})
+                      Câu trả lời của bạn ({examLang})
                     </span>
-                    <span className="text-slate-400 italic">Đang nhận diện giọng nói...</span>
+                    <span className="text-slate-400 italic">Đang ghi âm...</span>
                   </div>
                   <p className="text-xs text-slate-800 leading-relaxed font-sans min-h-[30px]">
                     {liveTranscript || (

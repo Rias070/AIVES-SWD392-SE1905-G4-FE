@@ -47,6 +47,8 @@ export default function RegisterPage({ onLoginSuccess }) {
   const [isCapturing, setIsCapturing] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [formError, setFormError] = useState(null);
+  const [successInfo, setSuccessInfo] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Calculate password strength
   const getPasswordStrength = () => {
@@ -114,8 +116,8 @@ export default function RegisterPage({ onLoginSuccess }) {
     }
 
     // 3. Password match and length
-    if (!password || password.length < 6) {
-      setFormError('Mật khẩu bảo mật phải có độ dài tối thiểu 6 ký tự!');
+    if (!password || password.length < 8) {
+      setFormError('Mật khẩu bảo mật phải có độ dài tối thiểu 8 ký tự!');
       return;
     }
 
@@ -134,26 +136,38 @@ export default function RegisterPage({ onLoginSuccess }) {
       return;
     }
 
-    const registeredUser = await registerUser({
-      name: fullName.trim(),
-      email: email.trim(),
-      password: password,
-      dob: dob,
-      role: role,
-      idNumber: idNumber.trim(),
-      department: department,
-    });
+    setIsSubmitting(true);
 
-    if (onLoginSuccess) {
-      onLoginSuccess(registeredUser);
-    } else {
-      localStorage.setItem('aives_user', JSON.stringify(registeredUser));
-    }
+    try {
+      const registeredUser = await registerUser({
+        name: fullName.trim(),
+        email: email.trim(),
+        password: password,
+        dob: dob,
+        role: role,
+        idNumber: idNumber.trim(),
+        department: department,
+        phone: phone.trim(),
+      });
 
-    if (role === 'STUDENT') {
-      navigate('/student');
-    } else {
-      navigate('/questions');
+      setSuccessInfo(`Đăng ký thành công! Hệ thống AIVES đã gửi email xác nhận tài khoản tới ${email.trim()}. Đang chuyển hướng...`);
+
+      setTimeout(() => {
+        if (onLoginSuccess) {
+          onLoginSuccess(registeredUser);
+        } else {
+          localStorage.setItem('aives_user', JSON.stringify(registeredUser));
+        }
+
+        if (role === 'STUDENT') {
+          navigate('/student');
+        } else {
+          navigate('/questions');
+        }
+      }, 1500);
+    } catch (err) {
+      setFormError('Không thể hoàn tất đăng ký tài khoản. Vui lòng thử lại!');
+      setIsSubmitting(false);
     }
   };
 
@@ -332,6 +346,14 @@ export default function RegisterPage({ onLoginSuccess }) {
               </div>
             )}
 
+            {/* Registration & Email Success Banner */}
+            {successInfo && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2.5 animate-in fade-in shadow-xs">
+                <Mail className="w-4 h-4 text-emerald-600 shrink-0 animate-bounce" />
+                <span>{successInfo}</span>
+              </div>
+            )}
+
             {/* Form Fields */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -455,7 +477,7 @@ export default function RegisterPage({ onLoginSuccess }) {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Tối thiểu 6 ký tự"
+                      placeholder="Tối thiểu 8 ký tự"
                       required
                       className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-sky-500 pr-9"
                     />
@@ -570,10 +592,20 @@ export default function RegisterPage({ onLoginSuccess }) {
               {/* CTA Submit Button */}
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-sky-600 hover:from-amber-600 hover:to-sky-700 text-white text-xs font-bold shadow-md shadow-amber-500/25 transition-all flex items-center justify-center gap-2 hover:scale-[1.01]"
+                disabled={isSubmitting}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-sky-600 hover:from-amber-600 hover:to-sky-700 text-white text-xs font-bold shadow-md shadow-amber-500/25 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] disabled:opacity-75 disabled:cursor-not-allowed"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>Hoàn Tất Đăng Ký Tài Khoản AIVES</span>
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Đang hoàn tất & gửi email xác nhận...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Hoàn Tất Đăng Ký Tài Khoản AIVES</span>
+                  </>
+                )}
               </button>
             </form>
           </div>

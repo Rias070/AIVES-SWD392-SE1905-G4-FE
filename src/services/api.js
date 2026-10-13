@@ -86,6 +86,9 @@ export const adminUserApi = {
   // Xóa tài khoản người dùng
   deleteUser: (userId) => api.delete(`/v1/admin/users/${userId}`),
 
+  // Xóa mềm tài khoản người dùng (soft delete / inactive)
+  softDeleteUser: (userId) => api.patch(`/v1/admin/users/${userId}/soft-delete`),
+
   // Import danh sách sinh viên / giảng viên hàng loạt từ tệp Excel (.xlsx)
   importUserExcel: (file) => {
     const formData = new FormData();
@@ -112,6 +115,29 @@ export const adminSubjectApi = {
   // Lấy danh mục tất cả môn học trong hệ thống
   getSubjects: (params) => api.get('/v1/admin/subjects', { params }),
 
+  // Tạo mới môn học
+  createSubject: (subjectData) => api.post('/v1/admin/subjects', subjectData),
+
+  // Cập nhật thông tin môn học
+  updateSubject: (subjectId, subjectData) => api.put(`/v1/admin/subjects/${subjectId}`, subjectData),
+
+  // Xóa môn học
+  deleteSubject: (subjectId) => api.delete(`/v1/admin/subjects/${subjectId}`),
+
+  // Xóa mềm môn học
+  softDeleteSubject: (subjectId) => api.patch(`/v1/admin/subjects/${subjectId}/soft-delete`),
+
+  // Phân công giảng viên cho môn học
+  assignLecturer: (subjectId, lecturerId) =>
+    api.post(`/v1/admin/subjects/${subjectId}/assign-lecturer`, null, { params: { lecturerId } }),
+
+  // Lấy danh sách giảng viên phụ trách môn học
+  getSubjectLecturers: (subjectId) => api.get(`/v1/admin/subjects/${subjectId}/lecturers`),
+
+  // Hủy phân công giảng viên khỏi môn học
+  unassignLecturer: (subjectId, lecturerId) =>
+    api.delete(`/v1/admin/subjects/${subjectId}/lecturers/${lecturerId}`),
+
   // Lấy danh sách phân công môn học cho toàn bộ giảng viên
   getSubjectAssignments: (params) => api.get('/v1/admin/subjects/assignments', { params }),
 
@@ -127,6 +153,10 @@ export const adminSubjectApi = {
 
   // Hủy phân công môn học khỏi Giảng viên
   removeAssignment: (assignmentId) => api.delete(`/v1/admin/subjects/assignments/${assignmentId}`),
+
+  // Cấu hình ngôn ngữ khảo thí môn học (Admin hỗ trợ / ghi đè)
+  updateSubjectLanguageConfig: (subjectId, configData) =>
+    api.patch(`/v1/admin/subjects/${subjectId}/language-config`, configData),
 };
 
 // ==========================================
@@ -159,6 +189,14 @@ export const lecturerDocumentApi = {
   // Tải lên / đăng ký tài liệu học liệu mới
   uploadDocument: (docData) => api.post('/v1/lecturer/documents/upload', docData),
 
+  // Tải lên tệp học liệu (PDF, DOCX, TXT) kèm phân tích chunking và vector hóa
+  uploadDocumentFile: (formData) =>
+    api.post('/v1/lecturer/documents/upload-file', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
+
   // Kích hoạt tiến trình chia đoạn (chunking) và vector hóa học liệu
   vectorizeDocument: (docId) => api.post(`/v1/lecturer/documents/${docId}/vectorize`),
 
@@ -170,11 +208,14 @@ export const lecturerDocumentApi = {
 // 7. API SERVICE NGÂN HÀNG CÂU HỎI & BLOOM (LECTURER ROLE)
 // ==========================================
 export const lecturerQuestionApi = {
-  // Lấy danh sách câu hỏi theo bộ lọc (môn học, độ khó, từ khóa)
+  // Lấy danh sách câu hỏi theo bộ lọc (môn học, độ khó, từ khóa, status)
   getQuestions: (params) => api.get('/v1/lecturer/questions', { params }),
 
   // Lấy chi tiết 1 câu hỏi kèm rubric
   getQuestionById: (questionId) => api.get(`/v1/lecturer/questions/${questionId}`),
+
+  // Sinh câu hỏi và rubric tự động từ tài liệu học liệu RAG qua Gemini LLM
+  generateQuestionsRAG: (generateData) => api.post('/v1/lecturer/questions/generate-rag', generateData),
 
   // Tạo câu hỏi mới trong ngân hàng
   createQuestion: (questionData) => api.post('/v1/lecturer/questions', questionData),
@@ -187,6 +228,9 @@ export const lecturerQuestionApi = {
 
   // Duyệt hoặc chuyển trạng thái câu hỏi
   toggleApprove: (questionId) => api.patch(`/v1/lecturer/questions/${questionId}/approve`),
+
+  // Phê duyệt hàng loạt toàn bộ câu hỏi đang chờ duyệt
+  approveAll: (params) => api.post('/v1/lecturer/questions/approve-all', null, { params }),
 };
 
 // ==========================================
@@ -235,6 +279,20 @@ export const studentExamApi = {
 export const subjectApi = {
   getSubjects: () => api.get('/v1/subjects'),
   getSubjectById: (id) => api.get(`/v1/subjects/${id}`),
+  getSubjectByCode: (code) => api.get(`/v1/subjects/code/${code}`),
+  getSubjectLanguageConfig: (subjectId) => api.get(`/v1/subjects/${subjectId}/language-config`),
+  updateSubjectLanguageConfig: (subjectId, configData) =>
+    api.patch(`/v1/subjects/${subjectId}/language-config`, configData),
+};
+
+// ==========================================
+// 11. API SERVICE QUẢN LÝ CA THI & CHỐT ĐIỂM (LECTURER ROLE)
+// ==========================================
+export const lecturerExamSessionApi = {
+  getSessions: (params) => api.get('/v1/lecturer/exam-sessions', { params }),
+  getSessionById: (sessionId) => api.get(`/v1/lecturer/exam-sessions/${sessionId}`),
+  finalizeScore: (sessionId, scoreData) =>
+    api.post(`/v1/lecturer/exam-sessions/${sessionId}/finalize-score`, scoreData),
 };
 
 export default api;
