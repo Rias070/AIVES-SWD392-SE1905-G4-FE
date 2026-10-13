@@ -686,7 +686,9 @@ export default function UserManagementPage() {
           userCode: userFormData.id,
           fullName: userFormData.name,
           email: userFormData.email,
-          role: userFormData.role,
+          password: userFormData.password || 'Aives@2026',
+          roleName: userFormData.role,
+          phoneNumber: userFormData.phone || null,
           assignedSubjects: effectiveAssigned,
           status: userFormData.status === 'active' ? 'ACTIVE' : 'PENDING_SSO',
         });
@@ -850,7 +852,7 @@ export default function UserManagementPage() {
               {apiStatusNotice.code}
             </div>
             <div>
-              <span className="font-bold block text-slate-900">Chế độ dữ liệu dự phòng (Offline Fallback Mode):</span>
+              <span className="font-bold block text-slate-900">Chế độ ngoại tuyến:</span>
               <p className="text-[11px] text-amber-800">{apiStatusNotice.text}</p>
             </div>
           </div>
@@ -859,7 +861,7 @@ export default function UserManagementPage() {
             className="px-3 py-1.5 rounded-xl bg-amber-200/70 hover:bg-amber-200 font-bold text-amber-900 transition-colors shrink-0 flex items-center gap-1.5 text-xs shadow-2xs"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Thử lại API</span>
+            <span>Thử lại</span>
           </button>
         </div>
       )}
@@ -869,12 +871,12 @@ export default function UserManagementPage() {
         {/* Left: Breadcrumb */}
         <div>
           <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-            <span>Cổng Quản trị viên</span>
+            <span>Quản trị hệ thống</span>
             <span className="text-slate-300">›</span>
-            <span className="text-sky-700 font-semibold">Quản lý người dùng & Phân công môn học</span>
+            <span className="text-sky-700 font-semibold">Người dùng</span>
           </div>
           <h1 className="text-base md:text-lg font-bold text-slate-900 mt-1">
-            Phân quyền hệ thống & Phân công giảng dạy
+            Quản lý người dùng & phân quyền
           </h1>
         </div>
 
@@ -1501,11 +1503,11 @@ export default function UserManagementPage() {
                   </span>{' '}
                   <span className="opacity-90">
                     {userFormData.role === 'STUDENT' &&
-                      'Sinh viên được xếp theo lớp học phần để tham gia ca thi vấn đáp AI. Sinh viên không phụ trách môn học.'}
+                      'Sinh viên tham gia các ca thi vấn đáp theo lớp học phần.'}
                     {userFormData.role === 'LECTURER' &&
-                      'Giảng viên được phân công môn học để nạp học liệu S3, sinh câu hỏi RAG và thẩm định barem rubric.'}
+                      'Giảng viên quản lý tài liệu, câu hỏi và barem chấm điểm môn học.'}
                     {userFormData.role === 'ADMIN' &&
-                      'Quản trị viên có toàn quyền kiểm soát danh mục môn học, phân công giảng viên và quản lý người dùng.'}
+                      'Quản trị viên quản trị hệ thống, môn học và phân quyền người dùng.'}
                   </span>
                 </div>
               </div>

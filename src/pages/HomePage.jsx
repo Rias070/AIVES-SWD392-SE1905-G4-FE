@@ -220,13 +220,13 @@ export default function HomePage({ onOpenAuth, currentUser, roleConfigs }) {
             Các Phân Hệ Tính Năng Trọng Tâm
           </h2>
           <p className="text-xs text-slate-500">
-            Hỗ trợ tối ưu cho từng vai trò người dùng trong quy trình khảo thí
+            Trải nghiệm chuyên biệt dành riêng cho Giảng viên và Sinh viên khảo thí
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
           {/* Card 1: Giảng viên */}
-          <div className="glacier-light-panel p-6 rounded-3xl border border-sky-200/80 shadow-glacier-card flex flex-col justify-between space-y-4">
+          <div className="glacier-light-panel p-6 md:p-7 rounded-3xl border border-sky-200/80 shadow-glacier-card flex flex-col justify-between space-y-5">
             <div className="space-y-4">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-xs font-bold uppercase tracking-wide">
                 <BookOpen className="w-4 h-4" />
@@ -234,41 +234,45 @@ export default function HomePage({ onOpenAuth, currentUser, roleConfigs }) {
               </div>
 
               <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  Ngân Hàng Câu Hỏi & Rubric
+                <h3 className="text-lg md:text-xl font-bold text-slate-900">
+                  Quản Lý Học Liệu RAG & Ngân Hàng Câu Hỏi
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Chuẩn bị đề thi thông minh và chuẩn hóa tiêu chí đánh giá.
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Chuẩn bị đề thi vấn đáp thông minh theo thang Bloom và chuẩn hóa barem chấm điểm Rubric.
                 </p>
               </div>
 
-              <div className="space-y-2 text-xs text-slate-600">
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                  <span>Trích xuất câu hỏi từ Syllabus (RAG)</span>
+              <div className="space-y-2.5 text-xs text-slate-600">
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>Nạp tài liệu giáo trình PDF làm tri thức RAG</span>
                 </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                  <span>Phân loại Bloom 4 mức độ</span>
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>Phân loại câu hỏi theo 4 cấp độ Bloom</span>
                 </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                  <span>Giảng viên toàn quyền duyệt & sửa</span>
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>Thiết lập barem điểm Rubric chi tiết từng tiêu chí</span>
+                </div>
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>Toàn quyền duyệt, sửa đổi và chốt điểm sau ca thi</span>
                 </div>
               </div>
             </div>
 
             <Link
               to="/questions"
-              className="w-full py-2.5 px-3 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-sky-200/80"
+              className="w-full py-2.5 px-4 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-semibold flex items-center justify-center gap-2 transition-colors border border-sky-200/80 shadow-2xs"
             >
-              <span>Xem Cổng Học Liệu RAG</span>
+              <span>Xem Cổng Học Liệu & Đề Thi</span>
               <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
 
           {/* Card 2: Sinh viên */}
-          <div className="glacier-light-panel p-6 rounded-3xl border border-cyan-200/80 shadow-glacier-card flex flex-col justify-between space-y-4">
+          <div className="glacier-light-panel p-6 md:p-7 rounded-3xl border border-cyan-200/80 shadow-glacier-card flex flex-col justify-between space-y-5">
             <div className="space-y-4">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-cyan-50 border border-cyan-200 text-cyan-700 text-xs font-bold uppercase tracking-wide">
                 <GraduationCap className="w-4 h-4" />
@@ -276,77 +280,39 @@ export default function HomePage({ onOpenAuth, currentUser, roleConfigs }) {
               </div>
 
               <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  Phòng Thi Vấn Đáp Trực Tuyến
+                <h3 className="text-lg md:text-xl font-bold text-slate-900">
+                  Phòng Thi Vấn Đáp Trực Tuyến Với AI
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Đối thoại vấn đáp trực tiếp với Giám khảo AI bằng giọng nói.
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Đối thoại vấn đáp trực tiếp với Trợ lý khảo thí AI bằng giọng nói thời gian thực qua WebSocket.
                 </p>
               </div>
 
-              <div className="space-y-2 text-xs text-slate-600">
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <Mic className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
-                  <span>Tương tác giọng nói thời gian thực</span>
+              <div className="space-y-2.5 text-xs text-slate-600">
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <Clock className="w-4 h-4 text-cyan-600 shrink-0" />
+                  <span>Kiểm tra thiết bị Mic & Camera (Pre-exam Check)</span>
                 </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <Sparkles className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
-                  <span>AI hỏi thích ứng theo ngữ cảnh</span>
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <Mic className="w-4 h-4 text-cyan-600 shrink-0" />
+                  <span>Tương tác giọng nói thời gian thực với AI Examiner</span>
                 </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <Clock className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
-                  <span>Kiểm tra thiết bị & đếm giờ chuẩn xác</span>
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <Sparkles className="w-4 h-4 text-cyan-600 shrink-0" />
+                  <span>AI hỏi xoáy, làm rõ luận điểm theo ngữ cảnh</span>
+                </div>
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <CheckCircle2 className="w-4 h-4 text-cyan-600 shrink-0" />
+                  <span>Xem kết quả, transcript và nhận xét Rubric minh bạch</span>
                 </div>
               </div>
             </div>
 
             <Link
               to="/student"
-              className="w-full py-2.5 px-3 rounded-xl bg-cyan-50 hover:bg-cyan-100 text-cyan-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-cyan-200/80"
+              className="w-full py-2.5 px-4 rounded-xl bg-cyan-50 hover:bg-cyan-100 text-cyan-800 text-xs font-semibold flex items-center justify-center gap-2 transition-colors border border-cyan-200/80 shadow-2xs"
             >
               <span>Xem Dashboard Sinh Viên</span>
-              <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
-
-          {/* Card 3: Quản trị viên */}
-          <div className="glacier-light-panel p-6 rounded-3xl border border-indigo-200/80 shadow-glacier-card flex flex-col justify-between space-y-4 md:col-span-2 lg:col-span-1">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold uppercase tracking-wide">
-                <ShieldCheck className="w-4 h-4" />
-                Dành cho Quản Trị Viên
-              </div>
-
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  Quản Trị Người Dùng & Tham Số
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Kiểm soát phân quyền RBAC, import Excel và cấu hình AI.
-                </p>
-              </div>
-
-              <div className="space-y-2 text-xs text-slate-600">
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                  <span>Quản lý tài khoản & phân công môn học</span>
-                </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                  <span>Cấu hình tham số giọng nói & ngưỡng ngắt</span>
-                </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                  <span>Hội đồng phê duyệt và chốt điểm cuối</span>
-                </div>
-              </div>
-            </div>
-
-            <Link
-              to="/admin/users"
-              className="w-full py-2.5 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-indigo-200/80"
-            >
-              <span>Vào Quản Trị Hệ Thống</span>
               <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
