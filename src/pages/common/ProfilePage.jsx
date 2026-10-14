@@ -128,26 +128,23 @@ export default function ProfilePage({ currentUser, onUpdateProfile }) {
   return (
     <div className="space-y-6 max-w-5xl mx-auto py-4 animate-in fade-in duration-200">
       {/* Top Header / Breadcrumb */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-            <Link to="/" className="hover:text-sky-600 transition-colors">Trang Chủ</Link>
+            <Link to="/" className="hover:text-sky-600 transition-colors">Trang chủ</Link>
             <span className="text-slate-300">›</span>
-            <span className="text-sky-700 font-semibold">Hồ Sơ Cá Nhân & Tài Khoản</span>
+            <span className="text-sky-700 font-semibold">Hồ sơ cá nhân</span>
           </div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 mt-1 flex items-center gap-2">
-            <User className="w-6 h-6 text-sky-600" />
-            <span>Thông Tin Cá Nhân & Thiết Lập Tài Khoản</span>
+          <h1 className="text-base md:text-lg font-bold text-slate-900 mt-1 flex items-center gap-2">
+            <User className="w-5 h-5 text-sky-600" />
+            <span>Hồ sơ & Thiết lập tài khoản</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Quản lý thông tin định danh, email liên hệ và mật khẩu bảo mật trên hệ thống AI Viva Voice
-          </p>
         </div>
 
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors shadow-2xs self-start sm:self-auto"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors shadow-2xs self-start sm:self-auto cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Quay lại</span>

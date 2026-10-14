@@ -78,12 +78,12 @@ const ROLE_CONFIGS = {
     avatarBg: 'from-sky-500 to-cyan-600',
     defaultPath: '/questions',
     menuItems: [
-      { id: 'rag-portal', label: 'Cổng Học Liệu & RAG', icon: BookOpen, path: '/questions', desc: 'Quản trị tri thức S3 & Barem' },
-      { id: 'generate', label: 'AI Sinh Đề Tự Động', icon: Sparkles, path: '/generate', desc: 'Trích xuất từ syllabus' },
-      { id: 'review', label: 'Kiểm Duyệt Câu Hỏi AI', icon: CheckCircle2, path: '/review', desc: 'Duyệt & chỉnh sửa Rubric' },
-      { id: 'question-bank', label: 'Ngân Hàng Câu Hỏi', icon: Database, path: '/question-bank', desc: 'Kho câu hỏi kiểm thử' },
-      { id: 'scoring', label: 'Hội Đồng Chấm Điểm', icon: Scale, path: '/viva', desc: 'Giảng viên chốt điểm cuối' },
-      { id: 'central-dashboard', label: 'Trung Tâm Khảo Thí', icon: LayoutDashboard, path: '/dashboard', desc: 'Theo dõi ca thi trực tiếp' },
+      { id: 'rag-portal', label: 'Tài liệu học phần (RAG)', icon: BookOpen, path: '/questions' },
+      { id: 'generate', label: 'Sinh câu hỏi AI', icon: Sparkles, path: '/generate' },
+      { id: 'review', label: 'Kiểm duyệt câu hỏi', icon: CheckCircle2, path: '/review' },
+      { id: 'question-bank', label: 'Ngân hàng câu hỏi', icon: Database, path: '/question-bank' },
+      { id: 'scoring', label: 'Phòng thi / Chấm điểm', icon: Scale, path: '/viva' },
+      { id: 'central-dashboard', label: 'Trung tâm khảo thí', icon: LayoutDashboard, path: '/dashboard' },
     ],
   },
   STUDENT: {
@@ -93,10 +93,10 @@ const ROLE_CONFIGS = {
     avatarBg: 'from-cyan-500 to-blue-600',
     defaultPath: '/student',
     menuItems: [
-      { id: 'stu-dashboard', label: 'Bảng Điều Khiển Sinh Viên', icon: LayoutDashboard, path: '/student', desc: 'Môn học, ca thi & năng lực' },
-      { id: 'device-check', label: 'Kiểm Tra Thiết Bị Thi', icon: Video, path: '/device-check', desc: 'Camera & micro AI' },
-      { id: 'viva-room', label: 'Phòng Thi Vấn Đáp AI', icon: Mic, path: '/viva', desc: 'Phỏng vấn trực tiếp AI' },
-      { id: 'results', label: 'Kết Quả & Nhận Xét AI', icon: Award, path: '/exam-result', desc: 'Bảng điểm & Rubric' },
+      { id: 'stu-dashboard', label: 'Bảng điều khiển', icon: LayoutDashboard, path: '/student' },
+      { id: 'device-check', label: 'Kiểm tra thiết bị', icon: Video, path: '/device-check' },
+      { id: 'viva-room', label: 'Phòng thi vấn đáp', icon: Mic, path: '/viva' },
+      { id: 'results', label: 'Kết quả thi', icon: Award, path: '/exam-result' },
     ],
   },
   ADMIN: {
@@ -106,10 +106,10 @@ const ROLE_CONFIGS = {
     avatarBg: 'from-blue-600 to-indigo-600',
     defaultPath: '/admin/users',
     menuItems: [
-      { id: 'adm-users', label: 'Quản Lý Người Dùng & Phân Công', icon: Users, path: '/admin/users', desc: 'Phân quyền & giảng dạy' },
-      { id: 'adm-config', label: 'Cấu Hình Hệ Thống AI Viva', icon: Languages, path: '/admin', desc: 'Tham số Whisper STT / TTS' },
-      { id: 'rag-portal', label: 'Học Liệu & Đề Thi RAG', icon: BookOpen, path: '/questions', desc: 'Quản trị ngân hàng câu hỏi' },
-      { id: 'central-dashboard', label: 'Trung Tâm Khảo Thí', icon: LayoutDashboard, path: '/dashboard', desc: 'Thống kê toàn hệ thống' },
+      { id: 'adm-users', label: 'Quản lý người dùng', icon: Users, path: '/admin/users' },
+      { id: 'adm-config', label: 'Cấu hình hệ thống', icon: Languages, path: '/admin' },
+      { id: 'rag-portal', label: 'Học liệu & Đề thi RAG', icon: BookOpen, path: '/questions' },
+      { id: 'central-dashboard', label: 'Trung tâm khảo thí', icon: LayoutDashboard, path: '/dashboard' },
     ],
   },
 };
@@ -167,46 +167,39 @@ function LeftSidebar({ currentUser, onLogout, isOpen, onClose }) {
         </div>
 
         {/* Menu Items */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <nav className="space-y-1.5">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <nav className="space-y-1">
             <Link
               to="/"
               onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${
                 location.pathname === '/'
-                  ? 'bg-sky-50 text-sky-700 font-semibold border-l-[3px] border-sky-600 shadow-xs'
+                  ? 'bg-sky-50 text-sky-700 font-bold border-l-[3px] border-sky-600 shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
               }`}
             >
               <Home className={`w-4 h-4 ${location.pathname === '/' ? 'text-sky-600' : 'text-slate-400'}`} />
-              <span className="text-xs font-semibold">Trang Chủ (Giới thiệu)</span>
+              <span className="text-xs font-semibold">Trang chủ</span>
             </Link>
 
             <Link
               to="/profile"
               onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${
                 location.pathname === '/profile'
-                  ? 'bg-sky-50 text-sky-700 font-semibold border-l-[3px] border-sky-600 shadow-xs'
+                  ? 'bg-sky-50 text-sky-700 font-bold border-l-[3px] border-sky-600 shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
               }`}
             >
               <User className={`w-4 h-4 ${location.pathname === '/profile' ? 'text-sky-600' : 'text-slate-400'}`} />
-              <span className="text-xs font-semibold">Hồ Sơ Cá Nhân</span>
+              <span className="text-xs font-semibold">Hồ sơ cá nhân</span>
             </Link>
 
-            <Link
-              to="/dashboard"
-              onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
-                location.pathname === '/dashboard'
-                  ? 'bg-sky-50 text-sky-700 font-semibold border-l-[3px] border-sky-600 shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
-            >
-              <LayoutDashboard className={`w-4 h-4 ${location.pathname === '/dashboard' ? 'text-sky-600' : 'text-slate-400'}`} />
-              <span className="text-xs font-semibold">Trung Tâm Khảo Thí</span>
-            </Link>
+            <div className="pt-2 pb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3">
+                Chức năng chính
+              </span>
+            </div>
 
             {roleConfig.menuItems.map((item) => {
               const isActive = location.pathname === item.path;
@@ -216,17 +209,14 @@ function LeftSidebar({ currentUser, onLogout, isOpen, onClose }) {
                   key={item.id}
                   to={item.path}
                   onClick={onClose}
-                  className={`flex items-start gap-3 p-2.5 rounded-xl transition-all ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
                     isActive
-                      ? 'bg-sky-50 text-sky-700 font-semibold border-l-[3px] border-sky-600 shadow-xs'
+                      ? 'bg-sky-50 text-sky-700 font-bold border-l-[3px] border-sky-600 shadow-xs'
                       : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs font-semibold block leading-tight truncate">{item.label}</span>
-                    <span className="text-[10px] text-slate-400 block truncate mt-0.5">{item.desc}</span>
-                  </div>
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
+                  <span className="text-xs font-semibold truncate">{item.label}</span>
                 </Link>
               );
             })}
