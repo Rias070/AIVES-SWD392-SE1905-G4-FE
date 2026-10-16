@@ -59,7 +59,7 @@ export default function LecturerReviewPage() {
     setLoading(true);
     try {
       const res = await lecturerQuestionApi.getQuestions({ status: 'PENDING' });
-      if (res?.data?.result && res.data.result.length > 0) {
+      if (res?.data?.result) {
         setQuestions(res.data.result);
         return;
       }
@@ -68,44 +68,7 @@ export default function LecturerReviewPage() {
     } finally {
       setLoading(false);
     }
-
-    // Default fallback review questions if nothing from API
-    setQuestions([
-      {
-        id: 'mock-1',
-        code: 'CS301-Q105',
-        subjectCode: 'CS301',
-        content: 'Trình bày cách thức hoạt động của giải thuật Dijkstra. Tại sao giải thuật này không cho kết quả chính xác trên đồ thị có trọng số âm?',
-        bloomLevel: 'Bloom 4 - Phân tích',
-        bloomColor: 'bg-purple-50 text-purple-700 border-purple-200',
-        difficulty: 'HARD',
-        isApproved: false,
-        status: 'PENDING',
-        expectedAnswer: 'Giải thích cơ chế Greedy chọn đỉnh min khoảng cách tạm thời gán nhãn vĩnh viễn; phản ví dụ cung âm làm vi phạm nguyên lý tối ưu cục bộ.',
-        rubrics: [
-          { criterionName: 'Nguyên lý Greedy của Dijkstra', maxScore: 3.0, description: 'Giải thích cách cập nhật nhãn đỉnh và điều kiện dừng' },
-          { criterionName: 'Phản ví dụ trọng số âm', maxScore: 4.0, description: 'Chỉ rõ tại sao giả định Greedy bị vi phạm khi có cung âm' },
-          { criterionName: 'So sánh Bellman-Ford', maxScore: 3.0, description: 'Nêu cơ chế phát hiện chu trình âm O(V*E)' }
-        ]
-      },
-      {
-        id: 'mock-2',
-        code: 'CS301-Q106',
-        subjectCode: 'CS301',
-        content: 'So sánh cấu trúc cây AVL và cây Đỏ-Đen (Red-Black Tree). Khi nào nên ưu tiên sử dụng cây AVL thay vì cây Đỏ-Đen trong ứng dụng thực tế?',
-        bloomLevel: 'Bloom 3 - Vận dụng',
-        bloomColor: 'bg-sky-50 text-sky-700 border-sky-200',
-        difficulty: 'MEDIUM',
-        isApproved: false,
-        status: 'PENDING',
-        expectedAnswer: 'Cây AVL cân bằng nghiêm ngặt hơn (chênh lệch chiều cao <= 1) nên tối ưu cho tra cứu (read-heavy). Cây Đỏ-Đen xoay ít hơn khi chèn/xóa nên tối ưu cho ghi thường xuyên (write-heavy).',
-        rubrics: [
-          { criterionName: 'Khái niệm và điều kiện cân bằng', maxScore: 3.0, description: 'Phân biệt hệ số cân bằng AVL và tính chất tô màu' },
-          { criterionName: 'Chi phí phép xoay (Rotations)', maxScore: 4.0, description: 'Chỉ ra số phép xoay tối đa khi insert và delete' },
-          { criterionName: 'Kịch bản ứng dụng thực tế', maxScore: 3.0, description: 'Lựa chọn cấu trúc phù hợp với bài toán read-heavy vs write-heavy' }
-        ]
-      }
-    ]);
+    setQuestions([]);
   };
 
   useEffect(() => {

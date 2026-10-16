@@ -33,33 +33,7 @@ export default function LecturerRAGPage() {
   const [isRubricDrawerOpen, setIsRubricDrawerOpen] = useState(false);
 
   // Rubric Barem drawer states
-  const defaultRubrics = [
-    {
-      id: 'rub-1',
-      criterionName: 'Tính chính xác giải thuật (Core Algorithm Accuracy)',
-      description: 'Giải thích rõ ràng cơ chế Greedy gán nhãn cố định khi chọn đỉnh u có d[u] nhỏ nhất và lý do không thể đảo ngược khi gặp trọng số âm.',
-      maxScore: 4.0,
-      weight: 1.0,
-      strictness: 'Cao (Strict)'
-    },
-    {
-      id: 'rub-2',
-      criterionName: 'Tư duy phản biện & Minh họa phản ví dụ (Counter-example)',
-      description: 'Đưa ra đồ thị 3 đỉnh tối thiểu (A → B: 4, A → C: 2, C → B: -3) chứng minh sai số tìm đường đi ngắn nhất của Dijkstra.',
-      maxScore: 3.5,
-      weight: 1.0,
-      strictness: 'Trung bình'
-    },
-    {
-      id: 'rub-3',
-      criterionName: 'So sánh phương án thay thế (Bellman-Ford / SPFA)',
-      description: 'Nêu được nguyên lý Relaxing |V|-1 lần, độ phức tạp O(V*E) và cơ chế phát hiện Negative Cycle qua lần lặp thứ |V|.',
-      maxScore: 2.5,
-      weight: 1.0,
-      strictness: 'Cơ bản'
-    }
-  ];
-  const [activeRubrics, setActiveRubrics] = useState(defaultRubrics);
+  const [activeRubrics, setActiveRubrics] = useState([]);
   const [isAddRubricOpen, setIsAddRubricOpen] = useState(false);
   const [newRubricForm, setNewRubricForm] = useState({
     criterionName: '',
@@ -68,40 +42,100 @@ export default function LecturerRAGPage() {
     weight: 1.0,
   });
 
-  // Examination Language Configuration (STT/TTS)
+  // Subjects & Examination Language Configuration (STT/TTS)
+  const [subjectsList, setSubjectsList] = useState([]);
   const [isLangConfigOpen, setIsLangConfigOpen] = useState(false);
-  const [courseCode, setCourseCode] = useState('CS301');
-  const [courseName, setCourseName] = useState('Cấu trúc Dữ liệu & Giải thuật nâng cao');
+  const [courseCode, setCourseCode] = useState('PRJ301');
+  const [courseName, setCourseName] = useState('Java Web Applications');
   const [courseSubjectId, setCourseSubjectId] = useState(null);
   const [examLang, setExamLang] = useState(() => {
-    return localStorage.getItem('aives_subject_lang_CS301') || 'vi-VN';
+    return localStorage.getItem('aives_subject_lang_PRJ301') || 'vi-VN';
   });
-  const [technicalTerms, setTechnicalTerms] = useState(
-    'Binary Heap, Fibonacci Heap, Dijkstra, AVL Tree, Red-Black Tree, Dynamic Programming, Time Complexity'
-  );
+  const [technicalTerms, setTechnicalTerms] = useState('');
   const [isSavingLang, setIsSavingLang] = useState(false);
   const [langToast, setLangToast] = useState(null);
 
+  const [ragDocuments, setRagDocuments] = useState([]);
+  const fileInputRef = useRef(null);
+
+  const fetchDocuments = async (subCode, subUuid) => {
+    setLoading(true);
+    try {
+      const res = await lecturerDocumentApi.getDocuments({ 
+        subjectCode: subCode || courseCode,
+        subjectUuid: subUuid || courseSubjectId || undefined 
+      });
+      if (res?.data?.result) {
+        setRagDocuments(res.data.result);
+        return;
+      }
+    } catch (err) {
+      console.warn('API getDocuments error:', err);
+    } finally {
+      setLoading(false);
+    }
+    setRagDocuments([]);
+  };
+
+  const fetchRubrics = async (subjId) => {
+    if (!subjId) {
+      setActiveRubrics([]);
+      return;
+    }
+    try {
+      const res = await lecturerRubricApi.getRubricsBySubject(subjId);
+      if (res?.data?.result) {
+        setActiveRubrics(res.data.result);
+        return;
+      }
+    } catch (err) {
+      console.warn('API getRubricsBySubject error:', err);
+    }
+    setActiveRubrics([]);
+  };
+
   useEffect(() => {
-    const fetchSubjectConfig = async () => {
+    const loadSubjectsAndData = async () => {
       try {
-        const res = await subjectApi.getSubjectByCode('CS301');
-        const subj = res?.data?.result || res?.data;
-        if (subj) {
-          if (subj.id) setCourseSubjectId(subj.id);
-          if (subj.name) setCourseName(subj.name);
-          if (subj.language) {
-            setExamLang(subj.language);
-            localStorage.setItem('aives_subject_lang_CS301', subj.language);
-          }
-          if (subj.technicalTerms) setTechnicalTerms(subj.technicalTerms);
+        const res = await subjectApi.getSubjects();
+        const list = res?.data?.result || [];
+        setSubjectsList(list);
+        if (list.length > 0) {
+          const firstSubj = list[0];
+          setCourseCode(firstSubj.code);
+          setCourseName(firstSubj.name);
+          const sId = firstSubj.id || firstSubj.uuid;
+          setCourseSubjectId(sId);
+          if (firstSubj.language) setExamLang(firstSubj.language);
+          if (firstSubj.technicalTerms) setTechnicalTerms(firstSubj.technicalTerms);
+          fetchDocuments(firstSubj.code, sId);
+          fetchRubrics(sId);
+        } else {
+          fetchDocuments(courseCode, null);
         }
       } catch (e) {
-        // Fallback to local storage
+        console.warn('Failed to load subjects from API:', e);
+        fetchDocuments(courseCode, null);
       }
     };
-    fetchSubjectConfig();
+    loadSubjectsAndData();
   }, []);
+
+  const handleSubjectChange = (newCode) => {
+    setCourseCode(newCode);
+    const found = subjectsList.find(s => s.code === newCode);
+    if (found) {
+      setCourseName(found.name);
+      const sId = found.id || found.uuid;
+      setCourseSubjectId(sId);
+      if (found.language) setExamLang(found.language);
+      if (found.technicalTerms) setTechnicalTerms(found.technicalTerms);
+      fetchDocuments(found.code, sId);
+      fetchRubrics(sId);
+    } else {
+      fetchDocuments(newCode, null);
+    }
+  };
 
   const handleSaveLanguageConfig = async (e) => {
     e.preventDefault();
@@ -125,64 +159,6 @@ export default function LecturerRAGPage() {
     }
   };
 
-  // Mock RAG Knowledge documents (fallback)
-  const defaultRagDocuments = [
-    {
-      id: 1,
-      filename: 'Giao_trinh_Giai_thuat_Nang_cao_CS301.pdf',
-      size: '12.2 MB',
-      status: 'indexed',
-      statusText: 'Đã hoàn thành',
-      updatedAt: '14/10/2026',
-    },
-    {
-      id: 2,
-      filename: 'Slide_Chuong_4_Do_Thi_Dijkstra_BellmanFord.pdf',
-      size: '4.8 MB',
-      status: 'indexed',
-      statusText: 'Đã hoàn thành',
-      updatedAt: '12/10/2026',
-    },
-    {
-      id: 3,
-      filename: 'De_cuong_chi_tiet_Cay_AVL_BTree.docx',
-      size: '1.1 MB',
-      status: 'chunking',
-      statusText: 'Đang băm đoạn (500 tokens)',
-      updatedAt: '14/10/2026',
-    },
-    {
-      id: 4,
-      filename: 'Bai_tap_Lon_Max_Flow_FordFulkerson.pdf',
-      size: '2.2 MB',
-      status: 'indexed',
-      statusText: 'Đã hoàn thành',
-      updatedAt: '10/10/2026',
-    },
-  ];
-
-  const [ragDocuments, setRagDocuments] = useState(defaultRagDocuments);
-
-  const fetchDocuments = async () => {
-    setLoading(true);
-    try {
-      const res = await lecturerDocumentApi.getDocuments({ subjectCode: 'CS301' });
-      if (res?.data?.result && res.data.result.length > 0) {
-        setRagDocuments(res.data.result);
-      }
-    } catch {
-      // Fallback
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fileInputRef = useRef(null);
-
-  useEffect(() => {
-    fetchDocuments();
-  }, []);
-
   const handleRealFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -190,40 +166,40 @@ export default function LecturerRAGPage() {
     setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('subjectCode', courseCode || 'CS301');
+    formData.append('subjectCode', courseCode);
+    if (courseSubjectId) {
+      formData.append('subjectUuid', courseSubjectId);
+    }
 
     try {
       const res = await lecturerDocumentApi.uploadDocumentFile(formData);
       if (res?.data?.result) {
-        setRagDocuments([res.data.result, ...ragDocuments]);
+        setRagDocuments(prev => [res.data.result, ...prev]);
+        setLangToast(`Đã tải lên tệp ${file.name} và tạo vector băm đoạn thành công!`);
       } else {
-        throw new Error();
+        fetchDocuments(courseCode, courseSubjectId);
+        setLangToast(`Đã tải lên tệp ${file.name}!`);
       }
-    } catch {
-      setRagDocuments([
-        {
-          id: Date.now(),
-          filename: file.name,
-          size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-          status: 'indexed',
-          statusText: 'Đã hoàn thành',
-          updatedAt: 'Vừa xong',
-        },
-        ...ragDocuments,
-      ]);
+    } catch (err) {
+      console.warn('API uploadDocumentFile error:', err);
+      setLangToast(err.friendlyMessage || 'Không thể tải lên tệp học liệu. Vui lòng thử lại!');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      setTimeout(() => setLangToast(null), 4000);
     }
   };
 
   const handleDeleteDocument = async (docId) => {
     try {
       await lecturerDocumentApi.deleteDocument(docId);
+      setRagDocuments(prev => prev.filter((d) => (d.id !== docId && d.uuid !== docId)));
+      setLangToast('Đã xóa học liệu thành công.');
     } catch (e) {
       console.warn('API delete document warning:', e);
+      setRagDocuments(prev => prev.filter((d) => (d.id !== docId && d.uuid !== docId)));
     }
-    setRagDocuments(ragDocuments.filter((d) => d.id !== docId));
+    setTimeout(() => setLangToast(null), 3000);
   };
 
   const filteredDocs = ragDocuments.filter((d) =>
@@ -295,9 +271,23 @@ export default function LecturerRAGPage() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800">
-                {courseCode}
-              </span>
+              {subjectsList.length > 1 ? (
+                <select
+                  value={courseCode}
+                  onChange={(e) => handleSubjectChange(e.target.value)}
+                  className="text-xs font-bold px-2 py-0.5 rounded bg-sky-50 border border-sky-200 text-sky-800 focus:outline-none cursor-pointer"
+                >
+                  {subjectsList.map((s) => (
+                    <option key={s.id || s.code} value={s.code}>
+                      {s.code} - {s.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800">
+                  {courseCode}
+                </span>
+              )}
               <h1 className="text-sm md:text-base font-bold text-slate-900 leading-tight">
                 {courseName}
               </h1>
@@ -512,15 +502,17 @@ export default function LecturerRAGPage() {
               <div className="grid grid-cols-3 gap-2 text-center text-xs">
                 <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[10px] text-slate-400 block">Thang điểm</span>
-                  <span className="font-extrabold text-slate-900 font-mono">10.0</span>
+                  <span className="font-extrabold text-slate-900 font-mono">
+                    {activeRubrics.reduce((acc, r) => acc + (Number(r.maxScore) || 0), 0).toFixed(1)}
+                  </span>
                 </div>
                 <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[10px] text-slate-400 block">Tiêu chí</span>
-                  <span className="font-extrabold text-slate-900 font-mono">3 mục</span>
+                  <span className="font-extrabold text-slate-900 font-mono">{activeRubrics.length} mục</span>
                 </div>
                 <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-[10px] text-slate-400 block">Bloom Target</span>
-                  <span className="font-extrabold text-amber-700 font-mono">Mức 4-5</span>
+                  <span className="font-extrabold text-amber-700 font-mono">Mức 3-5</span>
                 </div>
               </div>
 

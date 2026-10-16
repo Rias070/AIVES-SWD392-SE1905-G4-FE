@@ -881,6 +881,7 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
   const [fullName, setFullName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
   const [role, setRole] = useState('STUDENT');
   const [showPassword, setShowPassword] = useState(false);
   const [modalError, setModalError] = useState(null);
@@ -978,22 +979,31 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
       return;
     }
 
-    if (!registerPassword || registerPassword.length < 6) {
-      setModalError('Mật khẩu tối thiểu 6 ký tự!');
+    if (!registerPassword || registerPassword.length < 8) {
+      setModalError('Mật khẩu bảo mật phải có độ dài tối thiểu 8 ký tự!');
       return;
     }
 
-    const registered = await registerUser({
-      name: fullName.trim(),
-      email: registerEmail.trim(),
-      password: registerPassword,
-      role: role,
-    });
+    if (registerPassword !== registerConfirmPassword) {
+      setModalError('Mật khẩu và xác nhận mật khẩu không khớp nhau!');
+      return;
+    }
 
-    onLoginSuccess(registered);
-    onClose();
-    const defaultPath = ROLE_CONFIGS[registered.role || role]?.defaultPath || '/student';
-    navigate(defaultPath);
+    try {
+      const registered = await registerUser({
+        name: fullName.trim(),
+        email: registerEmail.trim(),
+        password: registerPassword,
+        role: role,
+      });
+
+      onLoginSuccess(registered);
+      onClose();
+      const defaultPath = ROLE_CONFIGS[registered.role || role]?.defaultPath || '/student';
+      navigate(defaultPath);
+    } catch (err) {
+      setModalError(err.message || 'Không thể hoàn tất đăng ký tài khoản. Vui lòng thử lại!');
+    }
   };
 
   return (
@@ -1191,7 +1201,7 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Mật khẩu
+                Mật khẩu (tối thiểu 8 ký tự)
               </label>
               <div className="relative">
                 <input
@@ -1210,6 +1220,20 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Nhập lại mật khẩu
+              </label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={registerConfirmPassword}
+                onChange={(e) => setRegisterConfirmPassword(e.target.value)}
+                placeholder="Khớp với mật khẩu trên"
+                required
+                className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-sky-500"
+              />
             </div>
 
             <button

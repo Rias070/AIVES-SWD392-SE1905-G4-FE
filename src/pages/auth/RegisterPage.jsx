@@ -166,7 +166,7 @@ export default function RegisterPage({ onLoginSuccess }) {
         }
       }, 1500);
     } catch (err) {
-      setFormError('Không thể hoàn tất đăng ký tài khoản. Vui lòng thử lại!');
+      setFormError(err.message || 'Không thể hoàn tất đăng ký tài khoản. Vui lòng thử lại!');
       setIsSubmitting(false);
     }
   };

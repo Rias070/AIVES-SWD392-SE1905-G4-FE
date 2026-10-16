@@ -367,7 +367,11 @@ export const registerUser = async (data) => {
       localStorage.setItem('token', res.data.result.token);
     }
   } catch (apiErr) {
-    // Fallback: If auth/register doesn't exist, try admin createUser
+    // If backend actively rejected with a business validation error, throw it to notify user
+    if (apiErr.response && (apiErr.response.status === 400 || apiErr.response.status === 409 || apiErr.response.status === 422)) {
+      throw new Error(apiErr.response?.data?.message || apiErr.friendlyMessage || 'Dữ liệu đăng ký không hợp lệ trên máy chủ.');
+    }
+    // Fallback: If auth/register doesn't exist (404/500/offline), try admin createUser
     try {
       await api.post('/v1/admin/users', {
         email: newUser.email,

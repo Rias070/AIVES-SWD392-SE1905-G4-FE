@@ -74,60 +74,17 @@ export default function QuestionBankPage() {
 
   const navigate = useNavigate();
 
-  // Sample data showcasing RAG Question Bank with Vector Embeddings (fallback)
-  const sampleQuestions = [
-    {
-      id: 'q-1',
-      code: 'PRJ301-Q102',
-      subject: 'Java Web Application (PRJ301)',
-      subjectCode: 'PRJ301',
-      difficulty: 'MEDIUM',
-      bloomLevel: 'Bloom 3 - Vận dụng',
-      content: 'Explain the lifecycle of a Java Servlet and how Session Management is maintained in distributed environments.',
-      keywords: ['Servlet Lifecycle', 'HttpSession', 'Cookies', 'Distributed Cache'],
-      vectorStatus: 'Embedded (1536 dims)',
-      rubricCount: 3,
-      isApproved: true,
-    },
-    {
-      id: 'q-2',
-      code: 'SWP391-Q045',
-      subject: 'Software Development Project (SWP391)',
-      subjectCode: 'SWP391',
-      difficulty: 'HARD',
-      bloomLevel: 'Bloom 4 - Phân tích',
-      content: 'How does an event-driven architecture prevent cascading failures during high concurrent traffic peaks?',
-      keywords: ['Kafka', 'Circuit Breaker', 'Backpressure', 'Idempotency'],
-      vectorStatus: 'Embedded (1536 dims)',
-      rubricCount: 4,
-      isApproved: true,
-    },
-    {
-      id: 'q-3',
-      code: 'CSD201-Q088',
-      subject: 'Data Structures & Algorithms (CSD201)',
-      subjectCode: 'CSD201',
-      difficulty: 'EASY',
-      bloomLevel: 'Bloom 2 - Hiểu',
-      content: 'Compare the time complexity and memory overhead between AVL Tree and Red-Black Tree in balancing operations.',
-      keywords: ['Binary Search Tree', 'Rotation', 'Worst-case', 'Tree Height'],
-      vectorStatus: 'Embedded (1536 dims)',
-      rubricCount: 2,
-      isApproved: false,
-    },
-  ];
-
   const loadStoredQuestions = () => {
     try {
       const raw = localStorage.getItem(QUESTION_BANK_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Error reading QUESTION_BANK_KEY:', e);
     }
-    return sampleQuestions;
+    return [];
   };
 
   const saveQuestions = (updatedList) => {
@@ -143,18 +100,18 @@ export default function QuestionBankPage() {
     setLoading(true);
     try {
       const res = await lecturerQuestionApi.getQuestions();
-      if (res?.data?.result && res.data.result.length > 0) {
+      if (res?.data?.result) {
         const formatted = res.data.result.map(q => ({
           ...q,
-          subject: q.subjectName ? `${q.subjectName} (${q.subjectCode})` : q.subjectCode,
+          subject: q.subjectName ? `${q.subjectName} (${q.subjectCode})` : (q.subjectCode || 'Chưa phân môn'),
           keywords: Array.isArray(q.keywords) ? q.keywords : (q.keywords ? q.keywords.split(',') : []),
           rubricCount: q.rubrics?.length || q.rubricCount || 0,
         }));
         saveQuestions(formatted);
         return;
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.warn('API getQuestions error, falling back to local cache:', err);
     } finally {
       setLoading(false);
     }
@@ -167,13 +124,9 @@ export default function QuestionBankPage() {
       if (res?.data?.result) {
         setSubjectsList(res.data.result);
       }
-    } catch {
-      // Fallback subjects
-      setSubjectsList([
-        { code: 'PRJ301', name: 'Java Web Application' },
-        { code: 'SWP391', name: 'Software Development Project' },
-        { code: 'CSD201', name: 'Data Structures & Algorithms' },
-      ]);
+    } catch (err) {
+      console.warn('API getSubjects error:', err);
+      setSubjectsList([]);
     }
   };
 
