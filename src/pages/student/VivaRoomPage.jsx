@@ -689,8 +689,8 @@ export default function VivaRoomPage() {
       activeSubject === 'AI204'
         ? 'Học máy & Thị giác máy tính'
         : activeSubject === 'SE102'
-        ? 'Kiến trúc Phần mềm'
-        : 'Cấu trúc Dữ liệu & Giải thuật'
+          ? 'Kiến trúc Phần mềm'
+          : 'Cấu trúc Dữ liệu & Giải thuật'
   };
   const activeCourseName = currentSession?.courseName || `${catalogEntry.code}: ${catalogEntry.name}`;
 
@@ -755,10 +755,14 @@ export default function VivaRoomPage() {
   // Synchronization & Lifecycle Refs (Anti-race condition & safe cleanup)
   const isProcessingTurnRef = useRef(false);
   const isManuallyStoppedRef = useRef(false);
+  const recognitionRef = useRef(null);
+  const isSpeechSynthesizingRef = useRef(false);
+  const currentAudioRef = useRef(null);
 
   // Voice Diagnostic Modal State
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [voiceTestStatus, setVoiceTestStatus] = useState('');
+  const [detectedVoices, setDetectedVoices] = useState([]);
 
   // Auto-scroll transcript to bottom
   const scrollToBottom = () => {
@@ -926,12 +930,12 @@ export default function VivaRoomPage() {
         cancelAnimationFrame(animationFrameRef.current);
       }
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current.close().catch(() => { });
       }
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-        } catch (e) {}
+        } catch (e) { }
         recognitionRef.current = null;
       }
     };
@@ -959,13 +963,13 @@ export default function VivaRoomPage() {
     if ('speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
-      } catch (e) {}
+      } catch (e) { }
     }
     if (currentAudioRef.current) {
       try {
         currentAudioRef.current.pause();
         currentAudioRef.current.currentTime = 0;
-      } catch (e) {}
+      } catch (e) { }
       currentAudioRef.current = null;
     }
   };
@@ -1068,7 +1072,7 @@ export default function VivaRoomPage() {
 
         window.speechSynthesis.speak(utterance);
         return;
-      } catch (err) {}
+      } catch (err) { }
     }
 
     clearTimeout(safetyTimer);
@@ -1103,7 +1107,7 @@ export default function VivaRoomPage() {
       if (currentAudioRef.current) {
         try {
           currentAudioRef.current.pause();
-        } catch (e) {}
+        } catch (e) { }
         currentAudioRef.current = null;
       }
       speakWithBrowserDefaultFallback(text, onFinished);
@@ -1246,7 +1250,7 @@ export default function VivaRoomPage() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try {
         mediaRecorderRef.current.stop();
-      } catch (e) {}
+      } catch (e) { }
     }
   };
 
@@ -1263,7 +1267,7 @@ export default function VivaRoomPage() {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const activeLang = overrideLang || examLangRef.current || 'vi-VN';
@@ -1304,13 +1308,13 @@ export default function VivaRoomPage() {
         if (!isManuallyStoppedRef.current && fsmStateRef.current === STATES.STUDENT_ANSWERING) {
           try {
             recognition.start();
-          } catch (e) {}
+          } catch (e) { }
         }
       };
 
       try {
         recognition.start();
-      } catch (startErr) {}
+      } catch (startErr) { }
       recognitionRef.current = recognition;
     } catch (err) {
       console.error('Lỗi khi bắt đầu nhận diện giọng nói:', err);
@@ -1322,7 +1326,7 @@ export default function VivaRoomPage() {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (e) {}
+      } catch (e) { }
       recognitionRef.current = null;
     }
   };
@@ -1340,7 +1344,7 @@ export default function VivaRoomPage() {
     examLangRef.current = newLang;
     try {
       localStorage.setItem('aives_exam_lang', newLang);
-    } catch (e) {}
+    } catch (e) { }
 
     // Sync URL parameter
     setSearchParams(
@@ -1502,13 +1506,26 @@ export default function VivaRoomPage() {
     ]);
 
 
-    // AI Thinking Delay (1.8s) before follow-up or finished
-    setTimeout(() => {
-      if (speechTurnRef.current >= maxTurns) {
-        finishExamSession();
-      } else {
-        generateFollowUpQuestion(finalAnswer);
+    // Send Turn answer via STOMP if connected
+    const turnData = {
+      sessionId: sessionUuid,
+      turnOrder: speechTurnRef.current,
+      studentAnswer: finalAnswer,
+      turnDurationSeconds: 90 - turnSeconds,
+      examLang: examLangRef.current
+    };
 
+    let sentViaWs = false;
+    if (stompClientRef.current && stompClientRef.current.connected) {
+      try {
+        stompClientRef.current.publish({
+          destination: `/app/exam/${sessionUuid}/submit-turn`,
+          body: JSON.stringify(turnData)
+        });
+        sentViaWs = true;
+        console.log(`[AIVES STOMP] Sent turn #${speechTurnRef.current} to /app/exam/${sessionUuid}/submit-turn`);
+      } catch (wsErr) {
+        console.warn('[AIVES STOMP] Publish error:', wsErr);
       }
     }
 
@@ -1518,12 +1535,12 @@ export default function VivaRoomPage() {
       setTimeout(() => {
         if (isProcessingTurnRef.current && speechTurnRef.current === turnSnapshot && fsmStateRef.current === STATES.AI_THINKING) {
           console.warn('[AIVES STOMP] Response timeout, activating local reasoning fallback');
-          executeLocalTurnFallback(studentAnswer);
+          executeLocalTurnFallback(finalAnswer);
         }
       }, 6500);
     } else {
       setTimeout(() => {
-        executeLocalTurnFallback(studentAnswer);
+        executeLocalTurnFallback(finalAnswer);
       }, 1600);
     }
   };
@@ -1632,21 +1649,21 @@ export default function VivaRoomPage() {
           ? examLangRef.current === 'ja-JP'
             ? '過学習・学習不足のメカニズム、正則化手法（L1/L2）、およびCNNの畳み込み層の特性に関する質問に対し、学術的根拠に基づき非常に的確に回答できています。'
             : examLangRef.current === 'en-US'
-            ? 'The candidate demonstrated deep understanding of the Bias-Variance tradeoff, regularization mechanisms (L1/L2, Dropout), and CNN architectural advantages. Excellent technical clarity.'
-            : 'Thí sinh thể hiện hiểu biết sâu sắc về đánh đổi Bias-Variance, cơ chế Regularization (L1/L2, Dropout) và ưu thế của các lớp tích chập CNN. Lập luận chuẩn xác và tự tin.'
+              ? 'The candidate demonstrated deep understanding of the Bias-Variance tradeoff, regularization mechanisms (L1/L2, Dropout), and CNN architectural advantages. Excellent technical clarity.'
+              : 'Thí sinh thể hiện hiểu biết sâu sắc về đánh đổi Bias-Variance, cơ chế Regularization (L1/L2, Dropout) và ưu thế của các lớp tích chập CNN. Lập luận chuẩn xác và tự tin.'
           : activeSubject === 'SE102'
 
-          ? examLangRef.current === 'ja-JP'
-            ? 'マイクロサービスのデータ整合性維持、Sagaパターン（オーケストレーション対コレオグラフィ）、およびCAP定理のトレードオフに関する試問に対し、実践的なシステム設計能力を示しました。'
-            : examLangRef.current === 'en-US'
-            ? 'The candidate exhibited strong architectural maturity regarding eventual consistency, Saga pattern trade-offs, and CAP theorem implications in distributed environments.'
-            : 'Thí sinh nắm rất vững nguyên lý thiết kế Microservices, cơ chế Saga Pattern với bù trừ giao dịch và đánh đổi trong định lý CAP. Tư duy kiến trúc hệ thống sắc bén.'
-          : examLangRef.current === 'ja-JP'
-          ? '負閉路の検出とフィボナッチヒープの最適化に関する深掘り試問に対し、論理的かつ的確に回答できています。'
-          : examLangRef.current === 'en-US'
-          ? 'The candidate demonstrated sharp problem-solving skills regarding negative weight cycles and heap structures. Arguments were coherent and well-structured.'
-          : 'Thí sinh phản xạ nhanh với các câu hỏi xoáy về chu trình âm và tối ưu cấu trúc Heap trong Dijkstra. Lập luận chặt chẽ và mạch lạc.'
-
+            ? examLangRef.current === 'ja-JP'
+              ? 'マイクロサービスのデータ整合性維持、Sagaパターン（オーケストレーション対コレオグラフィ）、およびCAP定理のトレードオフに関する試問に対し、実践的なシステム設計能力を示しました。'
+              : examLangRef.current === 'en-US'
+                ? 'The candidate exhibited strong architectural maturity regarding eventual consistency, Saga pattern trade-offs, and CAP theorem implications in distributed environments.'
+                : 'Thí sinh nắm rất vững nguyên lý thiết kế Microservices, cơ chế Saga Pattern với bù trừ giao dịch và đánh đổi trong định lý CAP. Tư duy kiến trúc hệ thống sắc bén.'
+            : examLangRef.current === 'ja-JP'
+              ? '負閉路の検出とフィボナッチヒープの最適化に関する深掘り試問に対し、論理的かつ的確に回答できています。'
+              : examLangRef.current === 'en-US'
+                ? 'The candidate demonstrated sharp problem-solving skills regarding negative weight cycles and heap structures. Arguments were coherent and well-structured.'
+                : 'Thí sinh phản xạ nhanh với các câu hỏi xoáy về chu trình âm và tối ưu cấu trúc Heap trong Dijkstra. Lập luận chặt chẽ và mạch lạc.'
+      )
     };
 
     try {
@@ -1671,8 +1688,8 @@ export default function VivaRoomPage() {
       examLang === 'ja-JP'
         ? '早期提出して試験を終了しますか？'
         : examLang === 'en-US'
-        ? 'Are you sure you want to finish the exam session early and submit for grading?'
-        : 'Bạn có chắc chắn muốn nộp bài sớm và kết thúc ca thi vấn đáp để AI chấm điểm?';
+          ? 'Are you sure you want to finish the exam session early and submit for grading?'
+          : 'Bạn có chắc chắn muốn nộp bài sớm và kết thúc ca thi vấn đáp để AI chấm điểm?';
 
     if (window.confirm(confirmMsg)) {
       finishExamSession();
@@ -1717,11 +1734,10 @@ export default function VivaRoomPage() {
                   key={langItem.code}
                   type="button"
                   onClick={() => handleLanguageChange(langItem.code)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-white text-sky-700 shadow-xs border border-sky-200 font-bold scale-[1.02]'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${isActive
+                    ? 'bg-white text-sky-700 shadow-xs border border-sky-200 font-bold scale-[1.02]'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                    }`}
                   title={`Chuyển ngôn ngữ thi sang ${langItem.label}`}
                 >
                   <span className="text-sm leading-none">{langItem.flag}</span>
@@ -1756,9 +1772,8 @@ export default function VivaRoomPage() {
               {[1, 2, 3].map((turn) => (
                 <span
                   key={turn}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    turn <= speechTurn ? 'bg-sky-600' : 'bg-slate-300'
-                  }`}
+                  className={`w-2 h-2 rounded-full transition-colors ${turn <= speechTurn ? 'bg-sky-600' : 'bg-slate-300'
+                    }`}
                 ></span>
               ))}
             </div>
@@ -1766,16 +1781,14 @@ export default function VivaRoomPage() {
 
           {/* Live Connection Indicator */}
           <div
-            className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border transition-all ${
-              isWsConnected
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-slate-50 text-slate-600 border-slate-200'
-            }`}
+            className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border transition-all ${isWsConnected
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-slate-50 text-slate-600 border-slate-200'
+              }`}
           >
             <span
-              className={`w-2 h-2 rounded-full ${
-                isWsConnected ? 'bg-emerald-500' : 'bg-slate-400'
-              }`}
+              className={`w-2 h-2 rounded-full ${isWsConnected ? 'bg-emerald-500' : 'bg-slate-400'
+                }`}
             />
             <span>{isWsConnected ? 'Trực tuyến' : 'Ngoại tuyến'}</span>
           </div>
@@ -1824,78 +1837,70 @@ export default function VivaRoomPage() {
           <div className="relative min-h-[380px] rounded-3xl bg-gradient-to-b from-sky-50/40 via-white/80 to-sky-50/30 border border-sky-100 shadow-xs flex flex-col items-center justify-center p-8 overflow-hidden">
             {/* Ambient Background Glow Circles */}
             <div
-              className={`absolute w-80 h-80 rounded-full blur-3xl pointer-events-none -z-10 transition-all duration-700 ${
-                fsmState === STATES.AI_SPEAKING
-                  ? 'bg-cyan-300/40 scale-125 animate-pulse'
-                  : fsmState === STATES.AI_THINKING
+              className={`absolute w-80 h-80 rounded-full blur-3xl pointer-events-none -z-10 transition-all duration-700 ${fsmState === STATES.AI_SPEAKING
+                ? 'bg-cyan-300/40 scale-125 animate-pulse'
+                : fsmState === STATES.AI_THINKING
                   ? 'bg-indigo-300/40 scale-110 animate-spin'
                   : 'bg-sky-200/30'
-              }`}
+                }`}
             ></div>
 
             {/* Concentric Pulsing Ripples */}
             <div className="relative flex items-center justify-center">
               <div
-                className={`absolute w-64 h-64 rounded-full border border-sky-300/40 transition-all duration-500 ${
-                  fsmState === STATES.AI_SPEAKING ? 'animate-ping opacity-40' : 'opacity-20'
-                }`}
+                className={`absolute w-64 h-64 rounded-full border border-sky-300/40 transition-all duration-500 ${fsmState === STATES.AI_SPEAKING ? 'animate-ping opacity-40' : 'opacity-20'
+                  }`}
               ></div>
 
               <div
-                className={`absolute w-52 h-52 rounded-full border border-cyan-400/50 transition-all duration-500 ${
-                  fsmState === STATES.AI_SPEAKING ? 'scale-110 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : ''
-                }`}
+                className={`absolute w-52 h-52 rounded-full border border-cyan-400/50 transition-all duration-500 ${fsmState === STATES.AI_SPEAKING ? 'scale-110 shadow-[0_0_20px_rgba(6,182,212,0.3)]' : ''
+                  }`}
               ></div>
 
               <div className="absolute w-40 h-40 rounded-full border-2 border-sky-400/60 shadow-[0_0_24px_rgba(2,132,199,0.25)]"></div>
 
               {/* Central Glowing AI Orb */}
               <div
-                className={`w-28 h-28 rounded-full p-1 flex items-center justify-center transition-all duration-500 ${
-                  fsmState === STATES.AI_SPEAKING
-                    ? 'bg-gradient-to-tr from-sky-500 via-cyan-400 to-blue-500 shadow-[0_0_45px_rgba(6,182,212,0.8)] scale-105'
-                    : fsmState === STATES.AI_THINKING
+                className={`w-28 h-28 rounded-full p-1 flex items-center justify-center transition-all duration-500 ${fsmState === STATES.AI_SPEAKING
+                  ? 'bg-gradient-to-tr from-sky-500 via-cyan-400 to-blue-500 shadow-[0_0_45px_rgba(6,182,212,0.8)] scale-105'
+                  : fsmState === STATES.AI_THINKING
                     ? 'bg-gradient-to-tr from-indigo-500 via-purple-400 to-sky-400 shadow-[0_0_40px_rgba(99,102,241,0.7)] animate-pulse'
                     : 'bg-gradient-to-tr from-sky-400 via-slate-300 to-cyan-400 shadow-[0_0_25px_rgba(6,182,212,0.3)]'
-                }`}
+                  }`}
               >
                 <div className="w-full h-full rounded-full bg-white/95 backdrop-blur-md flex flex-col items-center justify-center space-y-1 shadow-inner">
                   {fsmState === STATES.AI_THINKING ? (
                     <Cpu className="w-8 h-8 text-indigo-600 animate-spin" />
                   ) : (
                     <Bot
-                      className={`w-8 h-8 text-sky-600 ${
-                        fsmState === STATES.AI_SPEAKING ? 'animate-bounce' : ''
-                      }`}
+                      className={`w-8 h-8 text-sky-600 ${fsmState === STATES.AI_SPEAKING ? 'animate-bounce' : ''
+                        }`}
                     />
                   )}
                   <div className="flex items-center gap-0.5">
                     <span
-                      className={`w-1 rounded-full bg-cyan-500 ${
-                        fsmState === STATES.AI_SPEAKING
-                          ? 'h-4 animate-pulse'
-                          : fsmState === STATES.STUDENT_ANSWERING
+                      className={`w-1 rounded-full bg-cyan-500 ${fsmState === STATES.AI_SPEAKING
+                        ? 'h-4 animate-pulse'
+                        : fsmState === STATES.STUDENT_ANSWERING
                           ? 'h-2'
                           : 'h-1'
-                      }`}
+                        }`}
                     ></span>
                     <span
-                      className={`w-1 rounded-full bg-sky-500 ${
-                        fsmState === STATES.AI_SPEAKING
-                          ? 'h-6 animate-pulse delay-75'
-                          : fsmState === STATES.STUDENT_ANSWERING
+                      className={`w-1 rounded-full bg-sky-500 ${fsmState === STATES.AI_SPEAKING
+                        ? 'h-6 animate-pulse delay-75'
+                        : fsmState === STATES.STUDENT_ANSWERING
                           ? 'h-3'
                           : 'h-2'
-                      }`}
+                        }`}
                     ></span>
                     <span
-                      className={`w-1 rounded-full bg-blue-500 ${
-                        fsmState === STATES.AI_SPEAKING
-                          ? 'h-3 animate-pulse delay-150'
-                          : fsmState === STATES.STUDENT_ANSWERING
+                      className={`w-1 rounded-full bg-blue-500 ${fsmState === STATES.AI_SPEAKING
+                        ? 'h-3 animate-pulse delay-150'
+                        : fsmState === STATES.STUDENT_ANSWERING
                           ? 'h-2'
                           : 'h-1'
-                      }`}
+                        }`}
                     ></span>
                   </div>
                 </div>
@@ -1980,11 +1985,10 @@ export default function VivaRoomPage() {
               <button
                 type="button"
                 onClick={() => setIsMarked(!isMarked)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-colors cursor-pointer ${
-                  isMarked
-                    ? 'bg-amber-50 border-amber-300 text-amber-700 font-semibold'
-                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                }`}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-colors cursor-pointer ${isMarked
+                  ? 'bg-amber-50 border-amber-300 text-amber-700 font-semibold'
+                  : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                  }`}
               >
                 <Bookmark className="w-3.5 h-3.5" />
                 <span>{isMarked ? 'Đã đánh dấu' : 'Đánh dấu'}</span>
@@ -2062,25 +2066,22 @@ export default function VivaRoomPage() {
                   className={`flex items-start gap-2.5 ${item.sender === 'student' ? 'flex-row-reverse' : ''}`}
                 >
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                      item.sender === 'ai' ? 'bg-sky-100 text-sky-700' : 'bg-cyan-100 text-cyan-700'
-                    }`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${item.sender === 'ai' ? 'bg-sky-100 text-sky-700' : 'bg-cyan-100 text-cyan-700'
+                      }`}
                   >
                     {item.sender === 'ai' ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
                   </div>
                   <div
-                    className={`flex-1 rounded-xl p-3 text-xs space-y-1.5 ${
-                      item.sender === 'ai'
-                        ? item.isMainQuestion
-                          ? 'bg-sky-50 border border-sky-200'
-                          : 'bg-slate-50 border border-slate-100'
-                        : 'bg-sky-50/50 border border-sky-100'
-                    }`}
+                    className={`flex-1 rounded-xl p-3 text-xs space-y-1.5 ${item.sender === 'ai'
+                      ? item.isMainQuestion
+                        ? 'bg-sky-50 border border-sky-200'
+                        : 'bg-slate-50 border border-slate-100'
+                      : 'bg-sky-50/50 border border-sky-100'
+                      }`}
                   >
                     <div
-                      className={`flex items-center justify-between text-[10px] ${
-                        item.sender === 'ai' ? 'text-slate-400' : 'text-sky-800'
-                      }`}
+                      className={`flex items-center justify-between text-[10px] ${item.sender === 'ai' ? 'text-slate-400' : 'text-sky-800'
+                        }`}
                     >
                       <span className="font-bold">
                         {item.sender === 'ai'
@@ -2091,9 +2092,8 @@ export default function VivaRoomPage() {
                     </div>
 
                     <p
-                      className={`leading-relaxed ${
-                        item.isMainQuestion ? 'font-semibold text-slate-900' : 'text-slate-700'
-                      }`}
+                      className={`leading-relaxed ${item.isMainQuestion ? 'font-semibold text-slate-900' : 'text-slate-700'
+                        }`}
                     >
                       {item.text}
                     </p>
@@ -2221,11 +2221,10 @@ export default function VivaRoomPage() {
                 </div>
                 <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-100 ${
-                      fsmState === STATES.STUDENT_ANSWERING
-                        ? 'bg-gradient-to-r from-emerald-400 via-sky-500 to-cyan-500'
-                        : 'bg-slate-300'
-                    }`}
+                    className={`h-full rounded-full transition-all duration-100 ${fsmState === STATES.STUDENT_ANSWERING
+                      ? 'bg-gradient-to-r from-emerald-400 via-sky-500 to-cyan-500'
+                      : 'bg-slate-300'
+                      }`}
                     style={{
                       width: `${fsmState === STATES.STUDENT_ANSWERING ? micLevel : 0}%`
                     }}
@@ -2295,9 +2294,8 @@ export default function VivaRoomPage() {
                 return (
                   <div
                     key={item.code}
-                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between ${
-                      isCurrent ? 'bg-sky-50/70 border-sky-300' : 'bg-slate-50 border-slate-200'
-                    }`}
+                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between ${isCurrent ? 'bg-sky-50/70 border-sky-300' : 'bg-slate-50 border-slate-200'
+                      }`}
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-base">{item.flag}</span>
@@ -2333,8 +2331,8 @@ export default function VivaRoomPage() {
                           item.code === 'ja-JP'
                             ? '受験者の皆さん、こんにちは。こちらはAI面接官の音声です。'
                             : item.code === 'en-US'
-                            ? 'Welcome candidate. This is the AI Viva voice examination system.'
-                            : 'Xin chào thí sinh. Đây là giọng đọc trí tuệ nhân tạo của hội đồng AIVES.';
+                              ? 'Welcome candidate. This is the AI Viva voice examination system.'
+                              : 'Xin chào thí sinh. Đây là giọng đọc trí tuệ nhân tạo của hội đồng AIVES.';
                         speakText(
                           sampleText,
                           () => {
