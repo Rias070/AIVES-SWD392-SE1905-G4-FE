@@ -18,7 +18,7 @@ import {
   Building,
   AlertCircle
 } from 'lucide-react';
-
+import { authApi } from '../../services/api';
 import { authenticateUser, findUserByEmail, ensureDemoAccountActive } from '../../services/userService';
 
 export default function AuthRBACPage({ onLoginSuccess }) {
@@ -26,7 +26,7 @@ export default function AuthRBACPage({ onLoginSuccess }) {
   const location = useLocation();
 
   // Form states - Empty defaults so registered accounts can be entered directly
-  const [selectedRole, setSelectedRole] = useState('STUDENT'); // 'STUDENT' | 'LECTURER' | 'ADMIN'
+  const [selectedRole, setSelectedRole] = useState('STUDENT'); // 'STUDENT' | 'LECTURER'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -43,7 +43,6 @@ export default function AuthRBACPage({ onLoginSuccess }) {
   const demoAccounts = {
     STUDENT: { email: 'student@aives.edu.vn', pass: 'password123' },
     LECTURER: { email: 'lecturer@aives.edu.vn', pass: 'password123' },
-    ADMIN: { email: 'admin@aives.edu.vn', pass: 'password123' },
   };
 
   const handleRoleChange = (role) => {
@@ -52,23 +51,28 @@ export default function AuthRBACPage({ onLoginSuccess }) {
   };
 
   const handleFillDemo = (role = selectedRole) => {
-    const demo = demoAccounts[role];
+    const target = role === 'LECTURER' ? 'LECTURER' : 'STUDENT';
+    const demo = demoAccounts[target];
     if (demo) {
       ensureDemoAccountActive(demo.email);
       setEmail(demo.email);
       setPassword(demo.pass);
-      setSelectedRole(role);
+      setSelectedRole(target);
       setLoginError(null);
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoginError(null);
 
+    const rawEmail = (email || '').trim();
+    // Allow typing "admin" shorthand to map directly to canonical admin account
+    const cleanEmail = rawEmail.toLowerCase() === 'admin' ? 'admin@aives.edu.vn' : rawEmail;
+
     // Validate email format
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!email || !emailRegex.test(email.trim())) {
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
       setLoginError('Địa chỉ email không đúng định dạng (ví dụ: student@aives.edu.vn hoặc user@domain.com)!');
       return;
     }
@@ -78,10 +82,30 @@ export default function AuthRBACPage({ onLoginSuccess }) {
       return;
     }
 
+    // Attempt real Backend API login if available
+    let backendUser = null;
+    try {
+      const res = await authApi.login({ email: cleanEmail, password });
+      if (res?.data?.result) {
+        const { token, user } = res.data.result;
+        if (token) localStorage.setItem('token', token);
+        if (user) {
+          backendUser = {
+            id: user.uuid || user.id,
+            name: user.fullName || user.name,
+            email: user.email,
+            role: user.role?.name || user.role || 'STUDENT',
+            status: user.status || 'ACTIVE',
+          };
+        }
+      }
+    } catch (apiErr) {
+      console.warn('Backend login fallback to local registry:', apiErr.friendlyMessage || apiErr);
+    }
+
     // Authenticate with user registry (blocks deleted and deactivated accounts!)
-    const cleanEmail = email.trim();
     const existing = findUserByEmail(cleanEmail);
-    const targetRole = existing ? existing.role : selectedRole;
+    const targetRole = backendUser?.role || (existing ? existing.role : selectedRole);
 
     const authResult = authenticateUser(cleanEmail, password, targetRole);
 
@@ -90,7 +114,7 @@ export default function AuthRBACPage({ onLoginSuccess }) {
       return;
     }
 
-    const userData = authResult.user || authResult;
+    const userData = backendUser || authResult.user || authResult;
 
     if (onLoginSuccess) {
       onLoginSuccess(userData);
@@ -98,13 +122,13 @@ export default function AuthRBACPage({ onLoginSuccess }) {
       localStorage.setItem('aives_user', JSON.stringify(userData));
     }
 
-    const effectiveRole = (userData.role || selectedRole).toUpperCase().replace(/^ROLE_/, '');
-    if (effectiveRole === 'STUDENT') {
-      navigate('/student');
+    const effectiveRole = (userData.role || targetRole || selectedRole).toUpperCase().replace(/^ROLE_/, '');
+    if (effectiveRole === 'ADMIN') {
+      navigate('/admin');
     } else if (effectiveRole === 'LECTURER') {
       navigate('/questions');
     } else {
-      navigate('/admin/users');
+      navigate('/student');
     }
   };
 
@@ -201,12 +225,12 @@ export default function AuthRBACPage({ onLoginSuccess }) {
               </p>
             </div>
 
-            {/* RBAC Role Selector Pills */}
-            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-100 border border-slate-200/80">
+            {/* RBAC Role Selector Pills - Only Sinh viên & Giảng viên */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-100 border border-slate-200/80">
               <button
                 type="button"
                 onClick={() => handleRoleChange('STUDENT')}
-                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   selectedRole === 'STUDENT'
                     ? 'bg-white text-sky-700 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -219,7 +243,7 @@ export default function AuthRBACPage({ onLoginSuccess }) {
               <button
                 type="button"
                 onClick={() => handleRoleChange('LECTURER')}
-                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   selectedRole === 'LECTURER'
                     ? 'bg-white text-sky-700 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -227,19 +251,6 @@ export default function AuthRBACPage({ onLoginSuccess }) {
               >
                 <BookOpen className="w-3.5 h-3.5" />
                 <span>Giảng viên</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleRoleChange('ADMIN')}
-                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  selectedRole === 'ADMIN'
-                    ? 'bg-white text-sky-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>Quản trị viên</span>
               </button>
             </div>
 
@@ -249,9 +260,9 @@ export default function AuthRBACPage({ onLoginSuccess }) {
               <button
                 type="button"
                 onClick={() => handleFillDemo(selectedRole)}
-                className="text-sky-600 hover:text-sky-800 font-bold underline"
+                className="text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
               >
-                ⚡ Điền tài khoản {selectedRole === 'STUDENT' ? 'Sinh viên' : selectedRole === 'LECTURER' ? 'Giảng viên' : 'Admin'} mẫu
+                ⚡ Điền tài khoản {selectedRole === 'STUDENT' ? 'Sinh viên' : 'Giảng viên'} mẫu
               </button>
             </div>
 

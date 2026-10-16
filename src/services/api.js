@@ -65,6 +65,15 @@ api.interceptors.response.use(
 );
 
 // ==========================================
+// 1. API SERVICE XÁC THỰC & ĐĂNG NHẬP (AUTH)
+// ==========================================
+export const authApi = {
+  login: (credentials) => api.post('/v1/auth/login', credentials),
+  register: (userData) => api.post('/v1/auth/register', userData),
+  activate: (token) => api.get('/v1/auth/activate', { params: { token } }),
+};
+
+// ==========================================
 // 3. API SERVICE QUẢN LÝ USER (ADMIN ROLE)
 // ==========================================
 export const adminUserApi = {

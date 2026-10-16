@@ -67,6 +67,7 @@ import UserManagementPage from './pages/admin/UserManagementPage';
 
 // Common pages
 import ProfilePage from './pages/common/ProfilePage';
+import { authApi } from './services/api';
 import { authenticateUser, registerUser, findUserByEmail, updateRegistryUser, ensureDemoAccountActive } from './services/userService';
 
 // Role configurations in Glacier Light style
@@ -104,7 +105,7 @@ const ROLE_CONFIGS = {
     roleCode: 'ADMIN',
     badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     avatarBg: 'from-blue-600 to-indigo-600',
-    defaultPath: '/admin/users',
+    defaultPath: '/admin',
     menuItems: [
       { id: 'adm-users', label: 'Quản lý người dùng', icon: Users, path: '/admin/users' },
       { id: 'adm-config', label: 'Cấu hình hệ thống', icon: Languages, path: '/admin' },
@@ -896,26 +897,30 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
   const demoAccounts = {
     STUDENT: { email: 'student@aives.edu.vn', pass: 'password123' },
     LECTURER: { email: 'lecturer@aives.edu.vn', pass: 'password123' },
-    ADMIN: { email: 'admin@aives.edu.vn', pass: 'password123' },
   };
 
   const handleFillDemo = (roleKey = loginRole) => {
-    const demo = demoAccounts[roleKey];
+    const target = roleKey === 'LECTURER' ? 'LECTURER' : 'STUDENT';
+    const demo = demoAccounts[target];
     if (demo) {
       ensureDemoAccountActive(demo.email);
       setLoginEmail(demo.email);
       setLoginPassword(demo.pass);
-      setLoginRole(roleKey);
+      setLoginRole(target);
       setModalError(null);
     }
   };
 
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setModalError(null);
 
+    const rawEmail = (loginEmail || '').trim();
+    // Allow typing "admin" shorthand to map to canonical administrator account
+    const cleanEmail = rawEmail.toLowerCase() === 'admin' ? 'admin@aives.edu.vn' : rawEmail;
+
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!loginEmail || !emailRegex.test(loginEmail.trim())) {
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
       setModalError('Địa chỉ email không đúng định dạng (ví dụ: student@aives.edu.vn hoặc email đã đăng ký)!');
       return;
     }
@@ -925,9 +930,29 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
       return;
     }
 
-    const cleanEmail = loginEmail.trim();
+    // Attempt real Backend API login if available
+    let backendUser = null;
+    try {
+      const res = await authApi.login({ email: cleanEmail, password: loginPassword });
+      if (res?.data?.result) {
+        const { token, user } = res.data.result;
+        if (token) localStorage.setItem('token', token);
+        if (user) {
+          backendUser = {
+            id: user.uuid || user.id,
+            name: user.fullName || user.name,
+            email: user.email,
+            role: user.role?.name || user.role || 'STUDENT',
+            status: user.status || 'ACTIVE',
+          };
+        }
+      }
+    } catch (apiErr) {
+      console.warn('Backend login fallback to local registry:', apiErr.friendlyMessage || apiErr);
+    }
+
     const existing = findUserByEmail(cleanEmail);
-    const targetRole = existing ? existing.role : loginRole;
+    const targetRole = backendUser?.role || (existing ? existing.role : loginRole);
 
     const authResult = authenticateUser(cleanEmail, loginPassword, targetRole);
 
@@ -936,11 +961,18 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
       return;
     }
 
-    const userData = authResult.user || authResult;
+    const userData = backendUser || authResult.user || authResult;
     onLoginSuccess(userData);
     onClose();
-    const defaultPath = ROLE_CONFIGS[userData.role || targetRole]?.defaultPath || '/student';
-    navigate(defaultPath);
+
+    const effectiveRole = (userData.role || targetRole || loginRole).toUpperCase().replace(/^ROLE_/, '');
+    if (effectiveRole === 'ADMIN') {
+      navigate('/admin');
+    } else if (effectiveRole === 'LECTURER') {
+      navigate('/questions');
+    } else {
+      navigate('/student');
+    }
   };
 
   const handleRegisterSubmit = async (e) => {
@@ -1056,11 +1088,11 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Chọn vai trò đăng nhập
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setLoginRole('STUDENT')}
-                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
+                  className={`flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
                     loginRole === 'STUDENT'
                       ? 'bg-sky-50 border-sky-400 text-sky-800 shadow-xs'
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -1073,7 +1105,7 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
                 <button
                   type="button"
                   onClick={() => setLoginRole('LECTURER')}
-                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
+                  className={`flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
                     loginRole === 'LECTURER'
                       ? 'bg-sky-50 border-sky-400 text-sky-800 shadow-xs'
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -1081,19 +1113,6 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
                 >
                   <BookOpen className="w-3.5 h-3.5" />
                   <span>Giảng Viên</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setLoginRole('ADMIN')}
-                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
-                    loginRole === 'ADMIN'
-                      ? 'bg-sky-50 border-sky-400 text-sky-800 shadow-xs'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Quản Trị</span>
                 </button>
               </div>
 
@@ -1103,9 +1122,9 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
                 <button
                   type="button"
                   onClick={() => handleFillDemo(loginRole)}
-                  className="text-sky-600 hover:text-sky-800 font-bold underline"
+                  className="text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
                 >
-                  ⚡ Điền tài khoản {loginRole === 'STUDENT' ? 'Sinh viên' : loginRole === 'LECTURER' ? 'Giảng viên' : 'Admin'} mẫu
+                  ⚡ Điền tài khoản {loginRole === 'STUDENT' ? 'Sinh viên' : 'Giảng viên'} mẫu
                 </button>
               </div>
             </div>
