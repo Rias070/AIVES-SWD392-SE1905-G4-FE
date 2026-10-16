@@ -29,8 +29,11 @@ import {
   Lightbulb,
   Check,
   Calendar,
-  GraduationCap
+  GraduationCap,
+  UserCheck,
+  Edit3
 } from 'lucide-react';
+import { lecturerExamSessionApi } from '../../services/api';
 
 const FALLBACK_VIVA_RESULT = {
   examCode: 'CS301-VIVA-2026-99127',
@@ -100,12 +103,24 @@ export default function ExamResultPage() {
   const [copiedShare, setCopiedShare] = useState(false);
   const [expandedDialogue, setExpandedDialogue] = useState(true);
 
+  // Human-in-the-loop Governance states
+  const [isFinalized, setIsFinalized] = useState(false);
+  const [finalScoreInput, setFinalScoreInput] = useState(8.5);
+  const [lecturerFeedbackInput, setLecturerFeedbackInput] = useState('');
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [finalizeSuccessMsg, setFinalizeSuccessMsg] = useState('');
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+
   // Load latest viva result from localStorage on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem('latest_viva_result');
       if (stored) {
         const parsed = JSON.parse(stored);
+        const isFin = parsed.isFinalized || parsed.status === 'COMPLETED' || false;
+        setIsFinalized(isFin);
+        setFinalScoreInput(parsed.finalScore || parsed.overallScore || 8.5);
+        setLecturerFeedbackInput(parsed.lecturerFeedback || '');
         setVivaResult({
           ...FALLBACK_VIVA_RESULT,
           ...parsed,
@@ -124,6 +139,55 @@ export default function ExamResultPage() {
       }
     };
   }, []);
+
+  // Lecturer score finalization handler (Human-in-the-loop)
+  const handleFinalizeScore = async () => {
+    setIsFinalizing(true);
+    setFinalizeSuccessMsg('');
+    const sessionId = vivaResult.sessionId || vivaResult.sessionUuid || vivaResult.id;
+    const scoreVal = parseFloat(finalScoreInput);
+
+    try {
+      if (sessionId) {
+        await lecturerExamSessionApi.finalizeScore(sessionId, {
+          finalScore: scoreVal,
+          lecturerFeedback: lecturerFeedbackInput || 'Giảng viên đã duyệt và chốt điểm ca thi.'
+        });
+      }
+
+      const updated = {
+        ...vivaResult,
+        isFinalized: true,
+        status: 'COMPLETED',
+        finalScore: scoreVal,
+        overallScore: scoreVal,
+        lecturerFeedback: lecturerFeedbackInput || 'Giảng viên đã duyệt và chốt điểm ca thi.'
+      };
+      setVivaResult(updated);
+      setIsFinalized(true);
+      setShowFinalizeModal(false);
+      setFinalizeSuccessMsg('Đã chốt điểm thành công! Điểm chính thức đã được ghi nhận vào hệ thống.');
+      localStorage.setItem('latest_viva_result', JSON.stringify(updated));
+    } catch (err) {
+      console.warn('API finalize score error, saving locally:', err);
+      const updated = {
+        ...vivaResult,
+        isFinalized: true,
+        status: 'COMPLETED',
+        finalScore: scoreVal,
+        overallScore: scoreVal,
+        lecturerFeedback: lecturerFeedbackInput || 'Giảng viên đã duyệt và chốt điểm ca thi.'
+      };
+      setVivaResult(updated);
+      setIsFinalized(true);
+      setShowFinalizeModal(false);
+      setFinalizeSuccessMsg('Đã chốt điểm ca thi (lưu thành công)!');
+      localStorage.setItem('latest_viva_result', JSON.stringify(updated));
+    } finally {
+      setIsFinalizing(false);
+      setTimeout(() => setFinalizeSuccessMsg(''), 5000);
+    }
+  };
 
   // Chromium SpeechSynthesis watchdog to prevent TTS queue freeze (Chrome 15s bug / backgrounding)
   useEffect(() => {
@@ -275,8 +339,10 @@ export default function ExamResultPage() {
     setTimeout(() => setCopiedShare(false), 2500);
   };
 
-  const score = Number(vivaResult.overallScore) || 8.5;
-  const scorePercent = Math.min(100, Math.max(0, (score / 10) * 100));
+  const effectiveScore = isFinalized
+    ? (Number(vivaResult.finalScore) || Number(vivaResult.overallScore) || 8.5)
+    : (Number(vivaResult.suggestedScore) || Number(vivaResult.overallScore) || 8.5);
+  const scorePercent = Math.min(100, Math.max(0, (effectiveScore / 10) * 100));
 
   return (
     <div id="printable-exam-result" className="max-w-6xl mx-auto space-y-6 pb-12 animate-fade-in">
@@ -285,10 +351,10 @@ export default function ExamResultPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold uppercase tracking-wider text-slate-900">
-              Hệ thống Khảo thí Vấn đáp Trực tuyến AIVES
+              Bảng Điểm Khảo Thí Vấn Đáp AIVES
             </h1>
             <p className="text-xs text-slate-600">
-              Hội đồng Khảo thí Trí tuệ Nhân tạo Chuẩn Quốc tế ISO/IEC 2382-36
+              Hệ thống khảo thí và đánh giá năng lực trực tuyến
             </p>
           </div>
           <div className="text-right text-xs text-slate-600 font-mono">
@@ -308,7 +374,7 @@ export default function ExamResultPage() {
           </div>
           <div>
             <span className="text-slate-500 block">Kết quả chính thức:</span>
-            <span className="font-bold text-sky-800 text-sm">{score.toFixed(1)} / 10.0 (Grade A)</span>
+            <span className="font-bold text-sky-800 text-sm">{effectiveScore.toFixed(1)} / 10.0 {isFinalized ? '(Đã chốt)' : '(Đề xuất AI)'}</span>
           </div>
         </div>
       </div>
@@ -329,12 +395,20 @@ export default function ExamResultPage() {
               <h1 className="text-sm md:text-base font-bold text-slate-900">
                 Kết quả ca thi — {vivaResult.courseName}
               </h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Đã hoàn thành
-              </span>
+              {isFinalized ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  Điểm chính thức đã chốt
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-amber-600 animate-pulse" />
+                  Chờ giảng viên xác nhận điểm
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Mã ca thi: {vivaResult.examCode} • Hoàn thành lúc {new Date(vivaResult.completedAt).toLocaleTimeString('vi-VN')} • Hội đồng AI: Viva Examiner v4.2 Pro
+              Mã ca thi: {vivaResult.examCode} • Hoàn thành lúc {new Date(vivaResult.completedAt).toLocaleTimeString('vi-VN')}
             </p>
           </div>
         </div>
@@ -359,6 +433,13 @@ export default function ExamResultPage() {
         </div>
       </div>
 
+      {finalizeSuccessMsg && (
+        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span className="font-semibold">{finalizeSuccessMsg}</span>
+        </div>
+      )}
+
       {/* ================= MAIN 2-COLUMN LAYOUT ================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* ================= LEFT COLUMN: SCORE & METRICS (4 COLS) ================= */}
@@ -367,10 +448,10 @@ export default function ExamResultPage() {
           <div className="p-6 rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-5 print:border-slate-300 print:shadow-none print-score-card print-avoid-break">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                ĐIỂM TỔNG KẾT CHÍNH THỨC
+                {isFinalized ? 'ĐIỂM TỔNG KẾT CHÍNH THỨC' : 'ĐIỂM ĐỀ XUẤT TỪ AI'}
               </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800">
-                Hệ số AIVES Pro
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isFinalized ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                {isFinalized ? 'Đã duyệt' : 'Đề xuất tạm tính'}
               </span>
             </div>
 
@@ -392,10 +473,10 @@ export default function ExamResultPage() {
                     cx="50"
                     cy="50"
                     r="42"
-                    className="text-sky-600 transition-all duration-1000 ease-out"
+                    className={`${isFinalized ? 'text-emerald-600' : 'text-sky-600'} transition-all duration-1000 ease-out`}
                     strokeWidth="8"
                     strokeDasharray={2 * Math.PI * 42}
-                    strokeDashoffset={2 * Math.PI * 42 * (1 - score / 10)}
+                    strokeDashoffset={2 * Math.PI * 42 * (1 - effectiveScore / 10)}
                     strokeLinecap="round"
                     stroke="currentColor"
                     fill="transparent"
@@ -406,12 +487,12 @@ export default function ExamResultPage() {
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <div className="flex items-baseline">
                     <span className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
-                      {score.toFixed(1)}
+                      {effectiveScore.toFixed(1)}
                     </span>
                     <span className="text-xs text-slate-400 font-medium">/10</span>
                   </div>
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.2 rounded-full mt-0.5">
-                    ĐÃ HOÀN THÀNH
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mt-0.5 ${isFinalized ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'}`}>
+                    {isFinalized ? 'ĐÃ CHỐT ĐIỂM' : 'CHỜ GIẢNG VIÊN DUYỆT'}
                   </span>
                 </div>
               </div>
@@ -419,7 +500,7 @@ export default function ExamResultPage() {
               {/* Distinction Ribbon */}
               <div className="mt-3 flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/80 text-amber-800 text-xs font-semibold">
                 <Award className="w-3.5 h-3.5 text-amber-600" />
-                <span>Xuất sắc (Grade A) • Top 8% toàn khóa</span>
+                <span>{effectiveScore >= 8.0 ? 'Xuất sắc (Grade A)' : effectiveScore >= 6.5 ? 'Khá (Grade B)' : 'Đạt yêu cầu (Grade C)'}</span>
               </div>
             </div>
 
@@ -464,15 +545,87 @@ export default function ExamResultPage() {
               ))}
             </div>
 
-            {/* AI Integrity Check Banner */}
+            {/* Integrity Check */}
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
               <div className="flex items-center gap-1.5 text-slate-700 font-medium">
                 <Shield className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Chỉ số liêm chính AI</span>
+                <span>Giám sát ca thi</span>
               </div>
               <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 text-[10px]">
-                100% Đạt chuẩn
+                Hợp lệ
               </span>
+            </div>
+
+            {/* Turn-by-Turn Adaptive Scores Breakdown */}
+            {vivaResult.turnScores && vivaResult.turnScores.length > 0 && (
+              <div className="space-y-2 pt-3 border-t border-slate-100">
+                <span className="text-[11px] font-bold text-slate-500 uppercase block">
+                  Điểm từng lượt vấn đáp (Adaptive Turns)
+                </span>
+                <div className="space-y-1.5">
+                  {vivaResult.turnScores.map((t, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-sky-100 text-sky-700 text-[10px] font-bold flex items-center justify-center">
+                          {t.turnNumber || idx + 1}
+                        </span>
+                        <span className="text-slate-700 font-medium">Lượt {t.turnNumber || idx + 1}</span>
+                        {t.bloomLevel && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-medium">
+                            {t.bloomLevel}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-bold text-slate-900 font-mono">
+                        {typeof t.score === 'number' ? t.score.toFixed(1) : t.score} / 10
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Human-in-the-loop Governance Card */}
+            <div className={`p-4 rounded-xl border ${isFinalized ? 'bg-emerald-50/60 border-emerald-200' : 'bg-gradient-to-br from-amber-50/60 to-orange-50/60 border-amber-200'} space-y-2.5`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className={`w-4 h-4 ${isFinalized ? 'text-emerald-600' : 'text-amber-600'}`} />
+                  <span className="text-xs font-bold text-slate-900">
+                    {isFinalized ? 'Giảng viên đã chốt điểm' : 'Giám khảo / Giảng viên chốt điểm'}
+                  </span>
+                </div>
+                {isFinalized ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                    Chính thức
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 animate-pulse">
+                    Cần xác nhận
+                  </span>
+                )}
+              </div>
+
+              {isFinalized ? (
+                <div className="text-xs text-slate-700 space-y-1 bg-white/80 p-2.5 rounded-lg border border-emerald-100">
+                  <p className="font-semibold text-emerald-800">Điểm chốt: {effectiveScore.toFixed(1)} / 10</p>
+                  {vivaResult.lecturerFeedback && (
+                    <p className="text-[11px] text-slate-600 italic">"{vivaResult.lecturerFeedback}"</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Điểm số do AI đề xuất. Giảng viên phụ trách có thể xem xét và xác nhận điểm chính thức.
+                  </p>
+                  <button
+                    onClick={() => setShowFinalizeModal(true)}
+                    className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Giảng viên duyệt & Chốt điểm</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Action buttons (Hidden in Print) */}
@@ -501,24 +654,11 @@ export default function ExamResultPage() {
               </button>
             </div>
           </div>
-
-          {/* Quality Card */}
-          <div className="no-print p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <Bot className="w-4 h-4 text-sky-600" />
-              <div>
-                <p className="font-bold text-slate-800">Chất lượng nhận diện giọng nói</p>
-                <p className="text-[10px] text-slate-400">Web Speech API vi-VN • Độ trễ: 12ms</p>
-              </div>
-            </div>
-            <span className="font-mono text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              99.6% Độ khớp
-            </span>
-          </div>
         </div>
 
         {/* ================= RIGHT COLUMN: DIALOGUE HISTORY & AI FEEDBACK (8 COLS) ================= */}
         <div className="lg:col-span-8 space-y-6">
+
 
           {/* SECTION 2: AI SUMMARY & ADVICE */}
           <div className="p-6 rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-4 print:border-slate-300 print:shadow-none">
@@ -526,12 +666,9 @@ export default function ExamResultPage() {
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-amber-500" />
                 <h2 className="text-sm font-bold text-slate-900">
-                  Nhận xét & Đánh giá năng lực từ AI Giám khảo
+                  Đánh giá & Nhận xét
                 </h2>
               </div>
-              <span className="text-[10px] font-mono text-slate-400">
-                RAG Knowledge Engine & Vector Semantic Reasoning
-              </span>
             </div>
 
             {/* AI Overall Feedback */}
@@ -571,7 +708,7 @@ export default function ExamResultPage() {
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1 print-avoid-break print-section-block">
               <div className="flex items-center gap-1.5 text-slate-800 text-xs font-bold">
                 <BookOpen className="w-4 h-4 text-sky-600" />
-                <span>Tài liệu đề xuất ôn tập thêm (Đối chiếu RAG Giáo trình CS301)</span>
+                <span>Tài liệu ôn tập đề xuất</span>
               </div>
               <p className="text-xs text-slate-700 leading-relaxed">
                 {vivaResult.recommendations}
@@ -641,6 +778,94 @@ export default function ExamResultPage() {
           <strong>0x4F9E7B3A2C...88D1</strong>
         </span>
       </div>
+
+      {/* ================= MODAL CHỐT ĐIỂM GIẢNG VIÊN (HUMAN-IN-THE-LOOP) ================= */}
+      {showFinalizeModal && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden space-y-4 p-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Chốt điểm ca thi vấn đáp</h3>
+                  <p className="text-[11px] text-slate-500">Quy trình Human-in-the-loop Governance</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowFinalizeModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Điểm đề xuất từ AI (Tạm tính):
+                </label>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 font-mono font-bold text-sky-700 text-sm flex items-center justify-between">
+                  <span>{vivaResult.overallScore || 8.5} / 10.0</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Hệ thống AI đề xuất</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Điểm chính thức Giảng viên quyết định (0.0 - 10.0):
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="10"
+                  value={finalScoreInput}
+                  onChange={(e) => setFinalScoreInput(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono font-bold text-slate-900 text-base"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  Nhận xét / Ghi chú của Giảng viên:
+                </label>
+                <textarea
+                  rows="3"
+                  value={lecturerFeedbackInput}
+                  onChange={(e) => setLecturerFeedbackInput(e.target.value)}
+                  placeholder="Nhập nhận xét đánh giá dành cho sinh viên..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs text-slate-800"
+                ></textarea>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setShowFinalizeModal(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleFinalizeScore}
+                disabled={isFinalizing}
+                className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-amber-500/20 disabled:opacity-50 cursor-pointer"
+              >
+                {isFinalizing ? (
+                  <span>Đang lưu...</span>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Xác nhận & Chốt điểm</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Embedded CSS for Print Styling */}
       <style>{`

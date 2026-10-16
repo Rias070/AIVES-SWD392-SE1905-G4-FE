@@ -522,7 +522,7 @@ export default function StudentDashboardPage({ currentUser }) {
             <span className="text-xl">👋</span>
           </div>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa Công nghệ Thông tin
+MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa Công nghệ Thông tin
           </p>
         </div>
 
@@ -577,12 +577,14 @@ export default function StudentDashboardPage({ currentUser }) {
               <span>Ca thi tiếp theo: <strong>CS301</strong> lúc <strong>14:30 hôm nay</strong></span>
             </div>
 
+
             <h2 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900 leading-tight">
               Trung tâm Vấn đáp & Luyện thi AI
             </h2>
 
             <p className="text-xs md:text-sm text-slate-600 leading-relaxed max-w-2xl">
               Nền tảng thi vấn đáp trực tuyến 1-1 với Hội đồng AI Examiner. Đánh giá toàn diện kiến thức chuyên sâu và năng lực phản biện logic theo chuẩn đào tạo.
+
             </p>
           </div>
 
@@ -628,8 +630,10 @@ export default function StudentDashboardPage({ currentUser }) {
                   <Video className="w-4 h-4" />
                 </div>
                 <div className="text-left">
+
                   <h3 className="text-xs md:text-sm font-bold text-slate-900 leading-tight">Kiểm tra thiết bị</h3>
                   <p className="text-[11px] text-slate-500 font-medium mt-0.5">Camera, Micro & Tốc độ mạng</p>
+
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
@@ -785,6 +789,7 @@ export default function StudentDashboardPage({ currentUser }) {
         </section>
       )}
 
+
       {/* ================= TAB 2: LỊCH CA THI SẮP TỚI ================= */}
       {activeTab === 'upcoming-exams' && (
         <section className="space-y-4 animate-fade-in">
@@ -796,6 +801,7 @@ export default function StudentDashboardPage({ currentUser }) {
               <p className="text-xs text-slate-500">
                 Thí sinh vui lòng kiểm tra Micro & Camera trước giờ thi 15 phút
               </p>
+
             </div>
             <button
               onClick={() =>
@@ -1052,6 +1058,7 @@ export default function StudentDashboardPage({ currentUser }) {
         </section>
       )}
 
+
       {/* ================= TAB 4: ĐÁNH GIÁ & NĂNG LỰC ================= */}
       {activeTab === 'competency-evaluation' && (
         <section className="space-y-6 animate-fade-in">
@@ -1062,6 +1069,7 @@ export default function StudentDashboardPage({ currentUser }) {
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-2xl font-bold text-slate-900">{stats.totalExams}</span>
                 <span className="text-xs text-slate-500">ca</span>
+
               </div>
               <span className="inline-block text-[11px] font-semibold text-emerald-700">
                 100% đúng tiến độ
@@ -1198,6 +1206,7 @@ export default function StudentDashboardPage({ currentUser }) {
                 </button>
               </div>
             </div>
+
           </div>
         </section>
       )}

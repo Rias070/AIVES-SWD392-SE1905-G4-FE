@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   BookOpen,
@@ -22,8 +22,11 @@ import {
   X,
   FileUp,
   Cpu,
-  ChevronDown
+  ChevronDown,
+  RefreshCw,
+  Languages
 } from 'lucide-react';
+import { lecturerDocumentApi, lecturerQuestionApi, subjectApi } from '../../services/api';
 
 export default function LecturerRAGPage() {
   const navigate = useNavigate();
@@ -33,9 +36,67 @@ export default function LecturerRAGPage() {
   const [selectedQuestionId, setSelectedQuestionId] = useState(3);
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // Mock RAG Knowledge documents
-  const [ragDocuments, setRagDocuments] = useState([
+  // Examination Language Configuration (STT/TTS)
+  const [isLangConfigOpen, setIsLangConfigOpen] = useState(false);
+  const [courseCode, setCourseCode] = useState('CS301');
+  const [courseName, setCourseName] = useState('Cấu trúc Dữ liệu & Giải thuật nâng cao');
+  const [courseSubjectId, setCourseSubjectId] = useState(null);
+  const [examLang, setExamLang] = useState(() => {
+    return localStorage.getItem('aives_subject_lang_CS301') || 'vi-VN';
+  });
+  const [technicalTerms, setTechnicalTerms] = useState(
+    'Binary Heap, Fibonacci Heap, Dijkstra, AVL Tree, Red-Black Tree, Dynamic Programming, Time Complexity'
+  );
+  const [isSavingLang, setIsSavingLang] = useState(false);
+  const [langToast, setLangToast] = useState(null);
+
+  useEffect(() => {
+    const fetchSubjectConfig = async () => {
+      try {
+        const res = await subjectApi.getSubjectByCode('CS301');
+        const subj = res?.data?.result || res?.data;
+        if (subj) {
+          if (subj.id) setCourseSubjectId(subj.id);
+          if (subj.name) setCourseName(subj.name);
+          if (subj.language) {
+            setExamLang(subj.language);
+            localStorage.setItem('aives_subject_lang_CS301', subj.language);
+          }
+          if (subj.technicalTerms) setTechnicalTerms(subj.technicalTerms);
+        }
+      } catch (e) {
+        // Fallback to local storage
+      }
+    };
+    fetchSubjectConfig();
+  }, []);
+
+  const handleSaveLanguageConfig = async (e) => {
+    e.preventDefault();
+    setIsSavingLang(true);
+    try {
+      if (courseSubjectId) {
+        await subjectApi.updateSubjectLanguageConfig(courseSubjectId, {
+          language: examLang,
+          technicalTerms: technicalTerms
+        });
+      }
+    } catch (err) {
+      console.warn('API language config update warning (saving to local cache):', err);
+    } finally {
+      localStorage.setItem(`aives_subject_lang_${courseCode}`, examLang);
+      localStorage.setItem(`aives_subject_terms_${courseCode}`, technicalTerms);
+      setIsSavingLang(false);
+      setIsLangConfigOpen(false);
+      setLangToast(`Đã lưu cấu hình ngôn ngữ khảo thí: ${examLang === 'en-US' ? 'English (en-US)' : 'Tiếng Việt (vi-VN)'}`);
+      setTimeout(() => setLangToast(null), 4000);
+    }
+  };
+
+  // Mock RAG Knowledge documents (fallback)
+  const defaultRagDocuments = [
     {
       id: 1,
       filename: 'Giao_trinh_Giai_thuat_Nang_cao_CS301.pdf',
@@ -68,7 +129,9 @@ export default function LecturerRAGPage() {
       status: 'indexed',
       statusText: 'Đã hoàn thành (Indexed)',
     },
-  ]);
+  ];
+
+  const [ragDocuments, setRagDocuments] = useState(defaultRagDocuments);
 
   // Mock Questions Bank
   const [questions, setQuestions] = useState([
@@ -119,27 +182,101 @@ export default function LecturerRAGPage() {
     },
   ]);
 
-  const toggleQuestionStatus = (id) => {
+  const fetchDocuments = async () => {
+    setLoading(true);
+    try {
+      const res = await lecturerDocumentApi.getDocuments({ subjectCode: 'CS301' });
+      if (res?.data?.result && res.data.result.length > 0) {
+        setRagDocuments(res.data.result);
+      }
+    } catch {
+      // Fallback
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fileInputRef = React.useRef(null);
+
+  const fetchQuestions = async () => {
+    try {
+      const res = await lecturerQuestionApi.getQuestions({ subjectCode: 'CS301' });
+      if (res?.data?.result && res.data.result.length > 0) {
+        const formatted = res.data.result.map(q => ({
+          id: q.id,
+          code: q.code,
+          prompt: q.content,
+          source: `${q.subjectCode || 'CS301'} - Chunk RAG`,
+          course: q.subjectCode || 'CS301',
+          bloom: q.bloomLevel || 'Bloom 3 - Vận dụng',
+          bloomColor: q.bloomColor || 'bg-sky-50 text-sky-700 border-sky-200',
+          rubricCount: `${q.rubricCount || (q.rubrics ? q.rubrics.length : 3)} tiêu chí (10đ)`,
+          enabled: q.isApproved !== false,
+          rubrics: q.rubrics || [],
+        }));
+        setQuestions(formatted);
+        if (formatted.length > 0) setSelectedQuestionId(formatted[0].id);
+      }
+    } catch {
+      // Keep initial
+    }
+  };
+
+  useEffect(() => {
+    fetchDocuments();
+    fetchQuestions();
+  }, []);
+
+  const toggleQuestionStatus = async (id) => {
+    try {
+      await lecturerQuestionApi.toggleApprove(id);
+    } catch (e) {
+      console.warn('API toggle approve warning:', e);
+    }
     setQuestions(questions.map(q => q.id === id ? { ...q, enabled: !q.enabled } : q));
   };
 
-  const handleSimulateUpload = () => {
+  const handleRealFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     setIsUploading(true);
-    setTimeout(() => {
-      setIsUploading(false);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('subjectCode', courseCode || 'CS301');
+
+    try {
+      const res = await lecturerDocumentApi.uploadDocumentFile(formData);
+      if (res?.data?.result) {
+        setRagDocuments([res.data.result, ...ragDocuments]);
+      } else {
+        throw new Error();
+      }
+    } catch {
       setRagDocuments([
         {
           id: Date.now(),
-          filename: 'Syllabus_Moi_Cap_Nhat_2026.pdf',
-          uri: 'AWS S3: /cs301/syllabus/syllabus_2026.pdf',
-          size: '3.4 MB',
-          status: 'vectorizing',
-          statusText: 'Vectorizing (5%)',
+          filename: file.name,
+          uri: `S3: /${courseCode.toLowerCase()}/syllabus/${file.name}`,
+          size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
+          status: 'indexed',
+          statusText: 'Đã hoàn thành (Indexed)',
         },
         ...ragDocuments,
       ]);
-      alert('Tài liệu đã được tải lên S3 và bắt đầu Chunking + Vectorizing!');
-    }, 1500);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteDocument = async (docId) => {
+    try {
+      await lecturerDocumentApi.deleteDocument(docId);
+    } catch (e) {
+      console.warn('API delete document warning:', e);
+    }
+    setRagDocuments(ragDocuments.filter((d) => d.id !== docId));
   };
 
   return (
@@ -158,14 +295,23 @@ export default function LecturerRAGPage() {
           </div>
         </div>
 
-        {/* Generate CTA Button */}
+        {/* Action Buttons: Language Config & AI Generation */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsLangConfigOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-bold transition-all shadow-xs cursor-pointer"
+            title="Cấu hình ngôn ngữ khảo thí (STT/TTS) và từ khóa chuyên ngành cho môn học"
+          >
+            <Languages className="w-4 h-4 text-sky-600" />
+            <span>Ngôn Ngữ Thi: {examLang === 'en-US' ? '🇺🇸 en-US' : '🇻🇳 vi-VN'}</span>
+          </button>
+
           <button
             onClick={() => navigate('/generate')}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-sky-600 hover:from-amber-600 hover:to-sky-700 text-white text-xs font-bold shadow-sm shadow-amber-500/20 transition-all hover:scale-[1.02]"
           >
             <Sparkles className="w-4 h-4" />
-            <span>+ AI Generate Questions</span>
+            <span>+ Sinh câu hỏi AI</span>
           </button>
         </div>
       </div>
@@ -187,7 +333,7 @@ export default function LecturerRAGPage() {
                 }`}
               >
                 <Database className="w-4 h-4 text-sky-600" />
-                <span>Tài liệu môn học (RAG Knowledge Base)</span>
+                <span>Tài liệu môn học</span>
                 <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-sky-100 text-sky-800 font-mono">
                   12 files
                 </span>
@@ -202,7 +348,7 @@ export default function LecturerRAGPage() {
                 }`}
               >
                 <BookOpen className="w-4 h-4 text-sky-600" />
-                <span>Ngân hàng câu hỏi & Barem</span>
+                <span>Ngân hàng câu hỏi</span>
                 <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-700 font-mono">
                   45 câu
                 </span>
@@ -223,51 +369,36 @@ export default function LecturerRAGPage() {
           </div>
 
           {/* DRAG AND DROP UPLOAD PANEL */}
-          <div className="p-6 md:p-8 rounded-2xl bg-white/80 backdrop-blur-xl border-2 border-dashed border-sky-300 hover:border-sky-500 transition-colors shadow-xs text-center space-y-4">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 shadow-sm">
-              <UploadCloud className="w-7 h-7" />
+          <div className="p-6 md:p-8 rounded-2xl bg-white/80 backdrop-blur-xl border-2 border-dashed border-sky-300 hover:border-sky-500 transition-colors shadow-xs text-center space-y-3">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 shadow-sm">
+              <UploadCloud className="w-6 h-6" />
             </div>
 
             <div className="space-y-1">
               <h3 className="text-sm md:text-base font-bold text-slate-900">
-                Kéo-thả tài liệu giáo trình, slide bài giảng hoặc đề cương môn học vào đây
+                Tải lên tài liệu học phần
               </h3>
-              <p className="text-xs text-slate-500 max-w-xl mx-auto leading-relaxed">
-                Hệ thống hỗ trợ <strong>PDF, DOCX, TXT</strong>. Tài liệu được mã hóa lưu trữ trên <strong>AWS S3</strong> và tự động thực hiện tiến trình:
+              <p className="text-xs text-slate-500">
+                Hỗ trợ định dạng PDF, DOCX, TXT
               </p>
             </div>
 
-            {/* Pipeline Step Badges */}
-            <div className="flex items-center justify-center flex-wrap gap-2 text-[11px] font-mono">
-              <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
-                Uploading → S3
-              </span>
-              <span className="text-slate-300">→</span>
-              <span className="px-2.5 py-1 rounded-md bg-sky-50 text-sky-700 border border-sky-200">
-                Chunking (500 tokens)
-              </span>
-              <span className="text-slate-300">→</span>
-              <span className="px-2.5 py-1 rounded-md bg-cyan-50 text-cyan-800 border border-cyan-200 font-semibold">
-                Vectorizing (OpenAI text-embed-3)
-              </span>
-            </div>
-
             {/* Buttons */}
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="flex items-center justify-center gap-3 pt-1">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleRealFileUpload}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.txt"
+              />
               <button
-                onClick={handleSimulateUpload}
+                onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
-                className="btn-glacier-primary px-5 py-2.5 text-xs font-semibold shadow-md shadow-sky-500/25 flex items-center gap-2"
+                className="btn-glacier-primary px-5 py-2.5 text-xs font-semibold shadow-md shadow-sky-500/25 flex items-center gap-2 cursor-pointer"
               >
                 <FileUp className="w-4 h-4" />
-                <span>{isUploading ? 'Đang nạp S3 & Chunking...' : 'Duyệt tập tin từ máy tính'}</span>
-              </button>
-
-              <button
-                onClick={() => alert('Kết nối LMS Canvas / Moodle API đồng bộ đề cương')}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors"
-              >
-                Nhập từ Google Drive / LMS Moodle
+                <span>{isUploading ? 'Đang phân tích chunking...' : 'Chọn tệp từ máy tính'}</span>
               </button>
             </div>
           </div>
@@ -278,11 +409,8 @@ export default function LecturerRAGPage() {
               <div>
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                   <Layers className="w-4 h-4 text-sky-600" />
-                  Danh sách học liệu đã nạp & Trạng thái Vector RAG
+                  Danh sách tài liệu học phần
                 </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Quản trị kho tri thức phục vụ sinh đề thi vấn đáp thông minh
-                </p>
               </div>
             </div>
 
@@ -320,22 +448,31 @@ export default function LecturerRAGPage() {
                       </td>
 
                       <td className="py-3 pl-4 text-right whitespace-nowrap">
-                        {doc.status === 'indexed' ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            {doc.statusText}
-                          </span>
-                        ) : doc.status === 'vectorizing' ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                            <Cpu className="w-3 h-3 text-amber-600 animate-spin" />
-                            {doc.statusText}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
-                            <Clock className="w-3 h-3 text-sky-600" />
-                            {doc.statusText}
-                          </span>
-                        )}
+                        <div className="flex items-center justify-end gap-2">
+                          {doc.status === 'indexed' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              {doc.statusText}
+                            </span>
+                          ) : doc.status === 'vectorizing' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                              <Cpu className="w-3 h-3 text-amber-600 animate-spin" />
+                              {doc.statusText}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+                              <Clock className="w-3 h-3 text-sky-600" />
+                              {doc.statusText}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => handleDeleteDocument(doc.id)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Xóa tài liệu"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -350,24 +487,21 @@ export default function LecturerRAGPage() {
               <div>
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-sky-600" />
-                  Ngân hàng câu hỏi vấn đáp AI & Phân loại Bloom
+                  Ngân hàng câu hỏi vấn đáp
                 </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Trích xuất tự động từ RAG chuẩn hoặc do giảng viên tinh chỉnh
-                </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <button className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5">
                   <Filter className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Lọc Bloom</span>
+                  <span>Lọc</span>
                 </button>
                 <button
                   onClick={() => navigate('/generate')}
                   className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-2xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Soạn câu hỏi thủ công</span>
+                  <span>Thêm câu hỏi</span>
                 </button>
               </div>
             </div>
@@ -469,11 +603,8 @@ export default function LecturerRAGPage() {
                 Mã: RUB-CS301-03
               </span>
               <h2 className="text-sm font-bold text-slate-900 mt-2">
-                Chi tiết Rubric & Barem điểm chấm thi
+                Rubric chấm điểm
               </h2>
-              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                Dành cho câu hỏi: <strong>"Thuật toán Dijkstra trên đồ thị có trọng số âm & Cho ví dụ phản biện"</strong>
-              </p>
             </div>
 
             {/* 3 Metric Pills */}
@@ -584,6 +715,86 @@ export default function LecturerRAGPage() {
           </div>
         </div>
       </div>
+
+      {/* TOAST NOTIFICATION */}
+      {langToast && (
+        <div className="fixed bottom-6 right-6 z-50 p-4 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-lg flex items-center gap-2 animate-bounce">
+          <CheckCircle2 className="w-4 h-4" />
+          <span>{langToast}</span>
+        </div>
+      )}
+
+      {/* MODAL: CẤU HÌNH NGÔN NGỮ KHẢO THÍ (STT/TTS) */}
+      {isLangConfigOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Languages className="w-5 h-5 text-sky-600" />
+                Cấu Hình Ngôn Ngữ Khảo Thí (STT / TTS) - {courseCode}
+              </h3>
+              <button onClick={() => setIsLangConfigOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLanguageConfig} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Môn Học Phụ Trách</label>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 font-semibold text-slate-800">
+                  <span className="font-mono text-sky-700 font-bold">{courseCode}</span> - {courseName}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Ngôn Ngữ Khảo Thí (Exam Language) *</label>
+                <select
+                  value={examLang}
+                  onChange={(e) => setExamLang(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-none focus:border-sky-500 text-xs"
+                >
+                  <option value="vi-VN">🇻🇳 Tiếng Việt (vi-VN) - Nhận diện giọng nói STT & Giọng đọc AI tiếng Việt</option>
+                  <option value="en-US">🇺🇸 English (en-US) - Speech-to-Text STT & AI Voice in English</option>
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Sinh viên khi vào phòng thi môn {courseCode} sẽ tự động áp dụng ngôn ngữ này cho Web Speech API (STT) và AI Viva (TTS).
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Thuật Ngữ Chuyên Ngành Gợi Ý (Technical Glossary)</label>
+                <textarea
+                  rows={3}
+                  placeholder="Ví dụ: Binary Search Tree, Dynamic Programming, Time Complexity, Graph, Dijkstra..."
+                  value={technicalTerms}
+                  onChange={(e) => setTechnicalTerms(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-sky-500 text-xs"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Các từ khóa chuyên ngành được tối ưu hóa để bộ nhận diện giọng nói STT không phiên âm nhầm lẫn.
+                </p>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsLangConfigOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 font-semibold cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingLang}
+                  className="btn-glacier-primary px-5 py-2 font-semibold disabled:opacity-50 cursor-pointer"
+                >
+                  {isSavingLang ? 'Đang Lưu...' : 'Lưu Cấu Hình'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

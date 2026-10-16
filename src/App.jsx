@@ -9,6 +9,7 @@ import {
   Clock, 
   CheckCircle2, 
   LogIn, 
+  User,
   UserPlus, 
   Scale, 
   Eye, 
@@ -41,6 +42,9 @@ import {
   Plus,
   Video
 } from 'lucide-react';
+// Landing / Home page
+import HomePage from './pages/HomePage';
+
 // Auth pages
 import AuthRBACPage from './pages/auth/AuthRBACPage';
 import RegisterPage from './pages/auth/RegisterPage';
@@ -61,6 +65,10 @@ import QuestionBankPage from './pages/lecturer/QuestionBankPage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
 
+// Common pages
+import ProfilePage from './pages/common/ProfilePage';
+import { authenticateUser, registerUser, findUserByEmail, updateRegistryUser, ensureDemoAccountActive } from './services/userService';
+
 // Role configurations in Glacier Light style
 const ROLE_CONFIGS = {
   LECTURER: {
@@ -73,7 +81,9 @@ const ROLE_CONFIGS = {
       { id: 'rag-portal', label: 'Cổng Học Liệu & RAG', icon: BookOpen, path: '/questions', desc: 'Quản trị tri thức S3 & Barem' },
       { id: 'generate', label: 'AI Sinh Đề Tự Động', icon: Sparkles, path: '/generate', desc: 'Trích xuất từ syllabus' },
       { id: 'review', label: 'Kiểm Duyệt Câu Hỏi AI', icon: CheckCircle2, path: '/review', desc: 'Duyệt & chỉnh sửa Rubric' },
+      { id: 'question-bank', label: 'Ngân Hàng Câu Hỏi', icon: Database, path: '/question-bank', desc: 'Kho câu hỏi kiểm thử' },
       { id: 'scoring', label: 'Hội Đồng Chấm Điểm', icon: Scale, path: '/viva', desc: 'Giảng viên chốt điểm cuối' },
+      { id: 'central-dashboard', label: 'Trung Tâm Khảo Thí', icon: LayoutDashboard, path: '/dashboard', desc: 'Theo dõi ca thi trực tiếp' },
     ],
   },
   STUDENT: {
@@ -97,8 +107,9 @@ const ROLE_CONFIGS = {
     defaultPath: '/admin/users',
     menuItems: [
       { id: 'adm-users', label: 'Quản Lý Người Dùng & Phân Công', icon: Users, path: '/admin/users', desc: 'Phân quyền & giảng dạy' },
+      { id: 'adm-config', label: 'Cấu Hình Hệ Thống AI Viva', icon: Languages, path: '/admin', desc: 'Tham số Whisper STT / TTS' },
       { id: 'rag-portal', label: 'Học Liệu & Đề Thi RAG', icon: BookOpen, path: '/questions', desc: 'Quản trị ngân hàng câu hỏi' },
-      { id: 'adm-config', label: 'Cấu Hình STT / Whisper / TTS', icon: Languages, path: '/admin', desc: 'Tham số nhận diện giọng nói' },
+      { id: 'central-dashboard', label: 'Trung Tâm Khảo Thí', icon: LayoutDashboard, path: '/dashboard', desc: 'Thống kê toàn hệ thống' },
     ],
   },
 };
@@ -134,8 +145,8 @@ function LeftSidebar({ currentUser, onLogout, isOpen, onClose }) {
                 </div>
               </div>
               <div>
-                <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">AI Viva Voce Pro</h1>
-                <p className="text-[10px] text-slate-500 tracking-wider mt-1 uppercase font-semibold">Glacier Edition</p>
+                <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">AI Viva Voice Pro</h1>
+                <p className="text-[10px] text-slate-500 font-medium mt-1">Hệ Thống Thi Vấn Đáp AI</p>
               </div>
             </Link>
 
@@ -167,8 +178,34 @@ function LeftSidebar({ currentUser, onLogout, isOpen, onClose }) {
                   : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
               }`}
             >
-              <LayoutDashboard className={`w-4 h-4 ${location.pathname === '/' ? 'text-sky-600' : 'text-slate-400'}`} />
-              <span className="text-xs font-semibold">Tổng quan (Dashboard)</span>
+              <Home className={`w-4 h-4 ${location.pathname === '/' ? 'text-sky-600' : 'text-slate-400'}`} />
+              <span className="text-xs font-semibold">Trang Chủ (Giới thiệu)</span>
+            </Link>
+
+            <Link
+              to="/profile"
+              onClick={onClose}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                location.pathname === '/profile'
+                  ? 'bg-sky-50 text-sky-700 font-semibold border-l-[3px] border-sky-600 shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+              }`}
+            >
+              <User className={`w-4 h-4 ${location.pathname === '/profile' ? 'text-sky-600' : 'text-slate-400'}`} />
+              <span className="text-xs font-semibold">Hồ Sơ Cá Nhân</span>
+            </Link>
+
+            <Link
+              to="/dashboard"
+              onClick={onClose}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                location.pathname === '/dashboard'
+                  ? 'bg-sky-50 text-sky-700 font-semibold border-l-[3px] border-sky-600 shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+              }`}
+            >
+              <LayoutDashboard className={`w-4 h-4 ${location.pathname === '/dashboard' ? 'text-sky-600' : 'text-slate-400'}`} />
+              <span className="text-xs font-semibold">Trung Tâm Khảo Thí</span>
             </Link>
 
             {roleConfig.menuItems.map((item) => {
@@ -254,131 +291,125 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
   const roleConfig = currentUser ? (ROLE_CONFIGS[currentUser.role] || ROLE_CONFIGS.STUDENT) : null;
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between">
-        {/* Left: Brand & Breadcrumb */}
-        <div className="flex items-center gap-4 flex-1">
-          {currentUser && (
+    <header className="sticky top-0 z-30 h-16 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between gap-4">
+        {/* Left: Brand & Mobile Sidebar Trigger */}
+        <div className="flex items-center gap-3 shrink-0">
+          {currentUser && !isHomePage && (
             <button
               onClick={onOpenSidebar}
-              className="lg:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100"
+              className="lg:hidden p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+              title="Mở thanh điều hướng"
             >
               <Menu className="w-5 h-5" />
             </button>
           )}
 
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 via-sky-600 to-cyan-600 p-[1px] shadow-sm flex items-center justify-center">
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 via-sky-600 to-cyan-600 p-[1px] shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
               <div className="w-full h-full bg-white rounded-[10px] flex items-center justify-center">
                 <Bot className="w-5 h-5 text-sky-600" />
               </div>
             </div>
             <div>
-              <span className="text-sm font-bold text-slate-900 block leading-tight">AI Viva Voce Pro</span>
-              <span className="text-[10px] text-sky-600 font-semibold block tracking-wider uppercase">Glacier Light Edition</span>
+              <span className="text-sm font-bold text-slate-900 block leading-tight">AI Viva Voice Pro</span>
+              <span className="text-[10px] text-slate-500 font-medium block leading-tight">Hệ Thống Khảo Thí AI</span>
             </div>
           </Link>
-
-          <div className="hidden xl:flex items-center gap-1.5 text-xs text-slate-500 ml-4 pl-4 border-l border-slate-200">
-            <Link
-              to="/"
-              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
-            >
-              Trung Tâm
-            </Link>
-            <Link
-              to="/student"
-              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/student' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
-            >
-              Sinh Viên
-            </Link>
-            <Link
-              to="/device-check"
-              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/device-check' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
-            >
-              Test Mic
-            </Link>
-            <Link
-              to="/viva"
-              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/viva' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
-            >
-              Phòng Thi
-            </Link>
-            <Link
-              to="/exam-result"
-              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/exam-result' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
-            >
-              Kết Quả
-            </Link>
-            <Link
-              to="/questions"
-              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/questions' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
-            >
-              Học Liệu RAG
-            </Link>
-            <Link
-              to="/admin/users"
-              className={`hover:text-sky-700 transition-colors px-2 py-1 rounded-lg ${location.pathname === '/admin/users' ? 'bg-sky-50 text-sky-700 font-bold' : ''}`}
-            >
-              Quản Trị Users
-            </Link>
-          </div>
         </div>
 
-        {/* Right Actions */}
-        <div className="flex items-center gap-3">
-          {/* Telemetry Pills */}
-          <div className="hidden 2xl:flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-slate-100/90 border border-slate-200 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span className="text-slate-700 font-medium">Vector DB: 99.8% Online</span>
-            </div>
-            <span className="text-slate-300">|</span>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-              <span className="text-slate-700 font-medium">Whisper STT: Sẵn sàng</span>
-            </div>
-          </div>
+        {/* Center: Navigation Links ONLY on HomePage */}
+        {isHomePage && (
+          <nav className="hidden md:flex items-center gap-1 text-xs text-slate-600">
+            <Link
+              to="/"
+              className={`whitespace-nowrap px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                location.pathname === '/' ? 'bg-sky-50 text-sky-700' : 'hover:text-sky-700 hover:bg-slate-50'
+              }`}
+            >
+              Trang Chủ
+            </Link>
+            <a
+              href="/#about"
+              className="whitespace-nowrap px-3 py-1.5 rounded-lg font-medium text-slate-600 hover:text-sky-700 hover:bg-slate-50 transition-colors"
+            >
+              Bối Cảnh & Thách Thức
+            </a>
+            <a
+              href="/#features"
+              className="whitespace-nowrap px-3 py-1.5 rounded-lg font-medium text-slate-600 hover:text-sky-700 hover:bg-slate-50 transition-colors"
+            >
+              Phân Hệ Tính Năng
+            </a>
+            <a
+              href="/#workflow"
+              className="whitespace-nowrap px-3 py-1.5 rounded-lg font-medium text-slate-600 hover:text-sky-700 hover:bg-slate-50 transition-colors"
+            >
+              Quy Trình Thi
+            </a>
+          </nav>
+        )}
 
+        {/* Right: User account & Actions */}
+        <div className="flex items-center gap-3 shrink-0">
           {!currentUser ? (
             <div className="flex items-center gap-2">
-              <Link
-                to="/login"
-                className="btn-glacier-primary px-3.5 py-2 text-xs flex items-center gap-1.5"
+              <button
+                type="button"
+                onClick={() => onOpenAuth ? onOpenAuth('login') : navigate('/login')}
+                className="btn-glacier-primary px-4 py-2 text-xs font-semibold whitespace-nowrap inline-flex items-center justify-center gap-1.5 leading-none shadow-xs"
               >
-                <LogIn className="w-4 h-4" />
+                <LogIn className="w-3.5 h-3.5" />
                 <span>Đăng nhập</span>
-              </Link>
-              <Link
-                to="/register"
-                className="px-3.5 py-2 rounded-xl border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenAuth ? onOpenAuth('register') : navigate('/register')}
+                className="px-4 py-2 rounded-xl border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 text-xs font-semibold whitespace-nowrap inline-flex items-center justify-center gap-1.5 leading-none transition-colors shadow-2xs"
               >
-                <UserPlus className="w-4 h-4" />
+                <UserPlus className="w-3.5 h-3.5" />
                 <span>Đăng ký</span>
-              </Link>
+              </button>
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              <Link
-                to="/viva"
-                className="btn-glacier-primary px-3.5 py-1.5 text-xs font-semibold"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Bắt đầu ca thi</span>
-              </Link>
+              {/* If on home page, provide a clean shortcut button to user's dashboard */}
+              {isHomePage && (
+                <button
+                  type="button"
+                  onClick={() => navigate(roleConfig?.defaultPath || '/student')}
+                  className="btn-glacier-primary px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap inline-flex items-center justify-center gap-1.5 leading-none shadow-xs"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Vào Bảng Điều Khiển</span>
+                </button>
+              )}
 
-              <div 
-                onClick={() => navigate(roleConfig.defaultPath)}
-                className="flex items-center gap-2 cursor-pointer pl-1 hover:opacity-90"
+              {/* User Account Display - Click to view/edit profile */}
+              <div
+                onClick={() => navigate('/profile')}
+                className="flex items-center gap-2 cursor-pointer pl-1 hover:opacity-85 select-none"
+                title="Xem & Cập nhật hồ sơ cá nhân"
               >
-                <div className={`w-8 h-8 rounded-full bg-gradient-to-tr ${roleConfig.avatarBg} flex items-center justify-center text-white font-bold text-xs shadow-sm`}>
+                <div className={`w-8 h-8 rounded-full bg-gradient-to-tr ${roleConfig?.avatarBg || 'from-sky-500 to-cyan-600'} flex items-center justify-center text-white font-bold text-xs shadow-xs shrink-0`}>
                   {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
                 </div>
-                <div className="hidden sm:block text-left">
-                  <span className="text-xs font-bold text-slate-800 block leading-tight">{currentUser.name}</span>
-                  <span className="text-[10px] text-sky-600 font-semibold">{roleConfig.roleName}</span>
+                <div className="hidden sm:block text-left whitespace-nowrap">
+                  <span className="text-xs font-bold text-slate-800 block leading-tight truncate max-w-[140px]">{currentUser.name}</span>
+                  <span className="text-[10px] text-sky-600 font-semibold block leading-tight">{roleConfig?.roleName}</span>
                 </div>
               </div>
+
+              {/* Logout Button */}
+              <button
+                type="button"
+                onClick={onLogout}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100 text-xs font-semibold whitespace-nowrap leading-none transition-colors"
+                title="Đăng xuất khỏi hệ thống"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Đăng xuất</span>
+              </button>
             </div>
           )}
         </div>
@@ -398,7 +429,7 @@ function GlacierCentralDashboard({ onOpenAuth, currentUser }) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
-            Hệ Thống Đánh Giá Vấn Đáp Thông Minh (AI Viva Voce)
+            Hệ Thống Đánh Giá Vấn Đáp Thông Minh (AI Viva Voice)
           </h2>
           <p className="text-sm text-slate-600 mt-1">
             Giám sát phiên chấm thi trực tiếp theo chuẩn khung năng lực và đối chiếu tri thức RAG thời gian thực.
@@ -487,7 +518,7 @@ function GlacierCentralDashboard({ onOpenAuth, currentUser }) {
         {/* Metric 4 */}
         <div className="glacier-light-panel rounded-2xl p-5 relative overflow-hidden group">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600">Trạng thái AI Viva Voce</span>
+            <span className="text-xs font-semibold text-slate-600">Trạng thái AI Viva Voice</span>
             <span className="p-2 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600">
               <CheckCircle className="w-4 h-4" />
             </span>
@@ -853,6 +884,7 @@ function GlacierCentralDashboard({ onOpenAuth, currentUser }) {
 /* ==================== AUTH MODAL (Glacier Light) ==================== */
 function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
   const [tab, setTab] = useState(initialTab);
+  const [loginRole, setLoginRole] = useState('STUDENT');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   
@@ -861,56 +893,102 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
   const [registerPassword, setRegisterPassword] = useState('');
   const [role, setRole] = useState('STUDENT');
   const [showPassword, setShowPassword] = useState(false);
+  const [modalError, setModalError] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     setTab(initialTab);
+    setModalError(null);
   }, [initialTab, isOpen]);
 
   if (!isOpen) return null;
 
+  const demoAccounts = {
+    STUDENT: { email: 'student@aives.edu.vn', pass: 'password123' },
+    LECTURER: { email: 'lecturer@aives.edu.vn', pass: 'password123' },
+    ADMIN: { email: 'admin@aives.edu.vn', pass: 'password123' },
+  };
+
+  const handleFillDemo = (roleKey = loginRole) => {
+    const demo = demoAccounts[roleKey];
+    if (demo) {
+      ensureDemoAccountActive(demo.email);
+      setLoginEmail(demo.email);
+      setLoginPassword(demo.pass);
+      setLoginRole(roleKey);
+      setModalError(null);
+    }
+  };
+
   const handleLoginSubmit = (e) => {
     e.preventDefault();
-    if (!loginEmail) return;
+    setModalError(null);
 
-    let userRole = 'STUDENT';
-    let userName = 'Trần Thị Mai';
-    let defaultPath = '/viva';
-
-    if (loginEmail.includes('lecturer')) {
-      userRole = 'LECTURER';
-      userName = 'GS.TS Nguyễn Hoàng Nam';
-      defaultPath = '/questions';
-    } else if (loginEmail.includes('admin')) {
-      userRole = 'ADMIN';
-      userName = 'AIVES Administrator';
-      defaultPath = '/admin';
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!loginEmail || !emailRegex.test(loginEmail.trim())) {
+      setModalError('Địa chỉ email không đúng định dạng (ví dụ: student@aives.edu.vn hoặc email đã đăng ký)!');
+      return;
     }
 
-    const userData = {
-      name: userName,
-      email: loginEmail,
-      role: userRole,
-    };
+    if (!loginPassword || loginPassword.length < 6) {
+      setModalError('Vui lòng nhập mật khẩu tối thiểu 6 ký tự!');
+      return;
+    }
 
+    const cleanEmail = loginEmail.trim();
+    const existing = findUserByEmail(cleanEmail);
+    const targetRole = existing ? existing.role : loginRole;
+
+    const authResult = authenticateUser(cleanEmail, loginPassword, targetRole);
+
+    if (!authResult || !authResult.success) {
+      setModalError(authResult?.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản!');
+      return;
+    }
+
+    const userData = authResult.user || authResult;
     onLoginSuccess(userData);
     onClose();
+    const defaultPath = ROLE_CONFIGS[userData.role || targetRole]?.defaultPath || '/student';
     navigate(defaultPath);
   };
 
-  const handleRegisterSubmit = (e) => {
+  const handleRegisterSubmit = async (e) => {
     e.preventDefault();
-    if (!registerEmail || !fullName) return;
+    setModalError(null);
 
-    const userData = {
-      name: fullName,
-      email: registerEmail,
+    if (!fullName) {
+      setModalError('Vui lòng nhập họ và tên đầy đủ!');
+      return;
+    }
+
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!registerEmail || !emailRegex.test(registerEmail.trim())) {
+      setModalError('Địa chỉ email không đúng định dạng!');
+      return;
+    }
+
+    if (findUserByEmail(registerEmail.trim())) {
+      setModalError('Email này đã được sử dụng cho một tài khoản khác trong hệ thống!');
+      return;
+    }
+
+    if (!registerPassword || registerPassword.length < 6) {
+      setModalError('Mật khẩu tối thiểu 6 ký tự!');
+      return;
+    }
+
+    const registered = await registerUser({
+      name: fullName.trim(),
+      email: registerEmail.trim(),
+      password: registerPassword,
       role: role,
-    };
+    });
 
-    onLoginSuccess(userData);
+    onLoginSuccess(registered);
     onClose();
-    navigate(role === 'LECTURER' ? '/questions' : '/viva');
+    const defaultPath = ROLE_CONFIGS[registered.role || role]?.defaultPath || '/student';
+    navigate(defaultPath);
   };
 
   return (
@@ -926,7 +1004,7 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
                 {tab === 'login' ? 'Đăng Nhập Hệ Thống' : 'Đăng Ký Tài Khoản'}
               </h3>
               <p className="text-xs text-slate-500">
-                AI Viva Voce Pro - Glacier Light Edition
+                Hệ thống khảo thí vấn đáp trực tuyến AI
               </p>
             </div>
           </div>
@@ -964,9 +1042,84 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
           </button>
         </div>
 
+        {/* Modal Error Alert */}
+        {modalError && (
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 flex items-center justify-between gap-2.5 animate-in fade-in shadow-xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{modalError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setModalError(null)}
+              className="text-rose-400 hover:text-rose-700 text-xs font-bold"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Tab 1: LOGIN FORM */}
         {tab === 'login' && (
           <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Chọn vai trò đăng nhập
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLoginRole('STUDENT')}
+                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
+                    loginRole === 'STUDENT'
+                      ? 'bg-sky-50 border-sky-400 text-sky-800 shadow-xs'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  <span>Sinh Viên</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLoginRole('LECTURER')}
+                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
+                    loginRole === 'LECTURER'
+                      ? 'bg-sky-50 border-sky-400 text-sky-800 shadow-xs'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Giảng Viên</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLoginRole('ADMIN')}
+                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
+                    loginRole === 'ADMIN'
+                      ? 'bg-sky-50 border-sky-400 text-sky-800 shadow-xs'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Quản Trị</span>
+                </button>
+              </div>
+
+              {/* Quick Demo Fill Helper */}
+              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1.5">
+                <span>Hoặc đăng nhập nhanh:</span>
+                <button
+                  type="button"
+                  onClick={() => handleFillDemo(loginRole)}
+                  className="text-sky-600 hover:text-sky-800 font-bold underline"
+                >
+                  ⚡ Điền tài khoản {loginRole === 'STUDENT' ? 'Sinh viên' : loginRole === 'LECTURER' ? 'Giảng viên' : 'Admin'} mẫu
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Email hoặc Tên đăng nhập
@@ -975,7 +1128,7 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
                 type="text"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="ví dụ: lecturer@aives.edu.vn hoặc student@aives.edu.vn"
+                placeholder="ví dụ: student@aives.edu.vn"
                 required
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
               />
@@ -1126,37 +1279,186 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
   );
 }
 
+/* ==================== ERROR BOUNDARY (CATCH RENDER CRASHES) ==================== */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('ErrorBoundary caught interface render error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+          <div className="glacier-light-panel max-w-md w-full p-8 rounded-3xl border border-slate-200 shadow-xl space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center mx-auto text-rose-600 shadow-sm">
+              <AlertCircle className="w-7 h-7" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900">Đã xảy ra sự cố hiển thị trang</h2>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Hệ thống ghi nhận sự cố tạm thời khi kết xuất giao diện. Bạn có thể tải lại trang hoặc quay về Trang Chủ.
+            </p>
+            {this.state.error?.message && (
+              <p className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-mono text-slate-600 break-all text-left">
+                {this.state.error.message}
+              </p>
+            )}
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  this.setState({ hasError: false, error: null });
+                  window.location.reload();
+                }}
+                className="btn-glacier-primary px-4 py-2 text-xs font-semibold"
+              >
+                Tải lại trang
+              </button>
+              <a
+                href="/"
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-all shadow-xs"
+              >
+                Về Trang Chủ
+              </a>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/* ==================== PROTECTED ROUTE (ROLE-BASED ACCESS CONTROL) ==================== */
+function ProtectedRoute({ currentUser, allowedRoles, children }) {
+  const location = useLocation();
+
+  if (!currentUser) {
+    // Guest accessing protected route -> redirect to login with return intent
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Live security check: Ensure user was not deleted or deactivated while in session
+  if (currentUser.email) {
+    const freshUser = findUserByEmail(currentUser.email);
+    if (!freshUser) {
+      try {
+        sessionStorage.removeItem('aives_user');
+        localStorage.removeItem('aives_user');
+      } catch {}
+      return (
+        <Navigate
+          to="/login"
+          state={{ accountStatusError: 'Đăng nhập không thành công: Sai mật khẩu hoặc email, hoặc tài khoản này đã bị xóa khỏi hệ thống!' }}
+          replace
+        />
+      );
+    }
+    if (freshUser.status === 'inactive' || freshUser.status === 'locked' || freshUser.status === 'deactivated') {
+      try {
+        sessionStorage.removeItem('aives_user');
+        localStorage.removeItem('aives_user');
+      } catch {}
+      return (
+        <Navigate
+          to="/login"
+          state={{ accountStatusError: `Đăng nhập không thành công: Tài khoản "${freshUser.name}" đã bị Quản trị viên vô hiệu hóa / tạm khóa (hoặc sai mật khẩu/email, tài khoản bị xóa)!` }}
+          replace
+        />
+      );
+    }
+  }
+
+  const userRole = (currentUser.role || 'STUDENT').toUpperCase().replace(/^ROLE_/, '');
+
+  if (allowedRoles && allowedRoles.length > 0) {
+    const normalizedAllowed = allowedRoles.map((r) => r.toUpperCase().replace(/^ROLE_/, ''));
+    if (!normalizedAllowed.includes(userRole)) {
+      // Role not authorized -> redirect cleanly to their appropriate workspace
+      const roleConfig = ROLE_CONFIGS[userRole] || ROLE_CONFIGS.STUDENT;
+      const defaultPath = roleConfig?.defaultPath || '/';
+      return <Navigate to={defaultPath} replace />;
+    }
+  }
+
+  return children;
+}
+
 /* ==================== MAIN APP ROOT ==================== */
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Default is guest / unauthenticated / no role
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('aives_user');
+      const saved = sessionStorage.getItem('aives_user');
       if (!saved) return null;
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.role) {
+        parsed.role = parsed.role.toUpperCase().replace(/^ROLE_/, '');
+      }
+      return parsed;
     } catch {
       return null;
     }
   });
 
+  // Ensure stale legacy localStorage doesn't trap users in a permanently logged-in state
+  useEffect(() => {
+    try {
+      if (!sessionStorage.getItem('aives_user')) {
+        localStorage.removeItem('aives_user');
+      }
+    } catch {}
+  }, []);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [authModalState, setAuthModalState] = useState({ isOpen: false, tab: 'login' });
 
   const isHomePage = location.pathname === '/';
-  const showSidebar = !!currentUser;
+  const showSidebar = !!currentUser && !isHomePage;
 
   const handleLoginSuccess = (userData) => {
-    setCurrentUser(userData);
+    const normalized = {
+      ...userData,
+      role: (userData.role || 'STUDENT').toUpperCase().replace(/^ROLE_/, ''),
+    };
+    setCurrentUser(normalized);
     try {
-      localStorage.setItem('aives_user', JSON.stringify(userData));
+      sessionStorage.setItem('aives_user', JSON.stringify(normalized));
+      localStorage.setItem('aives_user', JSON.stringify(normalized));
     } catch {}
+  };
+
+  const handleUpdateProfile = (updatedUser) => {
+    const normalized = {
+      ...updatedUser,
+      role: (updatedUser.role || 'STUDENT').toUpperCase().replace(/^ROLE_/, ''),
+    };
+    setCurrentUser(normalized);
+    try {
+      sessionStorage.setItem('aives_user', JSON.stringify(normalized));
+      localStorage.setItem('aives_user', JSON.stringify(normalized));
+    } catch {}
+
+    // Synchronize to user registry so Admin User Management updates immediately
+    const targetId = normalized.id || normalized.idNumber;
+    updateRegistryUser(targetId, normalized);
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     try {
+      sessionStorage.removeItem('aives_user');
       localStorage.removeItem('aives_user');
     } catch {}
     navigate('/');
@@ -1200,34 +1502,139 @@ function AppContent() {
 
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Routes>
+            {/* Public routes - No role required */}
             <Route
               path="/"
               element={
-                currentUser?.role === 'STUDENT' ? (
-                  <StudentDashboardPage currentUser={currentUser} />
-                ) : (
-                  <GlacierCentralDashboard onOpenAuth={openAuth} currentUser={currentUser} />
-                )
+                <HomePage
+                  onOpenAuth={openAuth}
+                  currentUser={currentUser}
+                  roleConfigs={ROLE_CONFIGS}
+                />
               }
             />
-            <Route path="/student" element={<StudentDashboardPage currentUser={currentUser} />} />
-            <Route path="/payment" element={<Navigate to="/student" replace />} />
             <Route path="/login" element={<AuthRBACPage onLoginSuccess={handleLoginSuccess} />} />
             <Route path="/register" element={<RegisterPage onLoginSuccess={handleLoginSuccess} />} />
-            <Route path="/device-check" element={<PreExamDeviceCheckPage />} />
-            <Route path="/viva" element={<VivaRoomPage />} />
-            <Route path="/exam-result" element={<ExamResultPage />} />
-            <Route path="/questions" element={<LecturerRAGPage />} />
-            <Route path="/generate" element={<LecturerAIGenerationPage />} />
-            <Route path="/review" element={<LecturerReviewPage />} />
-            <Route path="/admin" element={<UserManagementPage />} />
-            <Route path="/admin/users" element={<UserManagementPage />} />
+
+            {/* Student routes */}
+            <Route
+              path="/student"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['STUDENT']}>
+                  <StudentDashboardPage currentUser={currentUser} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/device-check"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['STUDENT']}>
+                  <PreExamDeviceCheckPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/viva"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['STUDENT', 'LECTURER']}>
+                  <VivaRoomPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/exam-result"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['STUDENT', 'LECTURER']}>
+                  <ExamResultPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Lecturer routes */}
+            <Route
+              path="/questions"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
+                  <LecturerRAGPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/generate"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER']}>
+                  <LecturerAIGenerationPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/review"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER']}>
+                  <LecturerReviewPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/question-bank"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
+                  <QuestionBankPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin routes */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['ADMIN']}>
+                  <AdminDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['ADMIN']}>
+                  <UserManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/admin/config" element={<Navigate to="/admin" replace />} />
             <Route path="/admin/transactions" element={<Navigate to="/admin/users" replace />} />
+
+            {/* Central Monitoring Dashboard (All Authenticated Roles) */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['STUDENT', 'LECTURER', 'ADMIN']}>
+                  <GlacierCentralDashboard
+                    onOpenAuth={openAuth}
+                    currentUser={currentUser}
+                  />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/overview" element={<Navigate to="/dashboard" replace />} />
+
+            {/* Profile Route - Common for all roles */}
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['STUDENT', 'LECTURER', 'ADMIN']}>
+                  <ProfilePage currentUser={currentUser} onUpdateProfile={handleUpdateProfile} />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Catch-all fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
 
         <footer className="mt-auto px-8 py-4 border-t border-slate-200/80 bg-white/70 backdrop-blur-sm flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500">
-          <p>© 2025 AI Viva Voce Pro. Enterprise Academic Evaluation Framework. All rights reserved.</p>
+          <p>© 2025 AI Viva Voice Pro. Enterprise Academic Evaluation Framework. All rights reserved.</p>
           <div className="flex items-center gap-4 mt-2 sm:mt-0 font-medium">
             <span>Latency: 14ms</span>
             <span>•</span>
@@ -1249,8 +1656,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppContent />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AppContent />
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

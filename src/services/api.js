@@ -23,18 +23,276 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor: Handle common HTTP responses
+// Response interceptor: Handle common HTTP responses & format error messages
 api.interceptors.response.use(
   (response) => {
     return response;
   },
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Unauthorized: clear token and redirect to login if required
-      console.warn('Unauthorized request - invalid or expired token.');
+    let message = 'Đã xảy ra lỗi khi kết nối tới hệ thống.';
+
+    if (error.response) {
+      const status = error.response.status;
+      const backendMsg = error.response.data?.message;
+
+      switch (status) {
+        case 401:
+          message = backendMsg || 'Phiên làm việc đã hết hạn hoặc chưa được xác thực. Vui lòng đăng nhập lại.';
+          break;
+        case 403:
+          message = backendMsg || 'Tài khoản của bạn không có quyền thực hiện thao tác Quản trị viên này.';
+          break;
+        case 404:
+          message = backendMsg || 'Không tìm thấy dữ liệu yêu cầu trên máy chủ Backend.';
+          break;
+        case 422:
+          message = backendMsg || 'Dữ liệu gửi lên không đúng định dạng quy định.';
+          break;
+        case 500:
+          message = backendMsg || 'Lỗi máy chủ nội bộ Backend (Internal Server Error 500).';
+          break;
+        default:
+          message = backendMsg || `Yêu cầu thất bại với mã lỗi HTTP ${status}.`;
+      }
+    } else if (error.request) {
+      message = 'Không thể kết nối máy chủ API (localhost:8080). Đang chạy ở chế độ dự phòng Offline Demo Mode.';
     }
+
+    error.friendlyMessage = message;
+    console.warn(`[AIVES API Error ${error.response?.status || 'Network'}]:`, message);
     return Promise.reject(error);
   }
 );
+
+// ==========================================
+// 3. API SERVICE QUẢN LÝ USER (ADMIN ROLE)
+// ==========================================
+export const adminUserApi = {
+  // Lấy danh sách người dùng (hỗ trợ phân trang, tìm kiếm, lọc role, status)
+  getUsers: (params) => api.get('/v1/admin/users', { params }),
+
+  // Lấy chi tiết thông tin 1 người dùng theo ID / UUID
+  getUserById: (userId) => api.get(`/v1/admin/users/${userId}`),
+
+  // Tạo tài khoản người dùng mới
+  createUser: (userData) => api.post('/v1/admin/users', userData),
+
+  // Cập nhật thông tin / vai trò / phân công người dùng
+  updateUser: (userId, userData) => api.put(`/v1/admin/users/${userId}`, userData),
+
+  // Cập nhật nhanh trạng thái tài khoản (ACTIVE / INACTIVE / PENDING_SSO)
+  updateUserStatus: (userId, status) => api.put(`/v1/admin/users/${userId}/status`, { status }),
+
+  // Xóa tài khoản người dùng
+  deleteUser: (userId) => api.delete(`/v1/admin/users/${userId}`),
+
+  // Xóa mềm tài khoản người dùng (soft delete / inactive)
+  softDeleteUser: (userId) => api.patch(`/v1/admin/users/${userId}/soft-delete`),
+
+  // Import danh sách sinh viên / giảng viên hàng loạt từ tệp Excel (.xlsx)
+  importUserExcel: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/v1/admin/users/import-excel', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // Xuất danh sách người dùng ra tệp Excel (.xlsx)
+  exportUserExcel: (params) =>
+    api.get('/v1/admin/users/export-excel', {
+      params,
+      responseType: 'blob',
+    }),
+};
+
+// ==========================================
+// 4. API SERVICE PHÂN CÔNG MÔN HỌC (ADMIN ROLE)
+// ==========================================
+export const adminSubjectApi = {
+  // Lấy danh mục tất cả môn học trong hệ thống
+  getSubjects: (params) => api.get('/v1/admin/subjects', { params }),
+
+  // Tạo mới môn học
+  createSubject: (subjectData) => api.post('/v1/admin/subjects', subjectData),
+
+  // Cập nhật thông tin môn học
+  updateSubject: (subjectId, subjectData) => api.put(`/v1/admin/subjects/${subjectId}`, subjectData),
+
+  // Xóa môn học
+  deleteSubject: (subjectId) => api.delete(`/v1/admin/subjects/${subjectId}`),
+
+  // Xóa mềm môn học
+  softDeleteSubject: (subjectId) => api.patch(`/v1/admin/subjects/${subjectId}/soft-delete`),
+
+  // Phân công giảng viên cho môn học
+  assignLecturer: (subjectId, lecturerId) =>
+    api.post(`/v1/admin/subjects/${subjectId}/assign-lecturer`, null, { params: { lecturerId } }),
+
+  // Lấy danh sách giảng viên phụ trách môn học
+  getSubjectLecturers: (subjectId) => api.get(`/v1/admin/subjects/${subjectId}/lecturers`),
+
+  // Hủy phân công giảng viên khỏi môn học
+  unassignLecturer: (subjectId, lecturerId) =>
+    api.delete(`/v1/admin/subjects/${subjectId}/lecturers/${lecturerId}`),
+
+  // Lấy danh sách phân công môn học cho toàn bộ giảng viên
+  getSubjectAssignments: (params) => api.get('/v1/admin/subjects/assignments', { params }),
+
+  // Lấy danh sách môn học & quyền chi tiết của 1 Giảng viên cụ thể
+  getLecturerAssignments: (lecturerId) => api.get(`/v1/admin/subjects/assignments/lecturers/${lecturerId}`),
+
+  // Gán môn học mới cho Giảng viên (kèm quyền canApproveRAG, canEditRubric)
+  assignSubject: (assignmentData) => api.post('/v1/admin/subjects/assignments', assignmentData),
+
+  // Cập nhật quyền hạn RAG & Rubric cho 1 phân công môn học
+  updateAssignmentPermissions: (assignmentId, permissionsData) =>
+    api.put(`/v1/admin/subjects/assignments/${assignmentId}/permissions`, permissionsData),
+
+  // Hủy phân công môn học khỏi Giảng viên
+  removeAssignment: (assignmentId) => api.delete(`/v1/admin/subjects/assignments/${assignmentId}`),
+
+  // Cấu hình ngôn ngữ khảo thí môn học (Admin hỗ trợ / ghi đè)
+  updateSubjectLanguageConfig: (subjectId, configData) =>
+    api.patch(`/v1/admin/subjects/${subjectId}/language-config`, configData),
+};
+
+// ==========================================
+// 5. API SERVICE CẤU HÌNH THAM SỐ AI VIVA (ADMIN ROLE)
+// ==========================================
+export const adminConfigApi = {
+  // Lấy thông số cấu hình AI Viva hiện tại (Ngôn ngữ, Max turns, Timeout duration...)
+  getAIVivaConfig: () => api.get('/v1/admin/config/ai-viva'),
+
+  // Cập nhật cấu hình thông số AI Viva cho toàn hệ thống ca thi
+  updateAIVivaConfig: (configData) => api.put('/v1/admin/config/ai-viva', configData),
+
+  // Lấy chi tiết tham số cài đặt mô hình STT (Whisper) / TTS giọng đọc AI
+  getSTTTTSSettings: () => api.get('/v1/admin/config/stt-tts'),
+
+  // Cập nhật cài đặt mô hình STT / TTS giọng đọc AI
+  updateSTTTTSSettings: (settingsData) => api.put('/v1/admin/config/stt-tts', settingsData),
+
+  // Khôi phục cấu hình thông số AI Viva về mặc định của hệ thống
+  resetAIVivaConfigToDefault: () => api.post('/v1/admin/config/ai-viva/reset'),
+};
+
+// ==========================================
+// 6. API SERVICE HỌC LIỆU & RAG (LECTURER ROLE)
+// ==========================================
+export const lecturerDocumentApi = {
+  // Lấy danh sách tài liệu đề cương / học liệu RAG theo mã môn
+  getDocuments: (params) => api.get('/v1/lecturer/documents', { params }),
+
+  // Tải lên / đăng ký tài liệu học liệu mới
+  uploadDocument: (docData) => api.post('/v1/lecturer/documents/upload', docData),
+
+  // Tải lên tệp học liệu (PDF, DOCX, TXT) kèm phân tích chunking và vector hóa
+  uploadDocumentFile: (formData) =>
+    api.post('/v1/lecturer/documents/upload-file', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
+
+  // Kích hoạt tiến trình chia đoạn (chunking) và vector hóa học liệu
+  vectorizeDocument: (docId) => api.post(`/v1/lecturer/documents/${docId}/vectorize`),
+
+  // Xóa tài liệu học liệu khỏi cơ sở tri thức RAG
+  deleteDocument: (docId) => api.delete(`/v1/lecturer/documents/${docId}`),
+};
+
+// ==========================================
+// 7. API SERVICE NGÂN HÀNG CÂU HỎI & BLOOM (LECTURER ROLE)
+// ==========================================
+export const lecturerQuestionApi = {
+  // Lấy danh sách câu hỏi theo bộ lọc (môn học, độ khó, từ khóa, status)
+  getQuestions: (params) => api.get('/v1/lecturer/questions', { params }),
+
+  // Lấy chi tiết 1 câu hỏi kèm rubric
+  getQuestionById: (questionId) => api.get(`/v1/lecturer/questions/${questionId}`),
+
+  // Sinh câu hỏi và rubric tự động từ tài liệu học liệu RAG qua Gemini LLM
+  generateQuestionsRAG: (generateData) => api.post('/v1/lecturer/questions/generate-rag', generateData),
+
+  // Tạo câu hỏi mới trong ngân hàng
+  createQuestion: (questionData) => api.post('/v1/lecturer/questions', questionData),
+
+  // Cập nhật câu hỏi
+  updateQuestion: (questionId, questionData) => api.put(`/v1/lecturer/questions/${questionId}`, questionData),
+
+  // Xóa câu hỏi
+  deleteQuestion: (questionId) => api.delete(`/v1/lecturer/questions/${questionId}`),
+
+  // Duyệt hoặc chuyển trạng thái câu hỏi
+  toggleApprove: (questionId) => api.patch(`/v1/lecturer/questions/${questionId}/approve`),
+
+  // Phê duyệt hàng loạt toàn bộ câu hỏi đang chờ duyệt
+  approveAll: (params) => api.post('/v1/lecturer/questions/approve-all', null, { params }),
+};
+
+// ==========================================
+// 8. API SERVICE TIÊU CHÍ CHẤM RUBRIC (LECTURER ROLE)
+// ==========================================
+export const lecturerRubricApi = {
+  // Lấy danh sách tiêu chí rubric của một môn học
+  getRubricsBySubject: (subjectId) => api.get(`/v1/lecturer/rubrics/by-subject/${subjectId}`),
+
+  // Tạo tiêu chí chấm điểm rubric mới
+  createRubric: (rubricData) => api.post('/v1/lecturer/rubrics', rubricData),
+
+  // Cập nhật tiêu chí chấm điểm rubric
+  updateRubric: (rubricId, rubricData) => api.put(`/v1/lecturer/rubrics/${rubricId}`, rubricData),
+
+  // Xóa tiêu chí rubric
+  deleteRubric: (rubricId) => api.delete(`/v1/lecturer/rubrics/${rubricId}`),
+};
+
+// ==========================================
+// 9. API SERVICE CA THI & VIVA (STUDENT ROLE)
+// ==========================================
+export const studentExamApi = {
+  // Lấy danh sách ca thi của sinh viên
+  getSessions: (params) => api.get('/v1/student/exam-sessions', { params }),
+
+  // Lấy chi tiết ca thi
+  getSessionById: (sessionId) => api.get(`/v1/student/exam-sessions/${sessionId}`),
+
+  // Lấy danh sách các lượt vấn đáp trong ca thi
+  getSessionTurns: (sessionId) => api.get(`/v1/student/exam-sessions/${sessionId}/turns`),
+
+  // Bắt đầu / Check-in ca thi
+  startExam: (params, data) => api.post('/v1/student/exam-sessions/start', data, { params }),
+
+  // Nộp câu trả lời cho lượt vấn đáp và nhận nhận xét AI
+  submitTurn: (sessionId, turnData) => api.post(`/v1/student/exam-sessions/${sessionId}/turns`, turnData),
+
+  // Kết thúc ca thi và nhận tổng điểm rubric
+  finishExam: (sessionId) => api.post(`/v1/student/exam-sessions/${sessionId}/finish`),
+};
+
+// ==========================================
+// 10. API SERVICE DANH MỤC MÔN HỌC CHUNG (PUBLIC / SHARED)
+// ==========================================
+export const subjectApi = {
+  getSubjects: () => api.get('/v1/subjects'),
+  getSubjectById: (id) => api.get(`/v1/subjects/${id}`),
+  getSubjectByCode: (code) => api.get(`/v1/subjects/code/${code}`),
+  getSubjectLanguageConfig: (subjectId) => api.get(`/v1/subjects/${subjectId}/language-config`),
+  updateSubjectLanguageConfig: (subjectId, configData) =>
+    api.patch(`/v1/subjects/${subjectId}/language-config`, configData),
+};
+
+// ==========================================
+// 11. API SERVICE QUẢN LÝ CA THI & CHỐT ĐIỂM (LECTURER ROLE)
+// ==========================================
+export const lecturerExamSessionApi = {
+  getSessions: (params) => api.get('/v1/lecturer/exam-sessions', { params }),
+  getSessionById: (sessionId) => api.get(`/v1/lecturer/exam-sessions/${sessionId}`),
+  finalizeScore: (sessionId, scoreData) =>
+    api.post(`/v1/lecturer/exam-sessions/${sessionId}/finalize-score`, scoreData),
+};
 
 export default api;
