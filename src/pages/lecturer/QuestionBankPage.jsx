@@ -54,6 +54,11 @@ export default function QuestionBankPage() {
     bloomLevel: 'Bloom 3 - Vận dụng',
     keywords: '',
     expectedAnswer: '',
+    rubrics: [
+      { criterionName: 'Tính chính xác & Bản chất khái niệm', description: 'Nêu đúng định nghĩa, các thành phần và cơ chế hoạt động', maxScore: 4.0, weight: 1.0 },
+      { criterionName: 'Vận dụng thực tế & Triển khai', description: 'Đưa ra ví dụ minh họa và giải quyết tình huống kỹ thuật', maxScore: 3.5, weight: 1.0 },
+      { criterionName: 'Phản biện & Tối ưu hóa', description: 'So sánh giải pháp thay thế, trade-offs và tối ưu hiệu năng', maxScore: 2.5, weight: 1.0 },
+    ],
   });
 
   const [editingQuestion, setEditingQuestion] = useState({
@@ -222,17 +227,28 @@ export default function QuestionBankPage() {
       return;
     }
 
+    const currentSubj = subjectsList.find(s => s.code === newQuestion.subjectCode);
     const newCode = `${newQuestion.subjectCode}-Q${Math.floor(100 + Math.random() * 900)}`;
     const payload = {
       ...newQuestion,
+      subjectUuid: currentSubj?.id || currentSubj?.uuid,
       questionCode: newCode,
+      status: 'ACTIVE',
+      rubrics: newQuestion.rubrics.map(r => ({
+        criterionName: r.criterionName,
+        description: r.description,
+        maxScore: Number(r.maxScore) || 10,
+        weight: Number(r.weight) || 1,
+      })),
     };
 
     let createdId = 'q-' + Date.now();
+    let backendResult = null;
     try {
       const res = await lecturerQuestionApi.createQuestion(payload);
-      if (res?.data?.result?.id) {
-        createdId = res.data.result.id;
+      if (res?.data?.result) {
+        backendResult = res.data.result;
+        createdId = backendResult.id || backendResult.uuid || createdId;
       }
     } catch (err) {
       console.warn('API createQuestion fallback:', err);
@@ -240,8 +256,8 @@ export default function QuestionBankPage() {
 
     const created = {
       id: createdId,
-      code: newCode,
-      subject: newQuestion.subjectCode,
+      code: backendResult?.questionCode || newCode,
+      subject: backendResult?.subjectName ? `${backendResult.subjectName} (${newQuestion.subjectCode})` : newQuestion.subjectCode,
       subjectCode: newQuestion.subjectCode,
       difficulty: newQuestion.difficulty,
       bloomLevel: newQuestion.bloomLevel,
@@ -249,21 +265,29 @@ export default function QuestionBankPage() {
       keywords: newQuestion.keywords.split(',').map(s => s.trim()).filter(Boolean),
       expectedAnswer: newQuestion.expectedAnswer,
       vectorStatus: 'Embedded (1536 dims)',
-      rubricCount: 3,
+      rubrics: backendResult?.rubrics || payload.rubrics,
+      rubricCount: backendResult?.rubrics?.length || payload.rubrics.length,
       isApproved: true,
     };
 
     saveQuestions([created, ...questions]);
     setIsAddModalOpen(false);
     setNewQuestion({
-      subjectCode: 'PRJ301',
+      subjectCode: newQuestion.subjectCode,
       content: '',
       difficulty: 'MEDIUM',
       bloomLevel: 'Bloom 3 - Vận dụng',
       keywords: '',
       expectedAnswer: '',
+      rubrics: [
+        { criterionName: 'Tính chính xác & Bản chất khái niệm', description: 'Nêu đúng định nghĩa, các thành phần và cơ chế hoạt động', maxScore: 4.0, weight: 1.0 },
+        { criterionName: 'Vận dụng thực tế & Triển khai', description: 'Đưa ra ví dụ minh họa và giải quyết tình huống kỹ thuật', maxScore: 3.5, weight: 1.0 },
+        { criterionName: 'Phản biện & Tối ưu hóa', description: 'So sánh giải pháp thay thế, trade-offs và tối ưu hiệu năng', maxScore: 2.5, weight: 1.0 },
+      ],
     });
-    showToast('Đã thêm câu hỏi mới vào ngân hàng học liệu!');
+    showToast('Đã tạo câu hỏi và thiết lập Barem Rubric thành công!');
+    // Re-sync with backend in background
+    fetchQuestions();
   };
 
   const handleOpenEditModal = (q) => {
@@ -636,14 +660,106 @@ export default function QuestionBankPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Từ khóa (phân cách bằng dấu phẩy)</label>
-                <input
-                  type="text"
-                  value={newQuestion.keywords}
-                  onChange={(e) => setNewQuestion({ ...newQuestion, keywords: e.target.value })}
-                  placeholder="Ví dụ: Servlet, Lifecycle, Session, Redis"
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Gợi ý câu trả lời mẫu (Benchmark Answer)</label>
+                <textarea
+                  rows={2}
+                  value={newQuestion.expectedAnswer}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, expectedAnswer: e.target.value })}
+                  placeholder="Gợi ý câu trả lời kỳ vọng để hệ thống AI Viva và Giảng viên đối chiếu..."
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:border-sky-500 focus:outline-none"
                 />
+              </div>
+
+              {/* Rubric Criteria Builder */}
+              <div className="pt-2 border-t border-slate-100 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-sky-600" />
+                    Barem Tiêu Chí Chấm Điểm (Rubrics)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewQuestion({
+                        ...newQuestion,
+                        rubrics: [
+                          ...newQuestion.rubrics,
+                          {
+                            criterionName: `Tiêu chí #${newQuestion.rubrics.length + 1}`,
+                            description: 'Mô tả yêu cầu đạt điểm',
+                            maxScore: 3.0,
+                            weight: 1.0,
+                          },
+                        ],
+                      });
+                    }}
+                    className="text-[11px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Thêm tiêu chí
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {newQuestion.rubrics.map((rubric, rIdx) => (
+                    <div key={rIdx} className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          required
+                          value={rubric.criterionName}
+                          onChange={(e) => {
+                            const updated = [...newQuestion.rubrics];
+                            updated[rIdx].criterionName = e.target.value;
+                            setNewQuestion({ ...newQuestion, rubrics: updated });
+                          }}
+                          placeholder="Tên tiêu chí (ví dụ: Tính chính xác)"
+                          className="flex-1 px-2.5 py-1 text-xs rounded-lg bg-white border border-slate-200 font-semibold focus:outline-none focus:border-sky-500"
+                        />
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0.5"
+                            max="10"
+                            value={rubric.maxScore}
+                            onChange={(e) => {
+                              const updated = [...newQuestion.rubrics];
+                              updated[rIdx].maxScore = parseFloat(e.target.value) || 0;
+                              setNewQuestion({ ...newQuestion, rubrics: updated });
+                            }}
+                            className="w-16 px-2 py-1 text-xs font-mono font-bold rounded-lg bg-white border border-slate-200 text-center text-sky-700"
+                            title="Điểm tối đa"
+                          />
+                          <span className="text-[10px] text-slate-500">đ</span>
+                        </div>
+                        {newQuestion.rubrics.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = newQuestion.rubrics.filter((_, idx) => idx !== rIdx);
+                              setNewQuestion({ ...newQuestion, rubrics: updated });
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
+                            title="Xóa tiêu chí này"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={rubric.description}
+                        onChange={(e) => {
+                          const updated = [...newQuestion.rubrics];
+                          updated[rIdx].description = e.target.value;
+                          setNewQuestion({ ...newQuestion, rubrics: updated });
+                        }}
+                        placeholder="Mô tả chuẩn đạt điểm cho sinh viên..."
+                        className="w-full px-2.5 py-1 text-[11px] rounded-lg bg-white border border-slate-200 text-slate-600 focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

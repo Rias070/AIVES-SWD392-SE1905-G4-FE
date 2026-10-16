@@ -19,6 +19,7 @@ export default function LecturerAIGenerationPage() {
   const [selectedSubject, setSelectedSubject] = useState('CS301');
   const [topic, setTopic] = useState('');
   const [bloomLevel, setBloomLevel] = useState('ALL');
+  const [difficulty, setDifficulty] = useState('MEDIUM');
   const [questionCount, setQuestionCount] = useState(3);
 
   useEffect(() => {
@@ -53,10 +54,16 @@ export default function LecturerAIGenerationPage() {
 
     try {
       let uploadedDoc = null;
+      const currentSubjectObj = subjects.find(s => s.code === selectedSubject);
+
+      // Step 1: If file attached, upload first
       if (file) {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('subjectCode', selectedSubject);
+        if (currentSubjectObj?.id || currentSubjectObj?.uuid) {
+          formData.append('subjectUuid', currentSubjectObj.id || currentSubjectObj.uuid);
+        }
 
         try {
           const uploadRes = await lecturerDocumentApi.uploadDocumentFile(formData);
@@ -70,9 +77,11 @@ export default function LecturerAIGenerationPage() {
 
       const reqPayload = {
         subjectCode: selectedSubject,
+        subjectUuid: currentSubjectObj?.id || currentSubjectObj?.uuid,
         documentUuid: uploadedDoc?.id,
         topic: topic || (file ? file.name.replace(/\.[^/.]+$/, '') : 'Kiến thức cốt lõi học phần'),
         bloomLevel: bloomLevel,
+        difficulty: difficulty,
         count: Number(questionCount),
       };
 
@@ -219,6 +228,19 @@ export default function LecturerAIGenerationPage() {
                 <option value="Bloom 3 - Vận dụng">Bloom 3 - Vận dụng (Apply)</option>
                 <option value="Bloom 4 - Phân tích">Bloom 4 - Phân tích (Analyze)</option>
                 <option value="Bloom 5 - Đánh giá">Bloom 5 - Đánh giá (Evaluate)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Độ khó đề thi</label>
+              <select
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:border-sky-500 font-medium"
+              >
+                <option value="EASY">Dễ (Cơ bản / Nhận biết)</option>
+                <option value="MEDIUM">Trung bình (Vận dụng chuẩn)</option>
+                <option value="HARD">Nâng cao (Phân tích & Đánh giá)</option>
               </select>
             </div>
 

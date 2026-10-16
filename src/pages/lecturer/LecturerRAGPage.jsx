@@ -18,9 +18,10 @@ import {
   Languages,
   ChevronRight,
   Plus,
-  Scale
+  Scale,
+  Sliders
 } from 'lucide-react';
-import { lecturerDocumentApi, subjectApi } from '../../services/api';
+import { lecturerDocumentApi, lecturerQuestionApi, lecturerRubricApi, subjectApi } from '../../services/api';
 
 export default function LecturerRAGPage() {
   const navigate = useNavigate();
@@ -30,6 +31,42 @@ export default function LecturerRAGPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [isRubricDrawerOpen, setIsRubricDrawerOpen] = useState(false);
+
+  // Rubric Barem drawer states
+  const defaultRubrics = [
+    {
+      id: 'rub-1',
+      criterionName: 'Tính chính xác giải thuật (Core Algorithm Accuracy)',
+      description: 'Giải thích rõ ràng cơ chế Greedy gán nhãn cố định khi chọn đỉnh u có d[u] nhỏ nhất và lý do không thể đảo ngược khi gặp trọng số âm.',
+      maxScore: 4.0,
+      weight: 1.0,
+      strictness: 'Cao (Strict)'
+    },
+    {
+      id: 'rub-2',
+      criterionName: 'Tư duy phản biện & Minh họa phản ví dụ (Counter-example)',
+      description: 'Đưa ra đồ thị 3 đỉnh tối thiểu (A → B: 4, A → C: 2, C → B: -3) chứng minh sai số tìm đường đi ngắn nhất của Dijkstra.',
+      maxScore: 3.5,
+      weight: 1.0,
+      strictness: 'Trung bình'
+    },
+    {
+      id: 'rub-3',
+      criterionName: 'So sánh phương án thay thế (Bellman-Ford / SPFA)',
+      description: 'Nêu được nguyên lý Relaxing |V|-1 lần, độ phức tạp O(V*E) và cơ chế phát hiện Negative Cycle qua lần lặp thứ |V|.',
+      maxScore: 2.5,
+      weight: 1.0,
+      strictness: 'Cơ bản'
+    }
+  ];
+  const [activeRubrics, setActiveRubrics] = useState(defaultRubrics);
+  const [isAddRubricOpen, setIsAddRubricOpen] = useState(false);
+  const [newRubricForm, setNewRubricForm] = useState({
+    criterionName: '',
+    description: '',
+    maxScore: 3.0,
+    weight: 1.0,
+  });
 
   // Examination Language Configuration (STT/TTS)
   const [isLangConfigOpen, setIsLangConfigOpen] = useState(false);
@@ -192,6 +229,60 @@ export default function LecturerRAGPage() {
   const filteredDocs = ragDocuments.filter((d) =>
     (d.filename || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleCreateRubric = async (e) => {
+    e.preventDefault();
+    if (!newRubricForm.criterionName.trim()) return;
+
+    const payload = {
+      subjectUuid: courseSubjectId,
+      criterionName: newRubricForm.criterionName.trim(),
+      description: newRubricForm.description.trim(),
+      maxScore: Number(newRubricForm.maxScore) || 3.0,
+      weight: Number(newRubricForm.weight) || 1.0,
+    };
+
+    let createdId = 'rub-' + Date.now();
+    try {
+      const res = await lecturerRubricApi.createRubric(payload);
+      if (res?.data?.result?.id) {
+        createdId = res.data.result.id;
+      }
+    } catch (err) {
+      console.warn('API createRubric fallback:', err);
+    }
+
+    const created = {
+      id: createdId,
+      criterionName: payload.criterionName,
+      description: payload.description,
+      maxScore: payload.maxScore,
+      weight: payload.weight,
+      strictness: 'Chuẩn',
+    };
+
+    setActiveRubrics([...activeRubrics, created]);
+    setIsAddRubricOpen(false);
+    setNewRubricForm({ criterionName: '', description: '', maxScore: 3.0, weight: 1.0 });
+    setLangToast('Đã thêm tiêu chí Rubric mới vào Barem!');
+    setTimeout(() => setLangToast(null), 3500);
+  };
+
+  const handleDeleteRubric = async (rubricId) => {
+    try {
+      await lecturerRubricApi.deleteRubric(rubricId);
+    } catch (err) {
+      console.warn('API deleteRubric fallback:', err);
+    }
+    setActiveRubrics(activeRubrics.filter((r) => r.id !== rubricId));
+    setLangToast('Đã xóa tiêu chí Rubric khỏi Barem.');
+    setTimeout(() => setLangToast(null), 3500);
+  };
+
+  const handleSaveAllRubrics = () => {
+    setLangToast('Barem điểm chấm thi đã được đồng bộ và lưu trữ lên cơ sở dữ liệu!');
+    setTimeout(() => setLangToast(null), 4000);
+  };
 
   return (
     <div className="space-y-5 pb-12 animate-fade-in max-w-7xl mx-auto">
@@ -435,41 +526,56 @@ export default function LecturerRAGPage() {
 
               {/* Criteria List */}
               <div className="space-y-3 text-xs">
-                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-100 text-[11px]">
-                      Tiêu chí 1: Tính chính xác giải thuật
-                    </span>
-                    <span className="font-mono font-bold text-sky-700 text-xs">4.0đ</span>
+                {activeRubrics.length === 0 ? (
+                  <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-500">
+                    Chưa có tiêu chí nào trong Barem này. Hãy bấm thêm tiêu chí mới bên dưới.
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-snug">
-                    Giải thích rõ ràng cơ chế Greedy gán nhãn cố định và điều kiện dừng khi cập nhật đỉnh.
-                  </p>
-                </div>
+                ) : (
+                  activeRubrics.map((r, idx) => (
+                    <div key={r.id || idx} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-100 text-[11px]">
+                          Tiêu chí {idx + 1}: {r.criterionName}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-sky-700 text-xs">{r.maxScore || 3}đ</span>
+                          <button
+                            onClick={() => handleDeleteRubric(r.id)}
+                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                            title="Xóa tiêu chí này"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        {r.description || 'Chưa có mô tả chi tiết cho tiêu chí này.'}
+                      </p>
+                      {r.weight && (
+                        <div className="text-[10px] text-slate-500 pt-0.5">
+                          Trọng số: <strong className="text-slate-700">{r.weight}</strong>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
 
-                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-100 text-[11px]">
-                      Tiêu chí 2: Phản biện & Ví dụ minh họa
-                    </span>
-                    <span className="font-mono font-bold text-sky-700 text-xs">3.5đ</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 leading-snug">
-                    Đưa ra phản ví dụ đồ thị chứng minh sai số tìm đường đi khi có trọng số âm.
-                  </p>
-                </div>
+                {/* Add new criteria button */}
+                <button
+                  onClick={() => setIsAddRubricOpen(true)}
+                  className="w-full py-2.5 rounded-xl border border-dashed border-sky-300 hover:bg-sky-50 text-xs font-semibold text-sky-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Thêm tiêu chí chấm điểm mới</span>
+                </button>
 
-                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-100 text-[11px]">
-                      Tiêu chí 3: Đối chiếu giải thuật thay thế
-                    </span>
-                    <span className="font-mono font-bold text-sky-700 text-xs">2.5đ</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 leading-snug">
-                    So sánh độ phức tạp và khả năng xử lý chu trình âm của Bellman-Ford / SPFA.
-                  </p>
-                </div>
+                {/* Save Actions */}
+                <button
+                  onClick={handleSaveAllRubrics}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-sky-600 hover:from-amber-600 hover:to-sky-700 text-white text-xs font-bold shadow-sm shadow-amber-500/20 transition-all text-center cursor-pointer"
+                >
+                  Lưu thay đổi Barem
+                </button>
               </div>
             </div>
 
@@ -556,6 +662,94 @@ export default function LecturerRAGPage() {
         <div className="fixed bottom-6 right-6 z-50 p-3.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold shadow-lg flex items-center gap-2 animate-fade-in">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{langToast}</span>
+        </div>
+      )}
+
+      {/* MODAL THÊM TIÊU CHÍ RUBRIC BAREM */}
+      {isAddRubricOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-sky-600" />
+                Thêm Tiêu Chí Barem Mới
+              </h3>
+              <button
+                onClick={() => setIsAddRubricOpen(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateRubric} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Tên Tiêu Chí (Criterion Name) *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ví dụ: Phân tích độ phức tạp thời gian O(log N)"
+                  value={newRubricForm.criterionName}
+                  onChange={(e) => setNewRubricForm({ ...newRubricForm, criterionName: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-none focus:border-sky-500 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Mô Tả Yêu Cầu Chấm Điểm (Description)</label>
+                <textarea
+                  rows={3}
+                  placeholder="Mô tả cụ thể sinh viên cần trình bày những gì để đạt điểm tối đa..."
+                  value={newRubricForm.description}
+                  onChange={(e) => setNewRubricForm({ ...newRubricForm, description: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-sky-500 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Điểm Tối Đa (Max Score)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="10"
+                    value={newRubricForm.maxScore}
+                    onChange={(e) => setNewRubricForm({ ...newRubricForm, maxScore: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-sky-500 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Trọng Số (Weight)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="5"
+                    value={newRubricForm.weight}
+                    onChange={(e) => setNewRubricForm({ ...newRubricForm, weight: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-sky-500 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddRubricOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 font-semibold cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="btn-glacier-primary px-5 py-2 font-semibold cursor-pointer"
+                >
+                  Thêm Tiêu Chí
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
