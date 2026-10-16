@@ -26,7 +26,6 @@ export default function AuthRBACPage({ onLoginSuccess }) {
   const location = useLocation();
 
   // Form states - Empty defaults so registered accounts can be entered directly
-  const [selectedRole, setSelectedRole] = useState('STUDENT'); // 'STUDENT' | 'LECTURER'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -45,19 +44,12 @@ export default function AuthRBACPage({ onLoginSuccess }) {
     LECTURER: { email: 'lecturer@aives.edu.vn', pass: 'password123' },
   };
 
-  const handleRoleChange = (role) => {
-    setSelectedRole(role);
-    setLoginError(null);
-  };
-
-  const handleFillDemo = (role = selectedRole) => {
-    const target = role === 'LECTURER' ? 'LECTURER' : 'STUDENT';
-    const demo = demoAccounts[target];
+  const handleFillDemo = (targetRole = 'STUDENT') => {
+    const demo = demoAccounts[targetRole];
     if (demo) {
       ensureDemoAccountActive(demo.email);
       setEmail(demo.email);
       setPassword(demo.pass);
-      setSelectedRole(target);
       setLoginError(null);
     }
   };
@@ -105,7 +97,7 @@ export default function AuthRBACPage({ onLoginSuccess }) {
 
     // Authenticate with user registry (blocks deleted and deactivated accounts!)
     const existing = findUserByEmail(cleanEmail);
-    const targetRole = backendUser?.role || (existing ? existing.role : selectedRole);
+    const targetRole = backendUser?.role || (existing ? existing.role : 'STUDENT');
 
     const authResult = authenticateUser(cleanEmail, password, targetRole);
 
@@ -122,7 +114,8 @@ export default function AuthRBACPage({ onLoginSuccess }) {
       localStorage.setItem('aives_user', JSON.stringify(userData));
     }
 
-    const effectiveRole = (userData.role || targetRole || selectedRole).toUpperCase().replace(/^ROLE_/, '');
+    // Automatic role-based routing based on account profile
+    const effectiveRole = (userData.role || targetRole || 'STUDENT').toUpperCase().replace(/^ROLE_/, '');
     if (effectiveRole === 'ADMIN') {
       navigate('/admin');
     } else if (effectiveRole === 'LECTURER') {
@@ -221,49 +214,30 @@ export default function AuthRBACPage({ onLoginSuccess }) {
             <div className="space-y-1">
               <h2 className="text-xl font-bold text-slate-900">Đăng nhập tài khoản</h2>
               <p className="text-xs text-slate-500">
-                Chọn vai trò xác thực trong kỳ khảo thí số hóa
+                Nhập email và mật khẩu của bạn để truy cập hệ thống
               </p>
             </div>
 
-            {/* RBAC Role Selector Pills - Only Sinh viên & Giảng viên */}
-            <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-100 border border-slate-200/80">
-              <button
-                type="button"
-                onClick={() => handleRoleChange('STUDENT')}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  selectedRole === 'STUDENT'
-                    ? 'bg-white text-sky-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <GraduationCap className="w-3.5 h-3.5" />
-                <span>Sinh viên</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleRoleChange('LECTURER')}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  selectedRole === 'LECTURER'
-                    ? 'bg-white text-sky-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Giảng viên</span>
-              </button>
-            </div>
-
             {/* Quick Demo Fill Helper */}
-            <div className="flex items-center justify-between px-1 text-[11px] text-slate-500">
-              <span>Đăng nhập với email đã đăng ký hoặc:</span>
-              <button
-                type="button"
-                onClick={() => handleFillDemo(selectedRole)}
-                className="text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
-              >
-                ⚡ Điền tài khoản {selectedRole === 'STUDENT' ? 'Sinh viên' : 'Giảng viên'} mẫu
-              </button>
+            <div className="flex items-center justify-between px-1 text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <span>Tài khoản thử nghiệm:</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleFillDemo('STUDENT')}
+                  className="text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
+                >
+                  ⚡ Sinh viên
+                </button>
+                <span className="text-slate-300">•</span>
+                <button
+                  type="button"
+                  onClick={() => handleFillDemo('LECTURER')}
+                  className="text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
+                >
+                  ⚡ Giảng viên
+                </button>
+              </div>
             </div>
 
             {/* Error Message */}

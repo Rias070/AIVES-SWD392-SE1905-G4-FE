@@ -875,7 +875,6 @@ function GlacierCentralDashboard({ onOpenAuth, currentUser }) {
 /* ==================== AUTH MODAL (Glacier Light) ==================== */
 function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
   const [tab, setTab] = useState(initialTab);
-  const [loginRole, setLoginRole] = useState('STUDENT');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   
@@ -899,14 +898,12 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
     LECTURER: { email: 'lecturer@aives.edu.vn', pass: 'password123' },
   };
 
-  const handleFillDemo = (roleKey = loginRole) => {
-    const target = roleKey === 'LECTURER' ? 'LECTURER' : 'STUDENT';
-    const demo = demoAccounts[target];
+  const handleFillDemo = (targetRole = 'STUDENT') => {
+    const demo = demoAccounts[targetRole];
     if (demo) {
       ensureDemoAccountActive(demo.email);
       setLoginEmail(demo.email);
       setLoginPassword(demo.pass);
-      setLoginRole(target);
       setModalError(null);
     }
   };
@@ -952,7 +949,7 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
     }
 
     const existing = findUserByEmail(cleanEmail);
-    const targetRole = backendUser?.role || (existing ? existing.role : loginRole);
+    const targetRole = backendUser?.role || (existing ? existing.role : 'STUDENT');
 
     const authResult = authenticateUser(cleanEmail, loginPassword, targetRole);
 
@@ -965,7 +962,8 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
     onLoginSuccess(userData);
     onClose();
 
-    const effectiveRole = (userData.role || targetRole || loginRole).toUpperCase().replace(/^ROLE_/, '');
+    // Automatic role-based routing based on account profile
+    const effectiveRole = (userData.role || targetRole || 'STUDENT').toUpperCase().replace(/^ROLE_/, '');
     if (effectiveRole === 'ADMIN') {
       navigate('/admin');
     } else if (effectiveRole === 'LECTURER') {
@@ -1084,47 +1082,24 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
         {/* Tab 1: LOGIN FORM */}
         {tab === 'login' && (
           <form onSubmit={handleLoginSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Chọn vai trò đăng nhập
-              </label>
-              <div className="grid grid-cols-2 gap-2">
+            {/* Quick Demo Fill Helper */}
+            <div className="flex items-center justify-between text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <span>Tài khoản thử nghiệm:</span>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setLoginRole('STUDENT')}
-                  className={`flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-                    loginRole === 'STUDENT'
-                      ? 'bg-sky-50 border-sky-400 text-sky-800 shadow-xs'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
+                  onClick={() => handleFillDemo('STUDENT')}
+                  className="text-sky-600 hover:text-sky-800 font-semibold underline cursor-pointer"
                 >
-                  <GraduationCap className="w-3.5 h-3.5" />
-                  <span>Sinh Viên</span>
+                  ⚡ Sinh viên
                 </button>
-
+                <span className="text-slate-300">•</span>
                 <button
                   type="button"
-                  onClick={() => setLoginRole('LECTURER')}
-                  className={`flex items-center justify-center gap-1.5 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-                    loginRole === 'LECTURER'
-                      ? 'bg-sky-50 border-sky-400 text-sky-800 shadow-xs'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
+                  onClick={() => handleFillDemo('LECTURER')}
+                  className="text-sky-600 hover:text-sky-800 font-semibold underline cursor-pointer"
                 >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>Giảng Viên</span>
-                </button>
-              </div>
-
-              {/* Quick Demo Fill Helper */}
-              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1.5">
-                <span>Hoặc đăng nhập nhanh:</span>
-                <button
-                  type="button"
-                  onClick={() => handleFillDemo(loginRole)}
-                  className="text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
-                >
-                  ⚡ Điền tài khoản {loginRole === 'STUDENT' ? 'Sinh viên' : 'Giảng viên'} mẫu
+                  ⚡ Giảng viên
                 </button>
               </div>
             </div>
