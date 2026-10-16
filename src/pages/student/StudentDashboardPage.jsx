@@ -32,7 +32,12 @@ import {
   Languages,
   Check,
   Zap,
-  Target
+  Target,
+  History,
+  BarChart3,
+  ArrowUpRight,
+  CheckCircle,
+  Info
 } from 'lucide-react';
 
 const DEFAULT_RECENT_EXAMS = [
@@ -124,6 +129,9 @@ export default function StudentDashboardPage({ currentUser }) {
   const studentName = currentUser?.fullName || 'Nguyễn Văn An';
   const studentId = currentUser?.email ? currentUser.email.split('@')[0].toUpperCase() : '20210456';
 
+  // Active Tab state
+  const [activeTab, setActiveTab] = useState('registered-courses'); // 'registered-courses' | 'upcoming-exams' | 'recent-history' | 'competency-evaluation'
+
   // Language configuration (STT/TTS parameter: vi-VN / en-US)
   const [examLang, setExamLang] = useState(() => localStorage.getItem('aives_exam_lang') || 'vi-VN');
 
@@ -131,7 +139,7 @@ export default function StudentDashboardPage({ currentUser }) {
   const [recentExams, setRecentExams] = useState(DEFAULT_RECENT_EXAMS);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Performance Optimization 1: Memoized dynamic statistics
+  // Memoized dynamic statistics
   const stats = useMemo(() => {
     if (!recentExams || recentExams.length === 0) {
       return {
@@ -328,7 +336,7 @@ export default function StudentDashboardPage({ currentUser }) {
     return () => clearInterval(timer);
   }, [isMicTesting]);
 
-  // Performance Optimization 2: Memoized registered courses
+  // Memoized registered courses
   const registeredCourses = useMemo(
     () => [
       {
@@ -336,10 +344,10 @@ export default function StudentDashboardPage({ currentUser }) {
         code: 'CS301',
         title: 'Cấu trúc Dữ liệu & Giải thuật',
         lecturer: 'PGS. TS. Hoàng Nam',
-        examTag: 'Ca thi: 14:30 Hôm nay',
+        examTag: '14:30 Hôm nay',
         tagColor: 'amber',
         ragCount: 12,
-        ragStatus: '12 học liệu RAG chuẩn hóa',
+        ragStatus: '12 học liệu RAG',
         progress: 85,
         actionText: 'Ôn luyện với AI',
         primaryAction: () => {
@@ -352,10 +360,10 @@ export default function StudentDashboardPage({ currentUser }) {
         code: 'AI204',
         title: 'Học máy & Thị giác máy tính',
         lecturer: 'TS. Lê Quang',
-        examTag: 'Ca thi: 28/11',
+        examTag: '28/11/2026',
         tagColor: 'blue',
         ragCount: 18,
-        ragStatus: '18 học liệu RAG chuẩn hóa',
+        ragStatus: '18 học liệu RAG',
         progress: 65,
         actionText: 'Ôn luyện với AI',
         primaryAction: () => {
@@ -371,7 +379,7 @@ export default function StudentDashboardPage({ currentUser }) {
         examTag: 'Sẵn sàng thi',
         tagColor: 'emerald',
         ragCount: 15,
-        ragStatus: '15 học liệu RAG chuẩn hóa',
+        ragStatus: '15 học liệu RAG',
         progress: 92,
         actionText: 'Chi tiết môn',
         primaryAction: () => {
@@ -395,7 +403,7 @@ export default function StudentDashboardPage({ currentUser }) {
         examTag: 'Đang nạp RAG',
         tagColor: 'slate',
         ragCount: 8,
-        ragStatus: 'Đang cập nhật câu hỏi RAG',
+        ragStatus: '8 học liệu RAG',
         progress: 40,
         actionText: 'Chi tiết môn',
         primaryAction: () => {
@@ -415,7 +423,7 @@ export default function StudentDashboardPage({ currentUser }) {
     [examLang]
   );
 
-  // Performance Optimization 3: Memoized upcoming exams
+  // Memoized upcoming exams
   const upcomingExams = useMemo(
     () => [
       {
@@ -424,7 +432,7 @@ export default function StudentDashboardPage({ currentUser }) {
         name: 'Cấu trúc Dữ liệu & Giải thuật',
         session: 'Ca #04',
         time: '14:30 - 15:00 Hôm nay',
-        duration: 'Thời lượng 30 phút',
+        duration: '30 phút',
         room: 'AI - B2',
         status: 'opening_soon',
         statusText: 'Phòng mở sau 15p',
@@ -436,8 +444,8 @@ export default function StudentDashboardPage({ currentUser }) {
         code: 'AI204',
         name: 'Học máy & Thị giác máy tính',
         session: 'Ca #09',
-        time: '09:00 - 09:30 Ngày 28/11/2026',
-        duration: 'Thời lượng 30 phút',
+        time: '09:00 - 09:30 (28/11/2026)',
+        duration: '30 phút',
         room: 'AI - B5',
         status: 'confirmed',
         statusText: 'Đã xác nhận phòng',
@@ -451,10 +459,10 @@ export default function StudentDashboardPage({ currentUser }) {
         session: 'Mock Viva',
         isMock: true,
         time: 'Tự do luyện thi 24/7',
-        duration: 'Không giới hạn số lượt',
+        duration: 'Không giới hạn lượt',
         room: 'SANDBOX',
         status: 'ready',
-        statusText: 'Sẵn sàng',
+        statusText: 'Sẵn sàng luyện tập',
         canEnter: true,
         examId: 'MOCK-SE102'
       },
@@ -472,113 +480,114 @@ export default function StudentDashboardPage({ currentUser }) {
     });
   };
 
+  // Tab navigation config
+  const TABS = [
+    {
+      id: 'registered-courses',
+      label: 'Môn học đã đăng ký',
+      icon: BookOpen,
+      badge: registeredCourses.length,
+    },
+    {
+      id: 'upcoming-exams',
+      label: 'Lịch ca thi sắp tới',
+      icon: Calendar,
+      badge: upcomingExams.length,
+      badgeColor: 'bg-amber-100 text-amber-700',
+    },
+    {
+      id: 'recent-history',
+      label: 'Lịch sử thi gần đây',
+      icon: History,
+      badge: recentExams.length,
+    },
+    {
+      id: 'competency-evaluation',
+      label: 'Đánh giá & Năng lực',
+      icon: TrendingUp,
+      badge: `${stats.avgScore}/10`,
+      badgeColor: 'bg-emerald-100 text-emerald-700',
+    },
+  ];
+
   return (
-    <div className="space-y-6 pb-12 animate-fade-in">
-      {/* ================= GREETING & STATUS BAR ================= */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-4 md:px-6 shadow-xs">
+    <div className="space-y-6 pb-12 animate-fade-in text-slate-800">
+      {/* ================= GREETING & UTILITY BAR ================= */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-4 md:px-6 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-lg md:text-xl font-bold text-slate-900">
+            <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
               Xin chào, {studentName}
             </h1>
             <span className="text-xl">👋</span>
           </div>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            MSSV: {studentId} • Khoa Công nghệ Thông tin • Khóa K21 • Hệ thống AI Viva Examiner v4.2
+            MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa Công nghệ Thông tin
           </p>
         </div>
 
-        <div className="flex items-center flex-wrap gap-2.5">
-          {/* Language Switcher Widget (Chức năng 7: Cấu hình STT/TTS) */}
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs shadow-2xs">
-            <Languages className="w-3.5 h-3.5 text-slate-500 ml-1.5" />
+        {/* Quick controls: Language & Refresh */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50/80 p-1 text-xs">
             <button
               onClick={() => handleToggleLang('vi-VN')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${examLang === 'vi-VN'
-                ? 'bg-white text-sky-700 shadow-2xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-                }`}
-              title="Thi vấn đáp bằng Tiếng Việt (vi-VN)"
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                examLang === 'vi-VN'
+                  ? 'bg-white text-sky-700 font-bold shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Thi bằng Tiếng Việt"
             >
-              🇻🇳 Tiếng Việt
+              🇻🇳 VI
             </button>
             <button
               onClick={() => handleToggleLang('en-US')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${examLang === 'en-US'
-                ? 'bg-white text-sky-700 shadow-2xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-                }`}
-              title="Viva examination in English (en-US)"
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                examLang === 'en-US'
+                  ? 'bg-white text-sky-700 font-bold shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Exams in English"
             >
-              🇺🇸 English
+              🇺🇸 EN
             </button>
           </div>
 
-          {/* Refresh Data Button */}
           <button
             onClick={handleRefreshData}
-            title="Làm mới dữ liệu ca thi từ phòng viva"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            disabled={isRefreshing}
+            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
+            title="Làm mới dữ liệu"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Làm mới</span>
-          </button>
-
-          {/* Audio readiness badge */}
-          <button
-            onClick={() =>
-              handleStartExamSession({
-                subject: 'CS301',
-                mode: 'check',
-                difficulty: 'Chuẩn đề'
-              })
-            }
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors shadow-2xs cursor-pointer"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <Mic className="w-3.5 h-3.5" />
-            <span>Phần cứng: Sẵn sàng</span>
-          </button>
-
-          {/* Quick Mock Practice CTA */}
-          <button
-            onClick={() => {
-              setMockForm({ subject: 'CS301', difficulty: 'Chuẩn đề', lang: examLang });
-              setActiveModal('mock-register');
-            }}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-cyan-600 text-white text-xs font-semibold hover:from-sky-700 hover:to-cyan-700 shadow-sm shadow-sky-500/20 transition-all hover:scale-[1.02] cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Thi thử ngay</span>
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-sky-600' : ''}`} />
           </button>
         </div>
       </div>
 
       {/* ================= HERO BANNER: GLACIER LIGHT ================= */}
-      <div className="relative overflow-hidden rounded-2xl border border-sky-200/80 bg-gradient-to-r from-white/90 via-sky-50/50 to-white/90 backdrop-blur-xl p-6 md:p-8 shadow-xs">
-        {/* Decorative ambient glow */}
+      <div className="relative overflow-hidden rounded-2xl border border-sky-200/80 bg-gradient-to-r from-white/90 via-sky-50/50 to-white/90 backdrop-blur-xl p-6 md:p-7 shadow-xs">
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-sky-300/15 rounded-full blur-3xl pointer-events-none -z-10"></div>
         <div className="absolute bottom-0 right-10 w-64 h-64 bg-cyan-300/20 rounded-full blur-2xl pointer-events-none -z-10"></div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
           {/* Left Text */}
-          <div className="lg:col-span-8 space-y-3">
+          <div className="lg:col-span-8 space-y-2.5">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/80 text-amber-800 text-xs font-semibold shadow-2xs">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
               <span>Ca thi tiếp theo: <strong>CS301</strong> lúc <strong>14:30 hôm nay</strong></span>
             </div>
 
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 leading-tight">
-              Trung tâm điều phối Thi Vấn đáp & Luyện tập AI
+            <h2 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900 leading-tight">
+              Trung tâm Vấn đáp & Luyện thi AI
             </h2>
 
             <p className="text-xs md:text-sm text-slate-600 leading-relaxed max-w-2xl">
-              Hệ thống kiểm tra nhận dạng giọng nói chuẩn vi-VN/en-US, kiến thức cơ sở dữ liệu học liệu RAG và tương tác phản biện đa chiều trực tiếp cùng Hội đồng AI.
+              Nền tảng thi vấn đáp trực tuyến 1-1 với Hội đồng AI Examiner. Đánh giá toàn diện kiến thức chuyên sâu và năng lực phản biện logic theo chuẩn đào tạo.
             </p>
           </div>
 
           {/* Right Action Cards */}
-          <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-3">
+          <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-2.5">
             <button
               onClick={() =>
                 handleStartExamSession({
@@ -588,19 +597,19 @@ export default function StudentDashboardPage({ currentUser }) {
                   examId: 'EX-99127'
                 })
               }
-              className="flex-1 group relative p-4 rounded-xl border border-sky-300/80 bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-md shadow-sky-500/25 hover:shadow-lg hover:shadow-sky-500/35 transition-all hover:-translate-y-0.5 text-left cursor-pointer"
+              className="flex-1 group relative p-3.5 rounded-xl border border-sky-300/80 bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-md shadow-sky-500/20 hover:shadow-lg hover:shadow-sky-500/30 transition-all hover:-translate-y-0.5 text-left cursor-pointer"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                    <Radio className="w-5 h-5 text-white animate-pulse" />
+                  <div className="w-9 h-9 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <Radio className="w-4 h-4 text-white animate-pulse" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold leading-tight">Vào phòng thi ngay</h3>
+                    <h3 className="text-xs md:text-sm font-bold leading-tight">Vào phòng thi ngay</h3>
                     <p className="text-[11px] text-sky-100 font-medium mt-0.5">Môn CS301 • Phòng AI - B2</p>
                   </div>
                 </div>
-                <ArrowRight className="w-5 h-5 text-white/80 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4 text-white/90 group-hover:translate-x-1 transition-transform" />
               </div>
             </button>
 
@@ -612,15 +621,15 @@ export default function StudentDashboardPage({ currentUser }) {
                   difficulty: 'Chuẩn đề'
                 })
               }
-              className="flex-1 group p-4 rounded-xl border border-slate-200/90 bg-white/80 backdrop-blur-md text-slate-800 hover:bg-slate-50 transition-all shadow-2xs hover:border-sky-300 flex items-center justify-between cursor-pointer"
+              className="flex-1 group p-3.5 rounded-xl border border-slate-200/90 bg-white/80 backdrop-blur-md text-slate-800 hover:bg-slate-50 transition-all shadow-2xs hover:border-sky-300 flex items-center justify-between cursor-pointer"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600">
-                  <Video className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600">
+                  <Video className="w-4 h-4" />
                 </div>
                 <div className="text-left">
-                  <h3 className="text-sm font-bold text-slate-900 leading-tight">Kiểm tra thiết bị & Test mic</h3>
-                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">Camera, Web Audio & WebRTC</p>
+                  <h3 className="text-xs md:text-sm font-bold text-slate-900 leading-tight">Kiểm tra thiết bị</h3>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">Camera, Micro & Tốc độ mạng</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
@@ -629,199 +638,256 @@ export default function StudentDashboardPage({ currentUser }) {
         </div>
       </div>
 
-      {/* ================= MAIN 2-COLUMN SECTION ================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* ================= LEFT / CENTER (8 COLS) ================= */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* SECTION 1: MÔN HỌC ĐÃ ĐĂNG KÝ (4 MÔN) */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-sky-600" />
-                <h2 className="text-sm font-bold text-slate-900">
-                  Môn học đã đăng ký (4 môn)
-                </h2>
-              </div>
+      {/* ================= HORIZONTAL SEGMENTED TAB NAVIGATION ================= */}
+      <div className="bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-1.5 shadow-xs">
+        <nav className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth" aria-label="Tabs">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-200 cursor-pointer flex-1 justify-center sm:justify-start ${
+                  isActive
+                    ? 'bg-gradient-to-r from-sky-600 to-cyan-600 text-white shadow-sm shadow-sky-600/25'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                <span>{tab.label}</span>
+                {tab.badge !== undefined && (
+                  <span
+                    className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-tight transition-colors ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : tab.badgeColor || 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* ================= TAB 1: MÔN HỌC ĐÃ ĐĂNG KÝ ================= */}
+      {activeTab === 'registered-courses' && (
+        <section className="space-y-4 animate-fade-in">
+          {/* Subheader */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">
+                Môn học học kỳ hiện tại ({registeredCourses.length} môn)
+              </h2>
+              <p className="text-xs text-slate-500">
+                Học liệu RAG đồng bộ tự động từ giáo trình khoa CNTT
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => {
-                  setSelectedCourse(registeredCourses[0]);
-                  setActiveModal('course-detail');
+                  setMockForm({ subject: 'CS301', difficulty: 'Chuẩn đề', lang: examLang });
+                  setActiveModal('mock-register');
                 }}
-                className="text-xs font-semibold text-sky-600 hover:text-sky-800 flex items-center gap-1 transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-sky-50 border border-sky-200/80 text-sky-700 hover:bg-sky-100 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
               >
-                <span>Tất cả học phần</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+                <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                <span>Đăng ký thi thử AI</span>
               </button>
-            </div>
-
-            {/* Grid 2 Columns of Courses */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {registeredCourses.map((c) => {
-                const isAmber = c.tagColor === 'amber';
-                const isBlue = c.tagColor === 'blue';
-                const isEmerald = c.tagColor === 'emerald';
-                return (
-                  <div
-                    key={c.id}
-                    className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 hover:border-sky-300 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
-                  >
-                    <div>
-                      {/* Top Badges */}
-                      <div className="flex items-center justify-between gap-2 mb-2.5">
-                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
-                          {c.code}
-                        </span>
-
-                        <span
-                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${isAmber
-                            ? 'bg-amber-50 text-amber-800 border-amber-200'
-                            : isBlue
-                              ? 'bg-sky-50 text-sky-700 border-sky-200'
-                              : isEmerald
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-slate-50 text-slate-600 border-slate-200'
-                            }`}
-                        >
-                          {c.examTag}
-                        </span>
-                      </div>
-
-                      {/* Course Title */}
-                      <h3 className="text-sm font-bold text-slate-900 leading-snug line-clamp-1">
-                        {c.title}
-                      </h3>
-
-                      {/* Lecturer Info */}
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-2">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{c.lecturer}</span>
-                      </div>
-
-                      {/* RAG Status */}
-                      <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium mt-1">
-                        <Layers className="w-3.5 h-3.5 text-sky-600" />
-                        <span>{c.ragStatus}</span>
-                      </div>
-                    </div>
-
-                    {/* Progress Bar & Actions */}
-                    <div className="space-y-3 pt-2 border-t border-slate-100">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-500 font-medium">Tiến độ ôn tập</span>
-                          <span className="font-bold text-slate-800">{c.progress}%</span>
-                        </div>
-                        <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${c.progress >= 85
-                              ? 'bg-gradient-to-r from-teal-500 to-emerald-500'
-                              : 'bg-gradient-to-r from-sky-500 to-cyan-500'
-                              }`}
-                            style={{ width: `${c.progress}%` }}
-                          ></div>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={c.primaryAction}
-                        className="w-full py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 text-xs font-semibold text-slate-700 transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                      >
-                        {c.actionText.includes('AI') && <Sparkles className="w-3.5 h-3.5 text-sky-600" />}
-                        <span>{c.actionText}</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </div>
 
-          {/* SECTION 2: LỊCH CA THI VẤN ĐÁP SẮP TỚI */}
-          <div className="p-5 md:p-6 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-sky-600" />
-                <h2 className="text-sm font-bold text-slate-900">
-                  Lịch ca thi vấn đáp sắp tới
-                </h2>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
-                <Shield className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Phòng thi mã hóa 2 chiều WebRTC & AI Proctoring</span>
-              </div>
-            </div>
+          {/* Grid 4 Columns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {registeredCourses.map((c) => {
+              const isAmber = c.tagColor === 'amber';
+              const isBlue = c.tagColor === 'blue';
+              const isEmerald = c.tagColor === 'emerald';
 
-            {/* Exams Table */}
+              return (
+                <div
+                  key={c.id}
+                  className="group rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 hover:border-sky-300 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3.5"
+                >
+                  <div className="space-y-2.5">
+                    {/* Top: Code & Tag */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                        {c.code}
+                      </span>
+                      <span
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                          isAmber
+                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            : isBlue
+                            ? 'bg-sky-50 text-sky-700 border-sky-200'
+                            : isEmerald
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-slate-50 text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        {c.examTag}
+                      </span>
+                    </div>
+
+                    {/* Course Title */}
+                    <h3 className="text-sm font-bold text-slate-900 leading-snug line-clamp-1 group-hover:text-sky-700 transition-colors">
+                      {c.title}
+                    </h3>
+
+                    {/* Compact Lecturer & RAG Info */}
+                    <div className="space-y-1 text-xs text-slate-500">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{c.lecturer}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-slate-600 font-medium">
+                        <Layers className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span>{c.ragStatus}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress & CTA */}
+                  <div className="space-y-3 pt-2.5 border-t border-slate-100">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500 font-medium">Tiến độ ôn</span>
+                        <span className="font-bold text-slate-800">{c.progress}%</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            c.progress >= 85
+                              ? 'bg-gradient-to-r from-teal-500 to-emerald-500'
+                              : 'bg-gradient-to-r from-sky-500 to-cyan-500'
+                          }`}
+                          style={{ width: `${c.progress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={c.primaryAction}
+                      className="w-full py-2 px-3 rounded-xl border border-slate-200/90 bg-slate-50/80 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 text-xs font-semibold text-slate-700 transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      {c.actionText.includes('AI') && <Sparkles className="w-3.5 h-3.5 text-sky-600" />}
+                      <span>{c.actionText}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ================= TAB 2: LỊCH CA THI SẮP TỚI ================= */}
+      {activeTab === 'upcoming-exams' && (
+        <section className="space-y-4 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">
+                Lịch ca thi vấn đáp chính thức & Sandbox ({upcomingExams.length} ca)
+              </h2>
+              <p className="text-xs text-slate-500">
+                Thí sinh vui lòng kiểm tra Micro & Camera trước giờ thi 15 phút
+              </p>
+            </div>
+            <button
+              onClick={() =>
+                handleStartExamSession({
+                  subject: 'CS301',
+                  mode: 'check',
+                  difficulty: 'Chuẩn đề'
+                })
+              }
+              className="self-start sm:self-auto px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+            >
+              <Mic className="w-3.5 h-3.5 text-sky-600" />
+              <span>Thử thiết bị</span>
+            </button>
+          </div>
+
+          {/* Full-width Modern Exam Schedule Table */}
+          <div className="rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200/70 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="pb-3 pr-4">Môn thi & Ca</th>
-                    <th className="pb-3 px-4">Ngày & Giờ</th>
-                    <th className="pb-3 px-4">Phòng thi AI</th>
-                    <th className="pb-3 px-4">Trạng thái</th>
-                    <th className="pb-3 pl-4 text-right">Hành động</th>
+                  <tr className="border-b border-slate-200/70 bg-slate-50/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-3.5 px-5">Môn thi & Ca</th>
+                    <th className="py-3.5 px-5">Thời gian</th>
+                    <th className="py-3.5 px-5">Phòng thi AI</th>
+                    <th className="py-3.5 px-5">Trạng thái</th>
+                    <th className="py-3.5 px-5 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {upcomingExams.map((exam) => (
-                    <tr key={exam.id} className="hover:bg-slate-50/60 transition-colors">
+                    <tr key={exam.id} className="hover:bg-slate-50/70 transition-colors">
                       {/* Course & Session */}
-                      <td className="py-3.5 pr-4">
-                        <div className="flex items-start gap-2">
+                      <td className="py-4 px-5">
+                        <div className="flex items-center gap-3">
                           <span
-                            className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${exam.status === 'opening_soon'
-                              ? 'bg-amber-500 animate-ping'
-                              : exam.status === 'confirmed'
+                            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                              exam.status === 'opening_soon'
+                                ? 'bg-amber-500 ring-4 ring-amber-100 animate-pulse'
+                                : exam.status === 'confirmed'
                                 ? 'bg-sky-500'
                                 : 'bg-emerald-500'
-                              }`}
+                            }`}
                           ></span>
                           <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-900">{exam.code}</span>
-                              <span className="text-slate-400">•</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 text-sm">{exam.code}</span>
+                              <span className="text-slate-300">•</span>
                               <span className="font-semibold text-slate-700">{exam.session}</span>
                               {exam.isMock && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-sky-100 text-sky-700">
-                                  Thi thử
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">
+                                  Luyện tập
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
+                            <p className="text-xs text-slate-500 mt-0.5 font-medium line-clamp-1">
                               {exam.name}
                             </p>
                           </div>
                         </div>
                       </td>
 
-                      {/* Date & Time */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <p className="font-semibold text-slate-800">{exam.time}</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">{exam.duration}</p>
+                      {/* Time */}
+                      <td className="py-4 px-5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 text-slate-800 font-semibold">
+                          <Clock className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{exam.time}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5 ml-5">{exam.duration}</p>
                       </td>
 
-                      {/* AI Room */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                      {/* Room */}
+                      <td className="py-4 px-5 whitespace-nowrap">
+                        <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200/80">
                           {exam.room}
                         </span>
                       </td>
 
                       {/* Status */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
+                      <td className="py-4 px-5 whitespace-nowrap">
                         {exam.status === 'opening_soon' ? (
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                            <Clock className="w-3 h-3 text-amber-600" />
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
                             {exam.statusText}
                           </span>
                         ) : exam.status === 'confirmed' ? (
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
                             <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
                             {exam.statusText}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                             {exam.statusText}
                           </span>
@@ -829,9 +895,18 @@ export default function StudentDashboardPage({ currentUser }) {
                       </td>
 
                       {/* Action */}
-                      <td className="py-3.5 pl-4 text-right whitespace-nowrap">
+                      <td className="py-4 px-5 text-right whitespace-nowrap">
                         {exam.status === 'opening_soon' ? (
                           <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                setIsMicTesting(true);
+                                setActiveModal('mic-check');
+                              }}
+                              className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors cursor-pointer"
+                            >
+                              Kiểm tra mic
+                            </button>
                             <button
                               onClick={() =>
                                 handleStartExamSession({
@@ -841,28 +916,15 @@ export default function StudentDashboardPage({ currentUser }) {
                                   examId: exam.examId
                                 })
                               }
-                              className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors cursor-pointer"
+                              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-700 hover:to-cyan-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
                             >
-                              Kiểm tra mic
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleStartExamSession({
-                                  subject: exam.code,
-                                  mode: 'official',
-                                  difficulty: 'Chuẩn đề',
-                                  examId: exam.examId
-                                })
-                              }
-                              className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                            >
-                              Vào thi
+                              Vào thi ngay
                             </button>
                           </div>
                         ) : exam.status === 'confirmed' ? (
                           <button
                             onClick={() => alert(`Yêu cầu đổi ca thi môn ${exam.code} đã được gửi tới phòng đào tạo!`)}
-                            className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl border border-slate-200/80 text-slate-600 hover:bg-slate-100 text-xs font-semibold transition-colors cursor-pointer"
                           >
                             Đổi ca thi
                           </button>
@@ -872,7 +934,7 @@ export default function StudentDashboardPage({ currentUser }) {
                               setMockForm({ subject: exam.code, difficulty: 'Chuẩn đề', lang: examLang });
                               setActiveModal('mock-register');
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
                           >
                             Thi thử ngay
                           </button>
@@ -884,168 +946,263 @@ export default function StudentDashboardPage({ currentUser }) {
               </table>
             </div>
           </div>
-        </div>
+        </section>
+      )}
 
-        {/* ================= RIGHT COLUMN (4 COLS) ================= */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* CARD 1: TỔNG QUAN KẾT QUẢ & NĂNG LỰC */}
-          <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-sky-600" />
-                <h2 className="text-sm font-bold text-slate-900">
-                  Tổng quan kết quả & Năng lực
-                </h2>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
-                Kỳ 1 - 2026
-              </span>
+      {/* ================= TAB 3: LỊCH SỬ THI GẦN ĐÂY ================= */}
+      {activeTab === 'recent-history' && (
+        <section className="space-y-4 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">
+                Lịch sử & Kết quả vấn đáp AI ({recentExams.length} bài thi)
+              </h2>
+              <p className="text-xs text-slate-500">
+                Dữ liệu lưu trữ đám mây có gắn chữ ký số chứng thực kết quả học tập
+              </p>
             </div>
-
-            {/* 2 Dynamic Stats Mini Cards */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/70">
-                <span className="text-[11px] text-slate-500 font-medium">Số ca đã thi</span>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-2xl font-bold text-slate-900">{stats.totalExams}</span>
-                  <span className="text-xs text-slate-500">ca</span>
-                </div>
-                <span className="inline-block text-[10px] font-semibold text-emerald-700 mt-1">
-                  100% hoàn thành
-                </span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-sky-50/50 border border-sky-100">
-                <span className="text-[11px] text-slate-500 font-medium">Điểm TB AI Viva</span>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-2xl font-bold text-sky-700">{stats.avgScore}</span>
-                  <span className="text-xs text-slate-500">/ 10</span>
-                </div>
-                <span className="inline-block text-[10px] font-semibold text-sky-700 mt-1">
-                  Top 5% toàn khoá
-                </span>
-              </div>
-            </div>
-
-            {/* AI Rubric Competency Breakdown */}
-            <div className="space-y-3 pt-2">
-              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                PHÂN TÍCH KỸ NĂNG VIVA (AI RUBRIC ĐỘNG)
-              </h3>
-
-              {/* Skill 1 */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-700 font-medium">Độ chính xác kiến thức</span>
-                  <span className="font-bold text-slate-900">{stats.avgAccuracy}%</span>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                  <div className="h-full rounded-full bg-cyan-500 transition-all duration-700" style={{ width: `${stats.avgAccuracy}%` }}></div>
-                </div>
-              </div>
-
-              {/* Skill 2 */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-700 font-medium">Phản biện & Logic câu trả lời</span>
-                  <span className="font-bold text-blue-700">{stats.avgReasoning}%</span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden relative">
-                  <div className="h-full rounded-full bg-blue-600 shadow-xs transition-all duration-700" style={{ width: `${stats.avgReasoning}%` }}></div>
-                </div>
-              </div>
-
-              {/* Skill 3 */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-700 font-medium">Lưu loát & Tự tin diễn đạt</span>
-                  <span className="font-bold text-slate-900">{stats.avgFluency}%</span>
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                  <div className="h-full rounded-full bg-sky-500 transition-all duration-700" style={{ width: `${stats.avgFluency}%` }}></div>
-                </div>
-              </div>
-            </div>
+            <Link
+              to="/exam-result"
+              className="self-start sm:self-auto px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-sky-700 hover:bg-sky-50 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+            >
+              <span>Xem bảng điểm chi tiết & Chứng chỉ</span>
+              <ArrowUpRight className="w-3.5 h-3.5 text-sky-600" />
+            </Link>
           </div>
 
-          {/* CARD 2: LỊCH SỬ THI VẤN ĐÁP GẦN ĐÂY */}
-          <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Award className="w-4 h-4 text-sky-600" />
-                <h2 className="text-sm font-bold text-slate-900">
-                  Lịch sử thi vấn đáp gần đây
-                </h2>
-              </div>
-              <span className="text-[10px] font-mono text-slate-400">
-                {recentExams.length} kết quả
-              </span>
-            </div>
-
-            {/* Exam History Items */}
-            <div className="space-y-3">
-              {recentExams.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-sky-50/30 hover:border-sky-200 transition-all space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">
-                      {item.code} - {item.title}
-                    </span>
-                    <span className="text-xs font-extrabold text-sky-700 font-mono">
-                      {item.score}
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-slate-500 leading-snug">
-                    {item.description}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-1 text-[11px]">
-                    <span className={`px-2 py-0.5 rounded border font-semibold ${item.badgeColor}`}>
-                      {item.rubricBadge}
-                    </span>
-
-                    <button
-                      onClick={() => {
-                        setSelectedExamReview(item);
-                        setActiveModal('ai-feedback');
-                      }}
-                      className="font-semibold text-sky-600 hover:text-sky-800 transition-colors cursor-pointer"
-                    >
-                      {item.actionText}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-2 text-center border-t border-slate-100">
-              <Link
-                to="/exam-result"
-                className="text-xs font-semibold text-sky-600 hover:text-sky-800 inline-flex items-center gap-1"
+          {/* 3-Column History Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {recentExams.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 hover:border-sky-300 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
               >
-                <span>Xem chi tiết kết quả mới nhất & Phiếu điểm PDF</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
+                <div className="space-y-3">
+                  {/* Top: Code & Score */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200">
+                        {item.code}
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        {item.details?.date}
+                      </span>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-xl font-black text-sky-700 font-mono tracking-tight">
+                        {item.score}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Title & Badge */}
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 leading-snug line-clamp-1">
+                      {item.title}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+
+                  {/* Rubric Mini Breakdown */}
+                  <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className="text-[10px] text-slate-400 font-medium block">Chính xác</span>
+                      <span className="text-xs font-bold text-slate-800 font-mono">
+                        {item.details?.rubric.accuracy?.split('/')[0]?.trim()}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className="text-[10px] text-slate-400 font-medium block">Phản biện</span>
+                      <span className="text-xs font-bold text-slate-800 font-mono">
+                        {item.details?.rubric.reasoning?.split('/')[0]?.trim()}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className="text-[10px] text-slate-400 font-medium block">Lưu loát</span>
+                      <span className="text-xs font-bold text-slate-800 font-mono">
+                        {item.details?.rubric.fluency?.split('/')[0]?.trim()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom CTA */}
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${item.badgeColor}`}>
+                    {item.rubricBadge}
+                  </span>
+
+                  <button
+                    onClick={() => {
+                      setSelectedExamReview(item);
+                      setActiveModal('ai-feedback');
+                    }}
+                    className="font-semibold text-sky-600 hover:text-sky-800 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Xem nhận xét AI</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ================= TAB 4: ĐÁNH GIÁ & NĂNG LỰC ================= */}
+      {activeTab === 'competency-evaluation' && (
+        <section className="space-y-6 animate-fade-in">
+          {/* Top Row: 4 Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+              <span className="text-xs text-slate-500 font-medium">Số ca thi hoàn tất</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-2xl font-bold text-slate-900">{stats.totalExams}</span>
+                <span className="text-xs text-slate-500">ca</span>
+              </div>
+              <span className="inline-block text-[11px] font-semibold text-emerald-700">
+                100% đúng tiến độ
+              </span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+              <span className="text-xs text-slate-500 font-medium">Điểm trung bình AI Viva</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-2xl font-bold text-sky-700">{stats.avgScore}</span>
+                <span className="text-xs text-slate-500">/ 10</span>
+              </div>
+              <span className="inline-block text-[11px] font-semibold text-sky-700">
+                Top 5% sinh viên tiêu biểu
+              </span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+              <span className="text-xs text-slate-500 font-medium">Độ chính xác kiến thức</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-2xl font-bold text-slate-900">{stats.avgAccuracy}%</span>
+              </div>
+              <span className="inline-block text-[11px] font-semibold text-emerald-700">
+                Chuẩn Bloom cấp 4
+              </span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-1">
+              <span className="text-xs text-slate-500 font-medium">Phản biện logic</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-2xl font-bold text-blue-700">{stats.avgReasoning}%</span>
+              </div>
+              <span className="inline-block text-[11px] font-semibold text-blue-700">
+                Tư duy giải thuật xuất sắc
+              </span>
             </div>
           </div>
 
-          {/* CARD 3: LỜI KHUYÊN TỪ AI TUTOR */}
-          <div className="p-5 rounded-2xl bg-sky-50/60 backdrop-blur-xl border border-sky-200/80 shadow-2xs space-y-2.5">
-            <div className="flex items-center gap-2 text-sky-800">
-              <Lightbulb className="w-4 h-4 text-amber-500" />
-              <h3 className="text-xs font-bold">Lời khuyên từ AI Examiner</h3>
-            </div>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              Ở môn <strong className="text-sky-800 font-semibold">CS301</strong> thi hôm nay, AI Examiner thường đặt câu hỏi đào sâu về độ phức tạp thời gian giải thuật đồ thị (Dijkstra và Bellman-Ford) khi phản biện. Hãy xem lại slide chương 3!
-            </p>
-          </div>
-        </div>
-      </div>
+          {/* Bottom Row: 2 Balanced Columns */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left: 3 Core Competency Bars (7 cols) */}
+            <div className="lg:col-span-7 p-6 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-sky-600" />
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Chi tiết 3 kỹ năng vấn đáp cốt lõi
+                  </h3>
+                </div>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                  Chuẩn Rubric ABET
+                </span>
+              </div>
 
-      {/* ================= MODAL: MICROPHONE & DIAGNOSTICS ================= */}
+              <div className="space-y-4">
+                {/* Skill 1 */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-700 font-medium">Độ chính xác kiến thức (Accuracy)</span>
+                    <span className="font-bold text-slate-900 font-mono">{stats.avgAccuracy}%</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 transition-all duration-700"
+                      style={{ width: `${stats.avgAccuracy}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Đo lường độ khớp với giáo trình và tài liệu RAG chuẩn hoá</p>
+                </div>
+
+                {/* Skill 2 */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-700 font-medium">Phản biện logic & Lập luận (Reasoning)</span>
+                    <span className="font-bold text-blue-700 font-mono">{stats.avgReasoning}%</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-sky-500 to-blue-600 transition-all duration-700"
+                      style={{ width: `${stats.avgReasoning}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Khả năng biện luận các phương án tối ưu và phân tích trade-off</p>
+                </div>
+
+                {/* Skill 3 */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-700 font-medium">Lưu loát & Tự tin diễn đạt (Fluency)</span>
+                    <span className="font-bold text-slate-900 font-mono">{stats.avgFluency}%</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-700"
+                      style={{ width: `${stats.avgFluency}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Tốc độ phản xạ, tính mạch lạc và từ vựng kỹ thuật chuẩn xác</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: AI Examiner Advice & Strategy (5 cols) */}
+            <div className="lg:col-span-5 space-y-4">
+              {/* Advice Box */}
+              <div className="p-5 rounded-2xl bg-sky-50/70 backdrop-blur-xl border border-sky-200/80 shadow-xs space-y-3">
+                <div className="flex items-center gap-2 text-sky-900">
+                  <Lightbulb className="w-4 h-4 text-amber-500 shrink-0" />
+                  <h4 className="text-xs font-bold">Khuyến nghị từ AI Examiner</h4>
+                </div>
+                <p className="text-xs text-slate-700 leading-relaxed">
+                  Ở ca thi môn <strong className="text-sky-800 font-semibold">CS301</strong> sắp tới, đề thi thường tập trung vào độ phức tạp thời gian giải thuật đồ thị (Dijkstra và Bellman-Ford). Hãy chú ý các trường hợp biên đồ thị có trọng số âm!
+                </p>
+              </div>
+
+              {/* Action Box */}
+              <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-3">
+                <div className="flex items-center gap-2 text-slate-800">
+                  <Bot className="w-4 h-4 text-sky-600 shrink-0" />
+                  <h4 className="text-xs font-bold">Luyện phản xạ Sandbox 1-1</h4>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Bắt đầu buổi đối đáp thử nghiệm 5 phút với Giám khảo AI để làm quen với phong thái phỏng vấn và hiệu chỉnh mic.
+                </p>
+                <button
+                  onClick={() => {
+                    setMockForm({ subject: 'CS301', difficulty: 'Chuẩn đề', lang: examLang });
+                    setActiveModal('mock-register');
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all cursor-pointer shadow-xs flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Bắt đầu phiên luyện tập</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ================= MODAL 1: MICROPHONE & DIAGNOSTICS ================= */}
       {activeModal === 'mic-check' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-scale-in">
@@ -1135,7 +1292,7 @@ export default function StudentDashboardPage({ currentUser }) {
         </div>
       )}
 
-      {/* ================= MODAL: AI FEEDBACK & REVIEW ================= */}
+      {/* ================= MODAL 2: AI FEEDBACK & REVIEW ================= */}
       {activeModal === 'ai-feedback' && selectedExamReview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scale-in">
@@ -1228,7 +1385,7 @@ export default function StudentDashboardPage({ currentUser }) {
         </div>
       )}
 
-      {/* ================= MODAL: COURSE DETAIL ================= */}
+      {/* ================= MODAL 3: COURSE DETAIL ================= */}
       {activeModal === 'course-detail' && selectedCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scale-in">
@@ -1281,7 +1438,7 @@ export default function StudentDashboardPage({ currentUser }) {
         </div>
       )}
 
-      {/* ================= MODAL: MOCK EXAM REGISTRATION ================= */}
+      {/* ================= MODAL 4: MOCK EXAM REGISTRATION ================= */}
       {activeModal === 'mock-register' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scale-in">
@@ -1309,7 +1466,7 @@ export default function StudentDashboardPage({ currentUser }) {
                 <select
                   value={mockForm.subject}
                   onChange={(e) => setMockForm({ ...mockForm, subject: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-medium focus:outline-none focus:border-sky-500"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-medium focus:outline-none focus:border-sky-500 cursor-pointer"
                 >
                   <option value="CS301">CS301 - Cấu trúc Dữ liệu & Giải thuật</option>
                   <option value="AI204">AI204 - Học máy & Thị giác máy tính</option>
@@ -1329,10 +1486,11 @@ export default function StudentDashboardPage({ currentUser }) {
                       key={lvl}
                       type="button"
                       onClick={() => setMockForm({ ...mockForm, difficulty: lvl })}
-                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${mockForm.difficulty === lvl
-                        ? 'border-sky-500 bg-sky-50 text-sky-700 font-bold shadow-2xs'
-                        : 'border-slate-200 hover:border-sky-300 text-slate-700 font-medium'
-                        }`}
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                        mockForm.difficulty === lvl
+                          ? 'border-sky-500 bg-sky-50 text-sky-700 font-bold shadow-2xs'
+                          : 'border-slate-200 hover:border-sky-300 text-slate-700 font-medium'
+                      }`}
                     >
                       <span>{lvl}</span>
                     </button>
@@ -1349,20 +1507,22 @@ export default function StudentDashboardPage({ currentUser }) {
                   <button
                     type="button"
                     onClick={() => setMockForm({ ...mockForm, lang: 'vi-VN' })}
-                    className={`p-2.5 rounded-xl border text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer ${mockForm.lang === 'vi-VN'
-                      ? 'border-sky-500 bg-sky-50 text-sky-700 font-bold shadow-2xs'
-                      : 'border-slate-200 hover:border-sky-300 text-slate-700 font-medium'
-                      }`}
+                    className={`p-2.5 rounded-xl border text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      mockForm.lang === 'vi-VN'
+                        ? 'border-sky-500 bg-sky-50 text-sky-700 font-bold shadow-2xs'
+                        : 'border-slate-200 hover:border-sky-300 text-slate-700 font-medium'
+                    }`}
                   >
                     <span>🇻🇳 Tiếng Việt (vi-VN)</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setMockForm({ ...mockForm, lang: 'en-US' })}
-                    className={`p-2.5 rounded-xl border text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer ${mockForm.lang === 'en-US'
-                      ? 'border-sky-500 bg-sky-50 text-sky-700 font-bold shadow-2xs'
-                      : 'border-slate-200 hover:border-sky-300 text-slate-700 font-medium'
-                      }`}
+                    className={`p-2.5 rounded-xl border text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      mockForm.lang === 'en-US'
+                        ? 'border-sky-500 bg-sky-50 text-sky-700 font-bold shadow-2xs'
+                        : 'border-slate-200 hover:border-sky-300 text-slate-700 font-medium'
+                    }`}
                   >
                     <span>🇺🇸 English (en-US)</span>
                   </button>
