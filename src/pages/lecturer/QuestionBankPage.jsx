@@ -17,7 +17,8 @@ import {
   Edit3,
   CheckCircle2,
   AlertCircle,
-  Languages
+  Languages,
+  Upload
 } from 'lucide-react';
 import { lecturerQuestionApi, subjectApi } from '../../services/api';
 
@@ -32,6 +33,9 @@ export default function QuestionBankPage() {
   const [questions, setQuestions] = useState([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importJsonText, setImportJsonText] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
   const [selectedRubricQuestion, setSelectedRubricQuestion] = useState(null);
   const [pageToast, setPageToast] = useState(null);
 
@@ -321,6 +325,74 @@ export default function QuestionBankPage() {
     showToast(target?.isApproved ? 'Đã chuyển câu hỏi sang trạng thái chờ duyệt!' : 'Đã duyệt câu hỏi thành công!');
   };
 
+  const handleImportFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setImportJsonText(event.target.result);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportQuestions = async (e) => {
+    e.preventDefault();
+    if (!importJsonText.trim()) {
+      showToast('Vui lòng chọn tệp hoặc dán dữ liệu JSON câu hỏi!', 'error');
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(importJsonText);
+      const items = Array.isArray(parsed) ? parsed : [parsed];
+      if (items.length === 0) {
+        showToast('Dữ liệu rỗng, không tìm thấy câu hỏi!', 'error');
+        return;
+      }
+
+      setIsImporting(true);
+      let successCount = 0;
+
+      for (const item of items) {
+        const targetSubjectCode = item.subjectCode || (selectedSubject === 'ALL' ? (subjectsList[0]?.code || 'PRJ301') : selectedSubject);
+        const currentSubj = subjectsList.find(s => s.code === targetSubjectCode);
+        const payload = {
+          subjectUuid: currentSubj?.id || currentSubj?.uuid,
+          subjectCode: targetSubjectCode,
+          questionCode: item.code || `${targetSubjectCode}-Q${Math.floor(100 + Math.random() * 900)}`,
+          content: item.content || item.question || '',
+          difficulty: item.difficulty || 'MEDIUM',
+          bloomLevel: item.bloomLevel || 'Bloom 3 - Vận dụng',
+          keywords: Array.isArray(item.keywords) ? item.keywords.join(', ') : (item.keywords || ''),
+          expectedAnswer: item.expectedAnswer || '',
+          status: 'APPROVED',
+          rubrics: Array.isArray(item.rubrics) ? item.rubrics : [
+            { criterionName: 'Tính chính xác kiến thức', description: 'Nêu đúng định nghĩa và giải pháp', maxScore: 5.0, weight: 1.0 },
+            { criterionName: 'Khả năng phản biện & vận dụng', description: 'Phân tích tình huống thực tế', maxScore: 5.0, weight: 1.0 }
+          ]
+        };
+
+        if (payload.content.trim()) {
+          try {
+            await lecturerQuestionApi.createQuestion(payload);
+            successCount++;
+          } catch (err) {
+            console.warn('Import item error:', err);
+          }
+        }
+      }
+
+      setIsImporting(false);
+      setIsImportModalOpen(false);
+      setImportJsonText('');
+      showToast(`Đã nhập thành công ${successCount} câu hỏi vào ngân hàng!`);
+      fetchQuestions();
+    } catch {
+      setIsImporting(false);
+      showToast('Định dạng JSON không hợp lệ. Vui lòng kiểm tra lại cấu trúc JSON!', 'error');
+    }
+  };
+
   const filteredQuestions = questions.filter((q) => {
     const matchesSearch =
       q.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -379,6 +451,14 @@ export default function QuestionBankPage() {
           >
             <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${loading ? 'animate-spin' : ''}`} />
             <span>Đồng bộ</span>
+          </button>
+          <button 
+            onClick={() => setIsImportModalOpen(true)} 
+            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+            title="Nhập câu hỏi từ tệp JSON"
+          >
+            <Upload className="w-3.5 h-3.5 text-sky-600" />
+            <span>Nhập câu hỏi</span>
           </button>
           <button 
             onClick={() => setIsAddModalOpen(true)} 
@@ -1001,6 +1081,111 @@ export default function QuestionBankPage() {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODAL NHẬP CÂU HỎI (IMPORT JSON) ==================== */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-sky-600" />
+                  Nhập danh sách câu hỏi vào Ngân hàng
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Tải lên tệp .json hoặc dán danh sách câu hỏi kèm barem Rubric
+                </p>
+              </div>
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleImportQuestions} className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Chọn tệp JSON từ máy tính:
+                </label>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportFileChange}
+                  className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 cursor-pointer border border-slate-200 rounded-xl p-1"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700">Hoặc dán nội dung JSON:</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportJsonText(JSON.stringify([
+                        {
+                          content: "Trình bày vòng đời của một HTTP Session trong Java Web và cơ chế Session Replication.",
+                          difficulty: "MEDIUM",
+                          bloomLevel: "Bloom 3 - Vận dụng",
+                          keywords: ["HttpSession", "Session Replication", "Cookies"],
+                          expectedAnswer: "HttpSession được khởi tạo khi request.getSession() được gọi...",
+                          rubrics: [
+                            { criterionName: "Bản chất HTTP Session", description: "Nêu đúng lifecycle và timeout", maxScore: 5.0, weight: 1.0 },
+                            { criterionName: "Cơ chế phân tán", description: "Mô tả replication trong cluster", maxScore: 5.0, weight: 1.0 }
+                          ]
+                        }
+                      ], null, 2));
+                    }}
+                    className="text-[11px] text-sky-600 hover:underline cursor-pointer font-semibold"
+                  >
+                    Dán mẫu JSON ví dụ
+                  </button>
+                </div>
+                <textarea
+                  rows={8}
+                  value={importJsonText}
+                  onChange={(e) => setImportJsonText(e.target.value)}
+                  placeholder={`[\n  {\n    "content": "Nội dung câu hỏi...",\n    "difficulty": "MEDIUM",\n    "bloomLevel": "Bloom 3 - Vận dụng",\n    "rubrics": [\n      {"criterionName": "Tính chính xác", "maxScore": 5.0}\n    ]\n  }\n]`}
+                  className="w-full font-mono text-[11px] p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-sky-50/60 border border-sky-100 text-[11px] text-sky-800 space-y-1">
+                <span className="font-bold block">💡 Gợi ý cấu trúc:</span>
+                <p>Mỗi câu hỏi có thể gồm: <code>content</code> (bắt buộc), <code>difficulty</code>, <code>bloomLevel</code>, <code>keywords</code>, <code>expectedAnswer</code>, và <code>rubrics</code>.</p>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 font-semibold cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isImporting}
+                  className="btn-glacier-primary px-5 py-2 font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isImporting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang nạp dữ liệu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Bắt đầu nhập</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
