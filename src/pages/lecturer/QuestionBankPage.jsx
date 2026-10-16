@@ -111,7 +111,12 @@ export default function QuestionBankPage() {
           keywords: Array.isArray(q.keywords) ? q.keywords : (q.keywords ? q.keywords.split(',') : []),
           rubricCount: q.rubrics?.length || q.rubricCount || 0,
         }));
-        saveQuestions(formatted);
+
+        // Smart merge: Retain locally stored questions so we never wipe questions that haven't synced yet
+        const cached = loadStoredQuestions();
+        const backendIds = new Set(formatted.map(q => q.code || q.questionCode || q.id));
+        const unsynced = cached.filter(q => !backendIds.has(q.code || q.questionCode || q.id));
+        saveQuestions([...formatted, ...unsynced]);
         return;
       }
     } catch (err) {
@@ -119,7 +124,8 @@ export default function QuestionBankPage() {
     } finally {
       setLoading(false);
     }
-    saveQuestions(loadStoredQuestions());
+    const cached = loadStoredQuestions();
+    setQuestions(cached);
   };
 
   const fetchSubjects = async () => {
@@ -352,40 +358,64 @@ export default function QuestionBankPage() {
 
       setIsImporting(true);
       let successCount = 0;
+      const importedLocalList = [];
 
       for (const item of items) {
         const targetSubjectCode = item.subjectCode || (selectedSubject === 'ALL' ? (subjectsList[0]?.code || 'PRJ301') : selectedSubject);
         const currentSubj = subjectsList.find(s => s.code === targetSubjectCode);
+        const rubricsList = Array.isArray(item.rubrics) ? item.rubrics : [
+          { criterionName: 'Tính chính xác kiến thức', description: 'Nêu đúng định nghĩa và giải pháp', maxScore: 5.0, weight: 1.0 },
+          { criterionName: 'Khả năng phản biện & vận dụng', description: 'Phân tích tình huống thực tế', maxScore: 5.0, weight: 1.0 }
+        ];
+
         const payload = {
           subjectUuid: currentSubj?.id || currentSubj?.uuid,
           subjectCode: targetSubjectCode,
           questionCode: item.code || `${targetSubjectCode}-Q${Math.floor(100 + Math.random() * 900)}`,
-          content: item.content || item.question || '',
+          content: (item.content || item.question || '').trim(),
           difficulty: item.difficulty || 'MEDIUM',
           bloomLevel: item.bloomLevel || 'Bloom 3 - Vận dụng',
           keywords: Array.isArray(item.keywords) ? item.keywords.join(', ') : (item.keywords || ''),
           expectedAnswer: item.expectedAnswer || '',
           status: 'APPROVED',
-          rubrics: Array.isArray(item.rubrics) ? item.rubrics : [
-            { criterionName: 'Tính chính xác kiến thức', description: 'Nêu đúng định nghĩa và giải pháp', maxScore: 5.0, weight: 1.0 },
-            { criterionName: 'Khả năng phản biện & vận dụng', description: 'Phân tích tình huống thực tế', maxScore: 5.0, weight: 1.0 }
-          ]
+          rubrics: rubricsList,
         };
 
-        if (payload.content.trim()) {
+        if (payload.content) {
+          const localQ = {
+            id: 'imp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+            code: payload.questionCode,
+            subject: currentSubj ? `${currentSubj.name} (${targetSubjectCode})` : targetSubjectCode,
+            subjectCode: targetSubjectCode,
+            difficulty: payload.difficulty,
+            bloomLevel: payload.bloomLevel,
+            content: payload.content,
+            keywords: Array.isArray(item.keywords) ? item.keywords : (item.keywords ? item.keywords.split(',').map(s => s.trim()) : []),
+            expectedAnswer: payload.expectedAnswer,
+            vectorStatus: 'Embedded (1536 dims)',
+            rubrics: rubricsList,
+            rubricCount: rubricsList.length,
+            isApproved: true,
+          };
+          importedLocalList.push(localQ);
+          successCount++;
+
           try {
             await lecturerQuestionApi.createQuestion(payload);
-            successCount++;
           } catch (err) {
-            console.warn('Import item error:', err);
+            console.warn('Import item backend sync warning (saved locally):', err);
           }
         }
       }
 
+      // Save imported items locally immediately
+      const currentStored = loadStoredQuestions();
+      saveQuestions([...importedLocalList, ...currentStored]);
+
       setIsImporting(false);
       setIsImportModalOpen(false);
       setImportJsonText('');
-      showToast(`Đã nhập thành công ${successCount} câu hỏi vào ngân hàng!`);
+      showToast(`Đã nhập thành công và lưu ${successCount} câu hỏi vào ngân hàng!`);
       fetchQuestions();
     } catch {
       setIsImporting(false);

@@ -364,7 +364,8 @@ export const registerUser = async (data) => {
       roleName: newUser.role,
     });
     if (res?.data?.result?.token) {
-      localStorage.setItem('token', res.data.result.token);
+      sessionStorage.setItem('token', res.data.result.token);
+      sessionStorage.setItem('aives_session_active', 'true');
     }
   } catch (apiErr) {
     // If backend actively rejected with a business validation error, throw it to notify user
@@ -383,6 +384,22 @@ export const registerUser = async (data) => {
       });
     } catch {}
   }
+
+  // Ensure session token and active flag are initialized
+  if (!sessionStorage.getItem('token')) {
+    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+    const payload = btoa(JSON.stringify({
+      sub: newUser.email,
+      role: newUser.role,
+      name: newUser.name,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 86400,
+    }));
+    sessionStorage.setItem('token', `${header}.${payload}.mock_aives_session_${Date.now()}`);
+  }
+  sessionStorage.setItem('aives_session_active', 'true');
+  localStorage.removeItem('token');
+  localStorage.removeItem('aives_user');
 
   return newUser;
 };

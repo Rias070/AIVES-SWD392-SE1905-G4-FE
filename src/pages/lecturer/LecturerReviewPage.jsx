@@ -80,14 +80,40 @@ export default function LecturerReviewPage() {
     }
   }, [passedQuestions]);
 
+  const QUESTION_BANK_KEY = 'aives_question_bank';
+
+  const appendToQuestionBank = (approvedList) => {
+    try {
+      const raw = localStorage.getItem(QUESTION_BANK_KEY);
+      const existing = raw ? JSON.parse(raw) : [];
+      const newItems = approvedList.map((q) => ({
+        ...q,
+        id: q.id || 'q-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+        code: q.code || q.questionCode || `${q.subjectCode || passedSubject}-Q${Math.floor(100 + Math.random() * 900)}`,
+        subject: q.subject || q.subjectCode || passedSubject,
+        subjectCode: q.subjectCode || passedSubject,
+        isApproved: true,
+        status: 'ACTIVE',
+        rubricCount: q.rubrics?.length || 2,
+      }));
+      const existingCodes = new Set(existing.map((e) => e.code || e.id));
+      const filteredNew = newItems.filter((n) => !existingCodes.has(n.code || n.id));
+      localStorage.setItem(QUESTION_BANK_KEY, JSON.stringify([...filteredNew, ...existing]));
+    } catch (e) {
+      console.warn('Error saving to question bank:', e);
+    }
+  };
+
   const handleApproveAll = async () => {
     try {
       await lecturerQuestionApi.approveAll({ subjectCode: passedSubject });
     } catch (e) {
       console.warn('API approve all warning, updating UI:', e);
     }
-    setQuestions(questions.map((q) => ({ ...q, isApproved: true, status: 'ACTIVE' })));
-    showToast('Đã phê duyệt toàn bộ câu hỏi vào Ngân hàng chính thức.');
+    const updated = questions.map((q) => ({ ...q, isApproved: true, status: 'ACTIVE' }));
+    setQuestions(updated);
+    appendToQuestionBank(updated);
+    showToast('Đã phê duyệt toàn bộ câu hỏi và lưu vào Ngân hàng chính thức.');
   };
 
   const handleApproveOne = async (id) => {
@@ -96,8 +122,12 @@ export default function LecturerReviewPage() {
     } catch (e) {
       console.warn('API toggle approve warning, updating UI:', e);
     }
+    const target = questions.find((q) => q.id === id);
+    if (target) {
+      appendToQuestionBank([{ ...target, isApproved: true, status: 'ACTIVE' }]);
+    }
     setQuestions(questions.map((q) => (q.id === id ? { ...q, isApproved: true, status: 'ACTIVE' } : q)));
-    showToast('Đã duyệt câu hỏi thành công.');
+    showToast('Đã duyệt và lưu câu hỏi vào Ngân hàng thành công.');
   };
 
   const handleRemove = async (id) => {
