@@ -77,7 +77,7 @@ const ROLE_CONFIGS = {
     roleCode: 'LECTURER',
     badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',
     avatarBg: 'from-sky-500 to-cyan-600',
-    defaultPath: '/questions',
+    defaultPath: '/question-bank',
     menuItems: [
       { id: 'rag-portal', label: 'Tài liệu học phần (RAG)', icon: BookOpen, path: '/questions' },
       { id: 'generate', label: 'Sinh câu hỏi AI', icon: Sparkles, path: '/generate' },
@@ -1432,21 +1432,10 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Session-bound authentication state: Checks active session flag in sessionStorage
+  // Unified persistent authentication state across all tabs & browser sessions
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const isSessionActive = sessionStorage.getItem('aives_session_active') === 'true';
-      if (!isSessionActive) {
-        // Tab was closed or session ended -> wipe persistent states and enforce re-login
-        sessionStorage.removeItem('aives_session_active');
-        sessionStorage.removeItem('aives_user');
-        sessionStorage.removeItem('token');
-        localStorage.removeItem('aives_session_active');
-        localStorage.removeItem('aives_user');
-        localStorage.removeItem('token');
-        return null;
-      }
-      const saved = sessionStorage.getItem('aives_user');
+      const saved = localStorage.getItem('aives_user') || sessionStorage.getItem('aives_user');
       if (!saved) return null;
       const parsed = JSON.parse(saved);
       if (parsed && parsed.role) {
@@ -1458,22 +1447,11 @@ function AppContent() {
     }
   });
 
-  // Ensure persistent localStorage doesn't allow bypassing session-based re-login
-  useEffect(() => {
-    try {
-      const isSessionActive = sessionStorage.getItem('aives_session_active') === 'true';
-      if (!isSessionActive) {
-        localStorage.removeItem('aives_user');
-        localStorage.removeItem('token');
-      }
-    } catch {}
-  }, []);
-
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [authModalState, setAuthModalState] = useState({ isOpen: false, tab: 'login' });
 
-  const isHomePage = location.pathname === '/';
-  const showSidebar = !!currentUser && !isHomePage;
+  const isHomePage = location.pathname === '/' || location.pathname === '/home';
+  const showSidebar = !!currentUser && !isHomePage && location.pathname !== '/login';
 
   const handleLoginSuccess = (userData) => {
     const normalized = {
@@ -1482,11 +1460,18 @@ function AppContent() {
     };
     setCurrentUser(normalized);
     try {
+      localStorage.setItem('aives_session_active', 'true');
+      localStorage.setItem('aives_user', JSON.stringify(normalized));
       sessionStorage.setItem('aives_session_active', 'true');
       sessionStorage.setItem('aives_user', JSON.stringify(normalized));
-      // Never persist in localStorage so closing browser clears session automatically
-      localStorage.removeItem('aives_user');
+      if (userData.token) {
+        localStorage.setItem('token', userData.token);
+        sessionStorage.setItem('token', userData.token);
+      }
     } catch {}
+
+    const roleConfig = ROLE_CONFIGS[normalized.role] || ROLE_CONFIGS.STUDENT;
+    navigate(roleConfig?.defaultPath || '/student');
   };
 
   const handleUpdateProfile = (updatedUser) => {
@@ -1496,6 +1481,7 @@ function AppContent() {
     };
     setCurrentUser(normalized);
     try {
+      localStorage.setItem('aives_user', JSON.stringify(normalized));
       sessionStorage.setItem('aives_user', JSON.stringify(normalized));
     } catch {}
 
@@ -1514,7 +1500,7 @@ function AppContent() {
       localStorage.removeItem('token');
       localStorage.removeItem('aives_user');
     } catch {}
-    navigate('/');
+    navigate('/login');
   };
 
   const openAuth = (tab = 'login') => {
@@ -1555,9 +1541,26 @@ function AppContent() {
 
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Routes>
-            {/* Public routes - No role required */}
+            {/* Unified root route: if authenticated -> redirect to role workspace, if guest -> redirect to /login */}
             <Route
               path="/"
+              element={
+                currentUser ? (
+                  <Navigate
+                    to={
+                      (ROLE_CONFIGS[currentUser.role] || ROLE_CONFIGS.STUDENT).defaultPath ||
+                      '/question-bank'
+                    }
+                    replace
+                  />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            {/* Landing page accessible at /home */}
+            <Route
+              path="/home"
               element={
                 <HomePage
                   onOpenAuth={openAuth}
