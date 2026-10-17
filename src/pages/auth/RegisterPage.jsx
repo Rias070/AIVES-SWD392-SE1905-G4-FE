@@ -156,7 +156,10 @@ export default function RegisterPage({ onLoginSuccess }) {
         if (onLoginSuccess) {
           onLoginSuccess(registeredUser);
         } else {
-          localStorage.setItem('aives_user', JSON.stringify(registeredUser));
+          sessionStorage.setItem('aives_session_active', 'true');
+          sessionStorage.setItem('aives_user', JSON.stringify(registeredUser));
+          localStorage.removeItem('aives_user');
+          localStorage.removeItem('token');
         }
 
         if (role === 'STUDENT') {
@@ -166,7 +169,7 @@ export default function RegisterPage({ onLoginSuccess }) {
         }
       }, 1500);
     } catch (err) {
-      setFormError('Không thể hoàn tất đăng ký tài khoản. Vui lòng thử lại!');
+      setFormError(err.message || 'Không thể hoàn tất đăng ký tài khoản. Vui lòng thử lại!');
       setIsSubmitting(false);
     }
   };

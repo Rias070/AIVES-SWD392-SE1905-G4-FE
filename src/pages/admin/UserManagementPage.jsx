@@ -39,7 +39,10 @@ import {
   AlertTriangle,
   Ban,
   UserX,
-  UserCheck
+  UserCheck,
+  Eye,
+  EyeOff,
+  Key
 } from 'lucide-react';
 
 // Available course catalog to choose from when assigning to lecturers
@@ -309,10 +312,12 @@ export default function UserManagementPage() {
   // Modal 1: Add / Edit User Modal State & Validation Errors
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [userModalMode, setUserModalMode] = useState('CREATE'); // 'CREATE' | 'EDIT'
+  const [showPassword, setShowPassword] = useState(false);
   const [userFormData, setUserFormData] = useState({
     id: '',
     name: '',
     email: '',
+    password: 'password123',
     role: 'STUDENT',
     department: 'Khoa Kỹ Thuật Phần Mềm',
     assigned: 'Lớp SE1704',
@@ -322,6 +327,7 @@ export default function UserManagementPage() {
     id: '',
     name: '',
     email: '',
+    password: '',
   });
 
   // Real-time single field validation
@@ -372,6 +378,14 @@ export default function UserManagementPage() {
       }
     }
 
+    if (field === 'password' && userModalMode === 'CREATE') {
+      if (!val) {
+        error = 'Mật khẩu tài khoản không được để trống';
+      } else if (val.length < 6) {
+        error = 'Mật khẩu phải dài tối thiểu 6 ký tự';
+      }
+    }
+
     setUserFormErrors((prev) => ({ ...prev, [field]: error }));
     return error;
   };
@@ -381,7 +395,8 @@ export default function UserManagementPage() {
     const errId = validateUserField('id', userFormData.id);
     const errName = validateUserField('name', userFormData.name);
     const errEmail = validateUserField('email', userFormData.email);
-    return !errId && !errName && !errEmail;
+    const errPass = userModalMode === 'CREATE' ? validateUserField('password', userFormData.password) : '';
+    return !errId && !errName && !errEmail && !errPass;
   };
 
   // Modal 3: Custom Confirm Dialog State
@@ -592,12 +607,14 @@ export default function UserManagementPage() {
       id: initialId,
       name: '',
       email: '',
+      password: 'password123',
       role: initialRole,
       department: initialDept,
       assigned: initialAssigned,
       status: 'active',
     });
-    setUserFormErrors({ id: '', name: '', email: '' });
+    setUserFormErrors({ id: '', name: '', email: '', password: '' });
+    setShowPassword(false);
     setIsUserModalOpen(true);
   };
 
@@ -609,6 +626,7 @@ export default function UserManagementPage() {
       id: user.id || user.userCode,
       name: user.name || user.fullName,
       email: user.email,
+      password: user.password || 'password123',
       role: userRole,
       department:
         user.department ||
@@ -623,7 +641,8 @@ export default function UserManagementPage() {
           : user.assigned || user.assignedSubjects || (userRole === 'STUDENT' ? 'Lớp SE1704' : 'SWD392'),
       status: user.status === 'inactive' || user.status === 'deleted' ? 'inactive' : 'active',
     });
-    setUserFormErrors({ id: '', name: '', email: '' });
+    setUserFormErrors({ id: '', name: '', email: '', password: '' });
+    setShowPassword(false);
     setIsUserModalOpen(true);
   };
 
@@ -688,6 +707,7 @@ export default function UserManagementPage() {
           email: userFormData.email,
           password: userFormData.password || 'Aives@2026',
           roleName: userFormData.role,
+          role: userFormData.role,
           phoneNumber: userFormData.phone || null,
           assignedSubjects: effectiveAssigned,
           status: userFormData.status === 'active' ? 'ACTIVE' : 'PENDING_SSO',
@@ -712,6 +732,7 @@ export default function UserManagementPage() {
         id: userFormData.id || `USR-${Math.floor(1000 + Math.random() * 9000)}`,
         name: userFormData.name,
         email: userFormData.email,
+        password: userFormData.password || 'password123',
         role: userFormData.role,
         roleBadge: roleBadges[userFormData.role].badge,
         roleBadgeColor: roleBadges[userFormData.role].color,
@@ -728,6 +749,7 @@ export default function UserManagementPage() {
       updateRegistryUser(userFormData.id, {
         name: userFormData.name,
         email: userFormData.email,
+        password: userFormData.password || 'password123',
         role: userFormData.role,
         department: effectiveDept,
         assigned: effectiveAssigned,
@@ -1627,6 +1649,64 @@ export default function UserManagementPage() {
                   <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
                     <AlertCircle className="w-3 h-3 shrink-0" />
                     <span>{userFormErrors.email}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Password Input Box (with default password123 annotation) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="block font-semibold text-slate-700">
+                    Mật khẩu tài khoản {userModalMode === 'CREATE' && '*'}
+                  </label>
+                  <div className="flex items-center gap-1 text-[11px] text-sky-700 font-medium">
+                    <Key className="w-3 h-3 text-sky-600 shrink-0" />
+                    <span>Mặc định: <code className="bg-sky-50 text-sky-800 px-1.5 py-0.5 rounded font-mono font-bold border border-sky-200">password123</code></span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserFormData((prev) => ({ ...prev, password: 'password123' }));
+                        validateUserField('password', 'password123');
+                      }}
+                      className="text-[10px] text-sky-600 hover:text-sky-800 underline font-semibold ml-1 cursor-pointer"
+                    >
+                      Đặt lại
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={userFormData.password || ''}
+                    onChange={(e) => {
+                      setUserFormData({ ...userFormData, password: e.target.value });
+                      validateUserField('password', e.target.value);
+                    }}
+                    required={userModalMode === 'CREATE'}
+                    placeholder="Nhập mật khẩu (Mặc định: password123)"
+                    className={`w-full pl-3 pr-10 py-2 rounded-xl bg-slate-50 border font-mono text-slate-900 focus:outline-none transition-colors ${
+                      userFormErrors.password
+                        ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500'
+                        : 'border-slate-200 focus:border-sky-500'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {userFormErrors.password ? (
+                  <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{userFormErrors.password}</span>
+                  </p>
+                ) : (
+                  <p className="text-[10.5px] text-slate-500 flex items-center gap-1 mt-0.5">
+                    <span>💡 Mật khẩu mặc định hệ thống cấp cho người dùng mới là <strong className="text-slate-700 font-mono">password123</strong>. Người dùng có thể tự đổi sau khi đăng nhập.</span>
                   </p>
                 )}
               </div>

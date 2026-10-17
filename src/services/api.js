@@ -9,10 +9,10 @@ const api = axios.create({
   timeout: 30000,
 });
 
-// Request interceptor: Attach Bearer JWT token from localStorage
+// Request interceptor: Attach Bearer JWT token (prioritize active sessionStorage, then localStorage)
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token') || localStorage.getItem('token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -37,6 +37,14 @@ api.interceptors.response.use(
 
       switch (status) {
         case 401:
+          // Invalidate session on 401 Unauthorized
+          try {
+            sessionStorage.removeItem('aives_session_active');
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('aives_user');
+            localStorage.removeItem('token');
+            localStorage.removeItem('aives_user');
+          } catch {}
           message = backendMsg || 'Phiên làm việc đã hết hạn hoặc chưa được xác thực. Vui lòng đăng nhập lại.';
           break;
         case 403:
@@ -63,6 +71,15 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// ==========================================
+// 1. API SERVICE XÁC THỰC & ĐĂNG NHẬP (AUTH)
+// ==========================================
+export const authApi = {
+  login: (credentials) => api.post('/v1/auth/login', credentials),
+  register: (userData) => api.post('/v1/auth/register', userData),
+  activate: (token) => api.get('/v1/auth/activate', { params: { token } }),
+};
 
 // ==========================================
 // 3. API SERVICE QUẢN LÝ USER (ADMIN ROLE)

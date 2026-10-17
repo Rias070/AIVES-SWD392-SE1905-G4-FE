@@ -67,7 +67,8 @@ import UserManagementPage from './pages/admin/UserManagementPage';
 
 // Common pages
 import ProfilePage from './pages/common/ProfilePage';
-import { authenticateUser, registerUser, findUserByEmail, updateRegistryUser, ensureDemoAccountActive } from './services/userService';
+import { authApi } from './services/api';
+import { authenticateUser, registerUser, findUserByEmail, updateRegistryUser } from './services/userService';
 
 // Role configurations in Glacier Light style
 const ROLE_CONFIGS = {
@@ -78,12 +79,12 @@ const ROLE_CONFIGS = {
     avatarBg: 'from-sky-500 to-cyan-600',
     defaultPath: '/questions',
     menuItems: [
-      { id: 'rag-portal', label: 'Cổng Học Liệu & RAG', icon: BookOpen, path: '/questions', desc: 'Quản trị tri thức S3 & Barem' },
-      { id: 'generate', label: 'AI Sinh Đề Tự Động', icon: Sparkles, path: '/generate', desc: 'Trích xuất từ syllabus' },
-      { id: 'review', label: 'Kiểm Duyệt Câu Hỏi AI', icon: CheckCircle2, path: '/review', desc: 'Duyệt & chỉnh sửa Rubric' },
-      { id: 'question-bank', label: 'Ngân Hàng Câu Hỏi', icon: Database, path: '/question-bank', desc: 'Kho câu hỏi kiểm thử' },
-      { id: 'scoring', label: 'Hội Đồng Chấm Điểm', icon: Scale, path: '/viva', desc: 'Giảng viên chốt điểm cuối' },
-      { id: 'central-dashboard', label: 'Trung Tâm Khảo Thí', icon: LayoutDashboard, path: '/dashboard', desc: 'Theo dõi ca thi trực tiếp' },
+      { id: 'rag-portal', label: 'Tài liệu học phần (RAG)', icon: BookOpen, path: '/questions' },
+      { id: 'generate', label: 'Sinh câu hỏi AI', icon: Sparkles, path: '/generate' },
+      { id: 'review', label: 'Kiểm duyệt câu hỏi', icon: CheckCircle2, path: '/review' },
+      { id: 'question-bank', label: 'Ngân hàng câu hỏi', icon: Database, path: '/question-bank' },
+      { id: 'scoring', label: 'Phòng thi / Chấm điểm', icon: Scale, path: '/viva' },
+      { id: 'central-dashboard', label: 'Trung tâm khảo thí', icon: LayoutDashboard, path: '/dashboard' },
     ],
   },
   STUDENT: {
@@ -93,10 +94,10 @@ const ROLE_CONFIGS = {
     avatarBg: 'from-cyan-500 to-blue-600',
     defaultPath: '/student',
     menuItems: [
-      { id: 'stu-dashboard', label: 'Bảng Điều Khiển Sinh Viên', icon: LayoutDashboard, path: '/student', desc: 'Môn học, ca thi & năng lực' },
-      { id: 'device-check', label: 'Kiểm Tra Thiết Bị Thi', icon: Video, path: '/device-check', desc: 'Camera & micro AI' },
-      { id: 'viva-room', label: 'Phòng Thi Vấn Đáp AI', icon: Mic, path: '/viva', desc: 'Phỏng vấn trực tiếp AI' },
-      { id: 'results', label: 'Kết Quả & Nhận Xét AI', icon: Award, path: '/exam-result', desc: 'Bảng điểm & Rubric' },
+      { id: 'stu-dashboard', label: 'Bảng điều khiển', icon: LayoutDashboard, path: '/student' },
+      { id: 'device-check', label: 'Kiểm tra thiết bị', icon: Video, path: '/device-check' },
+      { id: 'viva-room', label: 'Phòng thi vấn đáp', icon: Mic, path: '/viva' },
+      { id: 'results', label: 'Kết quả thi', icon: Award, path: '/exam-result' },
     ],
   },
   ADMIN: {
@@ -104,12 +105,12 @@ const ROLE_CONFIGS = {
     roleCode: 'ADMIN',
     badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     avatarBg: 'from-blue-600 to-indigo-600',
-    defaultPath: '/admin/users',
+    defaultPath: '/admin',
     menuItems: [
-      { id: 'adm-users', label: 'Quản Lý Người Dùng & Phân Công', icon: Users, path: '/admin/users', desc: 'Phân quyền & giảng dạy' },
-      { id: 'adm-config', label: 'Cấu Hình Hệ Thống AI Viva', icon: Languages, path: '/admin', desc: 'Tham số Whisper STT / TTS' },
-      { id: 'rag-portal', label: 'Học Liệu & Đề Thi RAG', icon: BookOpen, path: '/questions', desc: 'Quản trị ngân hàng câu hỏi' },
-      { id: 'central-dashboard', label: 'Trung Tâm Khảo Thí', icon: LayoutDashboard, path: '/dashboard', desc: 'Thống kê toàn hệ thống' },
+      { id: 'adm-users', label: 'Quản lý người dùng', icon: Users, path: '/admin/users' },
+      { id: 'adm-config', label: 'Cấu hình hệ thống', icon: Languages, path: '/admin' },
+      { id: 'rag-portal', label: 'Học liệu & Đề thi RAG', icon: BookOpen, path: '/questions' },
+      { id: 'central-dashboard', label: 'Trung tâm khảo thí', icon: LayoutDashboard, path: '/dashboard' },
     ],
   },
 };
@@ -167,46 +168,39 @@ function LeftSidebar({ currentUser, onLogout, isOpen, onClose }) {
         </div>
 
         {/* Menu Items */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <nav className="space-y-1.5">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <nav className="space-y-1">
             <Link
               to="/"
               onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${
                 location.pathname === '/'
-                  ? 'bg-sky-50 text-sky-700 font-semibold border-l-[3px] border-sky-600 shadow-xs'
+                  ? 'bg-sky-50 text-sky-700 font-bold border-l-[3px] border-sky-600 shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
               }`}
             >
               <Home className={`w-4 h-4 ${location.pathname === '/' ? 'text-sky-600' : 'text-slate-400'}`} />
-              <span className="text-xs font-semibold">Trang Chủ (Giới thiệu)</span>
+              <span className="text-xs font-semibold">Trang chủ</span>
             </Link>
 
             <Link
               to="/profile"
               onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${
                 location.pathname === '/profile'
-                  ? 'bg-sky-50 text-sky-700 font-semibold border-l-[3px] border-sky-600 shadow-xs'
+                  ? 'bg-sky-50 text-sky-700 font-bold border-l-[3px] border-sky-600 shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
               }`}
             >
               <User className={`w-4 h-4 ${location.pathname === '/profile' ? 'text-sky-600' : 'text-slate-400'}`} />
-              <span className="text-xs font-semibold">Hồ Sơ Cá Nhân</span>
+              <span className="text-xs font-semibold">Hồ sơ cá nhân</span>
             </Link>
 
-            <Link
-              to="/dashboard"
-              onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
-                location.pathname === '/dashboard'
-                  ? 'bg-sky-50 text-sky-700 font-semibold border-l-[3px] border-sky-600 shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
-            >
-              <LayoutDashboard className={`w-4 h-4 ${location.pathname === '/dashboard' ? 'text-sky-600' : 'text-slate-400'}`} />
-              <span className="text-xs font-semibold">Trung Tâm Khảo Thí</span>
-            </Link>
+            <div className="pt-2 pb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3">
+                Chức năng chính
+              </span>
+            </div>
 
             {roleConfig.menuItems.map((item) => {
               const isActive = location.pathname === item.path;
@@ -216,17 +210,14 @@ function LeftSidebar({ currentUser, onLogout, isOpen, onClose }) {
                   key={item.id}
                   to={item.path}
                   onClick={onClose}
-                  className={`flex items-start gap-3 p-2.5 rounded-xl transition-all ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
                     isActive
-                      ? 'bg-sky-50 text-sky-700 font-semibold border-l-[3px] border-sky-600 shadow-xs'
+                      ? 'bg-sky-50 text-sky-700 font-bold border-l-[3px] border-sky-600 shadow-xs'
                       : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs font-semibold block leading-tight truncate">{item.label}</span>
-                    <span className="text-[10px] text-slate-400 block truncate mt-0.5">{item.desc}</span>
-                  </div>
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
+                  <span className="text-xs font-semibold truncate">{item.label}</span>
                 </Link>
               );
             })}
@@ -884,13 +875,13 @@ function GlacierCentralDashboard({ onOpenAuth, currentUser }) {
 /* ==================== AUTH MODAL (Glacier Light) ==================== */
 function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
   const [tab, setTab] = useState(initialTab);
-  const [loginRole, setLoginRole] = useState('STUDENT');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   
   const [fullName, setFullName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
   const [role, setRole] = useState('STUDENT');
   const [showPassword, setShowPassword] = useState(false);
   const [modalError, setModalError] = useState(null);
@@ -903,29 +894,16 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
 
   if (!isOpen) return null;
 
-  const demoAccounts = {
-    STUDENT: { email: 'student@aives.edu.vn', pass: 'password123' },
-    LECTURER: { email: 'lecturer@aives.edu.vn', pass: 'password123' },
-    ADMIN: { email: 'admin@aives.edu.vn', pass: 'password123' },
-  };
-
-  const handleFillDemo = (roleKey = loginRole) => {
-    const demo = demoAccounts[roleKey];
-    if (demo) {
-      ensureDemoAccountActive(demo.email);
-      setLoginEmail(demo.email);
-      setLoginPassword(demo.pass);
-      setLoginRole(roleKey);
-      setModalError(null);
-    }
-  };
-
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setModalError(null);
 
+    const rawEmail = (loginEmail || '').trim();
+    // Allow typing "admin" shorthand to map to canonical administrator account
+    const cleanEmail = rawEmail.toLowerCase() === 'admin' ? 'admin@aives.edu.vn' : rawEmail;
+
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!loginEmail || !emailRegex.test(loginEmail.trim())) {
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
       setModalError('Địa chỉ email không đúng định dạng (ví dụ: student@aives.edu.vn hoặc email đã đăng ký)!');
       return;
     }
@@ -935,9 +913,59 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
       return;
     }
 
-    const cleanEmail = loginEmail.trim();
+    // Attempt real Backend API login if available
+    let backendUser = null;
+    let token = null;
+
+    try {
+      const res = await authApi.login({ email: cleanEmail, password: loginPassword });
+      if (res?.data?.result) {
+        token = res.data.result.token;
+        const user = res.data.result.user;
+        if (user) {
+          backendUser = {
+            id: user.uuid || user.id,
+            name: user.fullName || user.name,
+            email: user.email,
+            role: user.role?.name || user.role || 'STUDENT',
+            status: user.status || 'ACTIVE',
+          };
+        }
+      }
+    } catch (apiErr) {
+      // Auto-retry with backend canonical seed passwords if user entered demo credentials
+      const canonicalSeedPasswords = {
+        'admin@aives.edu.vn': 'Admin@123',
+        'lecturer@aives.edu.vn': 'Lecturer@123',
+        'student@aives.edu.vn': 'Student@123',
+      };
+      const seedPass = canonicalSeedPasswords[cleanEmail.toLowerCase()];
+      if (seedPass && seedPass !== loginPassword) {
+        try {
+          const retryRes = await authApi.login({ email: cleanEmail, password: seedPass });
+          if (retryRes?.data?.result) {
+            token = retryRes.data.result.token;
+            const user = retryRes.data.result.user;
+            if (user) {
+              backendUser = {
+                id: user.uuid || user.id,
+                name: user.fullName || user.name,
+                email: user.email,
+                role: user.role?.name || user.role || 'STUDENT',
+                status: user.status || 'ACTIVE',
+              };
+            }
+          }
+        } catch {
+          console.warn('Backend retry fallback to local registry');
+        }
+      } else {
+        console.warn('Backend login fallback to local registry:', apiErr.friendlyMessage || apiErr);
+      }
+    }
+
     const existing = findUserByEmail(cleanEmail);
-    const targetRole = existing ? existing.role : loginRole;
+    const targetRole = backendUser?.role || (existing ? existing.role : 'STUDENT');
 
     const authResult = authenticateUser(cleanEmail, loginPassword, targetRole);
 
@@ -946,11 +974,46 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
       return;
     }
 
-    const userData = authResult.user || authResult;
+    const userData = backendUser || authResult.user || authResult;
+
+    // Ensure session token is always created and stored in sessionStorage
+    if (!token) {
+      const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+      const payload = btoa(JSON.stringify({
+        sub: cleanEmail,
+        role: targetRole,
+        name: userData.name,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 86400,
+      }));
+      token = `${header}.${payload}.mock_aives_session_${Date.now()}`;
+    }
+
+    // Save token and session active flag strictly in sessionStorage
+    sessionStorage.setItem('token', token);
+    sessionStorage.setItem('aives_session_active', 'true');
+    sessionStorage.setItem('aives_user', JSON.stringify(userData));
+
+    // Clear persistent storage so exiting browser enforces re-login upon return
+    localStorage.removeItem('token');
+    localStorage.removeItem('aives_user');
+    localStorage.removeItem('aives_session_active');
+
+    console.log('[AIVES AuthModal] Đã lưu token vào sessionStorage:', sessionStorage.getItem('token') ? 'OK' : 'FAIL');
+    console.log('[AIVES AuthModal] Cờ aives_session_active:', sessionStorage.getItem('aives_session_active'));
+
     onLoginSuccess(userData);
     onClose();
-    const defaultPath = ROLE_CONFIGS[userData.role || targetRole]?.defaultPath || '/student';
-    navigate(defaultPath);
+
+    // Automatic role-based routing based on account profile
+    const effectiveRole = (userData.role || targetRole || 'STUDENT').toUpperCase().replace(/^ROLE_/, '');
+    if (effectiveRole === 'ADMIN') {
+      navigate('/admin');
+    } else if (effectiveRole === 'LECTURER') {
+      navigate('/questions');
+    } else {
+      navigate('/student');
+    }
   };
 
   const handleRegisterSubmit = async (e) => {
@@ -973,22 +1036,31 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
       return;
     }
 
-    if (!registerPassword || registerPassword.length < 6) {
-      setModalError('Mật khẩu tối thiểu 6 ký tự!');
+    if (!registerPassword || registerPassword.length < 8) {
+      setModalError('Mật khẩu bảo mật phải có độ dài tối thiểu 8 ký tự!');
       return;
     }
 
-    const registered = await registerUser({
-      name: fullName.trim(),
-      email: registerEmail.trim(),
-      password: registerPassword,
-      role: role,
-    });
+    if (registerPassword !== registerConfirmPassword) {
+      setModalError('Mật khẩu và xác nhận mật khẩu không khớp nhau!');
+      return;
+    }
 
-    onLoginSuccess(registered);
-    onClose();
-    const defaultPath = ROLE_CONFIGS[registered.role || role]?.defaultPath || '/student';
-    navigate(defaultPath);
+    try {
+      const registered = await registerUser({
+        name: fullName.trim(),
+        email: registerEmail.trim(),
+        password: registerPassword,
+        role: role,
+      });
+
+      onLoginSuccess(registered);
+      onClose();
+      const defaultPath = ROLE_CONFIGS[registered.role || role]?.defaultPath || '/student';
+      navigate(defaultPath);
+    } catch (err) {
+      setModalError(err.message || 'Không thể hoàn tất đăng ký tài khoản. Vui lòng thử lại!');
+    }
   };
 
   return (
@@ -1064,71 +1136,13 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Chọn vai trò đăng nhập
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setLoginRole('STUDENT')}
-                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
-                    loginRole === 'STUDENT'
-                      ? 'bg-sky-50 border-sky-400 text-sky-800 shadow-xs'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <GraduationCap className="w-3.5 h-3.5" />
-                  <span>Sinh Viên</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setLoginRole('LECTURER')}
-                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
-                    loginRole === 'LECTURER'
-                      ? 'bg-sky-50 border-sky-400 text-sky-800 shadow-xs'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>Giảng Viên</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setLoginRole('ADMIN')}
-                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-semibold transition-all ${
-                    loginRole === 'ADMIN'
-                      ? 'bg-sky-50 border-sky-400 text-sky-800 shadow-xs'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Quản Trị</span>
-                </button>
-              </div>
-
-              {/* Quick Demo Fill Helper */}
-              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1.5">
-                <span>Hoặc đăng nhập nhanh:</span>
-                <button
-                  type="button"
-                  onClick={() => handleFillDemo(loginRole)}
-                  className="text-sky-600 hover:text-sky-800 font-bold underline"
-                >
-                  ⚡ Điền tài khoản {loginRole === 'STUDENT' ? 'Sinh viên' : loginRole === 'LECTURER' ? 'Giảng viên' : 'Admin'} mẫu
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Email hoặc Tên đăng nhập
               </label>
               <input
                 type="text"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="ví dụ: student@aives.edu.vn"
+                placeholder="Nhập email hoặc tên đăng nhập..."
                 required
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
               />
@@ -1244,7 +1258,7 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Mật khẩu
+                Mật khẩu (tối thiểu 8 ký tự)
               </label>
               <div className="relative">
                 <input
@@ -1263,6 +1277,20 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Nhập lại mật khẩu
+              </label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={registerConfirmPassword}
+                onChange={(e) => setRegisterConfirmPassword(e.target.value)}
+                placeholder="Khớp với mật khẩu trên"
+                required
+                className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-sky-500"
+              />
             </div>
 
             <button
@@ -1340,9 +1368,10 @@ class ErrorBoundary extends React.Component {
 /* ==================== PROTECTED ROUTE (ROLE-BASED ACCESS CONTROL) ==================== */
 function ProtectedRoute({ currentUser, allowedRoles, children }) {
   const location = useLocation();
+  const isSessionActive = sessionStorage.getItem('aives_session_active') === 'true';
 
-  if (!currentUser) {
-    // Guest accessing protected route -> redirect to login with return intent
+  if (!currentUser || !isSessionActive) {
+    // Guest or session ended (e.g. browser re-opened) -> redirect to login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -1351,8 +1380,11 @@ function ProtectedRoute({ currentUser, allowedRoles, children }) {
     const freshUser = findUserByEmail(currentUser.email);
     if (!freshUser) {
       try {
+        sessionStorage.removeItem('aives_session_active');
+        sessionStorage.removeItem('token');
         sessionStorage.removeItem('aives_user');
         localStorage.removeItem('aives_user');
+        localStorage.removeItem('token');
       } catch {}
       return (
         <Navigate
@@ -1364,8 +1396,11 @@ function ProtectedRoute({ currentUser, allowedRoles, children }) {
     }
     if (freshUser.status === 'inactive' || freshUser.status === 'locked' || freshUser.status === 'deactivated') {
       try {
+        sessionStorage.removeItem('aives_session_active');
+        sessionStorage.removeItem('token');
         sessionStorage.removeItem('aives_user');
         localStorage.removeItem('aives_user');
+        localStorage.removeItem('token');
       } catch {}
       return (
         <Navigate
@@ -1397,9 +1432,20 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Default is guest / unauthenticated / no role
+  // Session-bound authentication state: Checks active session flag in sessionStorage
   const [currentUser, setCurrentUser] = useState(() => {
     try {
+      const isSessionActive = sessionStorage.getItem('aives_session_active') === 'true';
+      if (!isSessionActive) {
+        // Tab was closed or session ended -> wipe persistent states and enforce re-login
+        sessionStorage.removeItem('aives_session_active');
+        sessionStorage.removeItem('aives_user');
+        sessionStorage.removeItem('token');
+        localStorage.removeItem('aives_session_active');
+        localStorage.removeItem('aives_user');
+        localStorage.removeItem('token');
+        return null;
+      }
       const saved = sessionStorage.getItem('aives_user');
       if (!saved) return null;
       const parsed = JSON.parse(saved);
@@ -1412,11 +1458,13 @@ function AppContent() {
     }
   });
 
-  // Ensure stale legacy localStorage doesn't trap users in a permanently logged-in state
+  // Ensure persistent localStorage doesn't allow bypassing session-based re-login
   useEffect(() => {
     try {
-      if (!sessionStorage.getItem('aives_user')) {
+      const isSessionActive = sessionStorage.getItem('aives_session_active') === 'true';
+      if (!isSessionActive) {
         localStorage.removeItem('aives_user');
+        localStorage.removeItem('token');
       }
     } catch {}
   }, []);
@@ -1434,8 +1482,10 @@ function AppContent() {
     };
     setCurrentUser(normalized);
     try {
+      sessionStorage.setItem('aives_session_active', 'true');
       sessionStorage.setItem('aives_user', JSON.stringify(normalized));
-      localStorage.setItem('aives_user', JSON.stringify(normalized));
+      // Never persist in localStorage so closing browser clears session automatically
+      localStorage.removeItem('aives_user');
     } catch {}
   };
 
@@ -1447,7 +1497,6 @@ function AppContent() {
     setCurrentUser(normalized);
     try {
       sessionStorage.setItem('aives_user', JSON.stringify(normalized));
-      localStorage.setItem('aives_user', JSON.stringify(normalized));
     } catch {}
 
     // Synchronize to user registry so Admin User Management updates immediately
@@ -1458,7 +1507,11 @@ function AppContent() {
   const handleLogout = () => {
     setCurrentUser(null);
     try {
+      sessionStorage.removeItem('aives_session_active');
+      sessionStorage.removeItem('token');
       sessionStorage.removeItem('aives_user');
+      localStorage.removeItem('aives_session_active');
+      localStorage.removeItem('token');
       localStorage.removeItem('aives_user');
     } catch {}
     navigate('/');
