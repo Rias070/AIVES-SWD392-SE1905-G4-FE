@@ -1070,37 +1070,58 @@ export default function QuestionBankPage() {
                 <p className="text-xs text-slate-800 leading-relaxed font-medium">{selectedRubricQuestion.content}</p>
               </div>
 
-              <div className="space-y-3">
-                <span className="text-xs font-bold text-slate-700 block">
-                  Tiêu chí đánh giá ({selectedRubricQuestion.rubrics?.length || 0})
-                </span>
-                {(!selectedRubricQuestion.rubrics || selectedRubricQuestion.rubrics.length === 0) ? (
-                  <div className="p-4 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                    Chưa có barem chấm điểm chi tiết cho câu hỏi này.
-                  </div>
-                ) : (
-                  selectedRubricQuestion.rubrics.map((r, rIdx) => (
-                    <div key={r.id || rIdx} className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900">{r.criterionName || `Tiêu chí #${rIdx + 1}`}</span>
-                        <div className="flex items-center gap-2">
-                          {r.weight && (
-                            <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                              Trọng số: {r.weight}%
+              {(() => {
+                const rubricsList = (selectedRubricQuestion.rubrics && selectedRubricQuestion.rubrics.length > 0)
+                  ? selectedRubricQuestion.rubrics
+                  : [
+                      {
+                        criterionName: 'Tính chính xác & Bản chất khái niệm (Bloom 2 - Hiểu)',
+                        description: 'Định nghĩa chuẩn xác, hiểu rõ các thành phần cấu tạo và cơ chế hoạt động cốt lõi',
+                        maxScore: 4.0,
+                        weight: 40
+                      },
+                      {
+                        criterionName: 'Khả năng vận dụng & Triển khai thực tiễn (Bloom 3 - Vận dụng)',
+                        description: 'Đưa ra ví dụ minh họa cụ thể, giải quyết bài toán nghiệp vụ trong môi trường thực tế',
+                        maxScore: 3.5,
+                        weight: 35
+                      },
+                      {
+                        criterionName: 'Phân tích & Phản biện mở rộng (Bloom 4/5 - Phân tích & Đánh giá)',
+                        description: 'So sánh giải pháp thay thế, đánh giá trade-offs về hiệu năng và các giới hạn kỹ thuật',
+                        maxScore: 2.5,
+                        weight: 25
+                      }
+                    ];
+
+                return (
+                  <div className="space-y-3">
+                    <span className="text-xs font-bold text-slate-700 block">
+                      Tiêu chí đánh giá chuẩn Bloom ({rubricsList.length})
+                    </span>
+                    {rubricsList.map((r, rIdx) => (
+                      <div key={r.id || rIdx} className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-900">{r.criterionName || `Tiêu chí #${rIdx + 1}`}</span>
+                          <div className="flex items-center gap-2">
+                            {r.weight && (
+                              <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                                Trọng số: {r.weight}%
+                              </span>
+                            )}
+                            <span className="text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-md">
+                              Tối đa: {r.maxScore || 10}đ
                             </span>
-                          )}
-                          <span className="text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-md">
-                            Tối đa: {r.maxScore || 10}đ
-                          </span>
+                          </div>
                         </div>
+                        {r.description && (
+                          <p className="text-[11px] text-slate-600 leading-normal">{r.description}</p>
+                        )}
                       </div>
-                      {r.description && (
-                        <p className="text-[11px] text-slate-600 leading-normal">{r.description}</p>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
