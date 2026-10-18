@@ -105,15 +105,17 @@ export default function QuestionBankPage() {
     try {
       const res = await lecturerQuestionApi.getQuestions();
       if (res?.data?.result) {
-        const formatted = res.data.result.map(q => ({
-          ...q,
-          subject: q.subjectName ? `${q.subjectName} (${q.subjectCode})` : (q.subjectCode || 'Chưa phân môn'),
-          keywords: Array.isArray(q.keywords) ? q.keywords : (q.keywords ? q.keywords.split(',') : []),
-          rubricCount: q.rubrics?.length || q.rubricCount || 0,
-        }));
+        const formatted = res.data.result
+          .filter((q) => q.status === 'ACTIVE' || q.isApproved)
+          .map(q => ({
+            ...q,
+            subject: q.subjectName ? `${q.subjectName} (${q.subjectCode})` : (q.subjectCode || 'Chưa phân môn'),
+            keywords: Array.isArray(q.keywords) ? q.keywords : (q.keywords ? q.keywords.split(',') : []),
+            rubricCount: q.rubrics?.length || q.rubricCount || 0,
+          }));
 
-        // Smart merge: Retain locally stored questions so we never wipe questions that haven't synced yet
-        const cached = loadStoredQuestions();
+        // Smart merge: Retain locally stored ACTIVE questions so we never wipe questions that haven't synced yet
+        const cached = loadStoredQuestions().filter((q) => q.status === 'ACTIVE' || q.isApproved);
         const backendIds = new Set(formatted.map(q => q.code || q.questionCode || q.id));
         const unsynced = cached.filter(q => !backendIds.has(q.code || q.questionCode || q.id));
         saveQuestions([...formatted, ...unsynced]);
@@ -124,7 +126,8 @@ export default function QuestionBankPage() {
     } finally {
       setLoading(false);
     }
-    const cached = loadStoredQuestions();
+    // Fallback: chỉ lấy câu ACTIVE từ local cache
+    const cached = loadStoredQuestions().filter((q) => q.status === 'ACTIVE' || q.isApproved);
     setQuestions(cached);
   };
 
