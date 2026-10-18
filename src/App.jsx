@@ -69,6 +69,10 @@ import ExamManagementPage from './pages/lecturer/ExamManagementPage';
 import GradingApprovalPage from './pages/lecturer/GradingApprovalPage';
 
 // Admin pages
+import AdminLayout from './pages/admin/AdminLayout';
+import UsersPage from './pages/admin/UsersPage';
+import AssignmentsPage from './pages/admin/AssignmentsPage';
+import SettingsPage from './pages/admin/SettingsPage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
 
@@ -118,8 +122,9 @@ const ROLE_CONFIGS = {
     avatarBg: 'from-blue-600 to-indigo-600',
     defaultPath: '/admin',
     menuItems: [
-      { id: 'adm-users', label: 'Quản lý người dùng', icon: Users, path: '/admin/users' },
-      { id: 'adm-config', label: 'Cấu hình hệ thống', icon: Languages, path: '/admin' },
+      { id: 'adm-users', label: 'Tài khoản', icon: Users, path: '/admin/users', desc: 'Quản lý người dùng' },
+      { id: 'adm-assign', label: 'Phân công', icon: BookOpen, path: '/admin/assignments', desc: 'Phân công môn học' },
+      { id: 'adm-config', label: 'Cấu hình', icon: Settings, path: '/admin/settings', desc: 'Ngôn ngữ STT/TTS' },
       { id: 'rag-portal', label: 'Ngân hàng câu hỏi & Học liệu', icon: Database, path: '/question-bank' },
       { id: 'adm-rubric', label: 'Quản lý Rubric chấm điểm', icon: ListChecks, path: '/rubrics' },
     ],
@@ -1819,24 +1824,23 @@ function AppContent() {
               }
             />
 
-            {/* Admin routes */}
+            {/* Admin routes - Admin Console (redesigned layout) */}
             <Route
               path="/admin"
               element={
                 <ProtectedRoute currentUser={currentUser} allowedRoles={['ADMIN']}>
-                  <AdminDashboardPage />
+                  <AdminLayout currentUser={currentUser} onLogout={handleLogout} />
                 </ProtectedRoute>
               }
-            />
-            <Route
-              path="/admin/users"
-              element={
-                <ProtectedRoute currentUser={currentUser} allowedRoles={['ADMIN']}>
-                  <UserManagementPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/admin/config" element={<Navigate to="/admin" replace />} />
+            >
+              <Route index element={<Navigate to="/admin/users" replace />} />
+              <Route path="users" element={<UsersPage />} />
+              <Route path="assignments" element={<AssignmentsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="manage" element={<AdminDashboardPage />} />
+              <Route path="manage/users" element={<UserManagementPage />} />
+            </Route>
+            <Route path="/admin/config" element={<Navigate to="/admin/settings" replace />} />
             <Route path="/admin/transactions" element={<Navigate to="/admin/users" replace />} />
 
             {/* Role-based default redirect for legacy /dashboard */}
