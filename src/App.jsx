@@ -58,8 +58,10 @@ import LecturerReviewPage from './pages/lecturer/LecturerReviewPage';
 import QuestionBankPage from './pages/lecturer/QuestionBankPage';
 
 // Admin pages
-import AdminDashboardPage from './pages/admin/AdminDashboardPage';
-import UserManagementPage from './pages/admin/UserManagementPage';
+import AdminLayout from './pages/admin/AdminLayout';
+import UsersPage from './pages/admin/UsersPage';
+import AssignmentsPage from './pages/admin/AssignmentsPage';
+import SettingsPage from './pages/admin/SettingsPage';
 
 // Role configurations in Glacier Light style
 const ROLE_CONFIGS = {
@@ -96,9 +98,9 @@ const ROLE_CONFIGS = {
     avatarBg: 'from-blue-600 to-indigo-600',
     defaultPath: '/admin/users',
     menuItems: [
-      { id: 'adm-users', label: 'Quản Lý Người Dùng & Phân Công', icon: Users, path: '/admin/users', desc: 'Phân quyền & giảng dạy' },
-      { id: 'rag-portal', label: 'Học Liệu & Đề Thi RAG', icon: BookOpen, path: '/questions', desc: 'Quản trị ngân hàng câu hỏi' },
-      { id: 'adm-config', label: 'Cấu Hình STT / Whisper / TTS', icon: Languages, path: '/admin', desc: 'Tham số nhận diện giọng nói' },
+      { id: 'adm-users', label: 'Tài khoản', icon: Users, path: '/admin/users', desc: 'Quản lý người dùng' },
+      { id: 'adm-assign', label: 'Phân công', icon: BookOpen, path: '/admin/assignments', desc: 'Phân công môn học' },
+      { id: 'adm-config', label: 'Cấu hình', icon: Settings, path: '/admin/settings', desc: 'Ngôn ngữ STT/TTS' },
     ],
   },
 };
@@ -1220,8 +1222,12 @@ function AppContent() {
             <Route path="/questions" element={<LecturerRAGPage />} />
             <Route path="/generate" element={<LecturerAIGenerationPage />} />
             <Route path="/review" element={<LecturerReviewPage />} />
-            <Route path="/admin" element={<AdminDashboardPage />} />
-            <Route path="/admin/users" element={<UserManagementPage />} />
+            <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
+            <Route path="/admin" element={<AdminLayout currentUser={currentUser} onLogout={handleLogout} />}>
+              <Route path="users" element={<UsersPage />} />
+              <Route path="assignments" element={<AssignmentsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
             <Route path="/admin/transactions" element={<Navigate to="/admin/users" replace />} />
           </Routes>
         </main>
