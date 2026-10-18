@@ -17,7 +17,9 @@ import {
   Trash2,
   X,
   AlertCircle,
-  Edit2
+  Edit2,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -60,12 +62,15 @@ export default function AdminDashboardPage() {
 
   const [usersList, setUsersList] = useState(initialUsers);
   const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [newUserForm, setNewUserForm] = useState({
     code: '',
     name: '',
     email: '',
     role: 'LECTURER',
     assignedSubjects: '',
+    password: 'Aives@2026',
+    confirmPassword: 'Aives@2026',
   });
 
   // Fetch users from backend if available
@@ -119,6 +124,16 @@ export default function AdminDashboardPage() {
     e.preventDefault();
     if (!newUserForm.name || !newUserForm.email) return;
 
+    // Client-side validation: password match
+    if (!newUserForm.password || newUserForm.password.length < 6) {
+      showToast('Mật khẩu phải có ít nhất 6 ký tự!');
+      return;
+    }
+    if (newUserForm.password !== newUserForm.confirmPassword) {
+      showToast('Mật khẩu nhập lại không khớp. Vui lòng kiểm tra lại!');
+      return;
+    }
+
     const createdUser = {
       id: `usr-${Date.now()}`,
       code: newUserForm.code || `USR-${Math.floor(100 + Math.random() * 900)}`,
@@ -129,17 +144,43 @@ export default function AdminDashboardPage() {
       assignedSubjects: newUserForm.assignedSubjects || 'Chưa phân công',
     };
 
+    // Payload that matches BE UserCreateRequest
+    const createPayload = {
+      userCode: createdUser.code,
+      fullName: createdUser.name,
+      email: createdUser.email,
+      password: newUserForm.password,
+      roleName: createdUser.role,
+      role: createdUser.role,
+      status: 'ACTIVE',
+      assignedSubjects: createdUser.assignedSubjects,
+    };
+
     try {
       if (adminUserApi.createUser) {
-        await adminUserApi.createUser(createdUser);
+        await adminUserApi.createUser(createPayload);
       }
     } catch (e) {
-      console.warn('Backend offline, creating locally:', e);
+      console.warn('Backend offline or validation error, creating locally:', e);
+      // Surface the BE error message to the admin if available
+      const apiMsg = e?.response?.data?.message || e?.friendlyMessage;
+      if (apiMsg) {
+        showToast(`Lỗi từ máy chủ: ${apiMsg}`);
+      }
     }
 
     setUsersList(prev => [createdUser, ...prev]);
     setIsCreateUserModalOpen(false);
-    setNewUserForm({ code: '', name: '', email: '', role: 'LECTURER', assignedSubjects: '' });
+    setNewUserForm({
+      code: '',
+      name: '',
+      email: '',
+      role: 'LECTURER',
+      assignedSubjects: '',
+      password: 'Aives@2026',
+      confirmPassword: 'Aives@2026',
+    });
+    setShowCreatePassword(false);
     showToast(`Tạo thành công tài khoản ${createdUser.name} (${createdUser.role})`);
   };
 
@@ -716,7 +757,7 @@ export default function AdminDashboardPage() {
                 <UserPlus className="w-5 h-5 text-sky-600" />
                 Thêm người dùng mới
               </h3>
-              <button onClick={() => setIsCreateUserModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => { setIsCreateUserModalOpen(false); setShowCreatePassword(false); }} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -781,10 +822,56 @@ export default function AdminDashboardPage() {
                 />
               </div>
 
+              {/* Password */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Mật khẩu khởi tạo *</label>
+                <div className="relative">
+                  <input
+                    type={showCreatePassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    placeholder="Mặc định: Aives@2026 (tối thiểu 6 ký tự)"
+                    value={newUserForm.password}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                    className="w-full px-3 py-2 pr-10 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-sky-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCreatePassword((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    title={showCreatePassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showCreatePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">Mật khẩu phải có ít nhất 6 ký tự. Người dùng nên đổi mật khẩu sau lần đăng nhập đầu tiên.</p>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Nhập lại mật khẩu *</label>
+                <input
+                  type={showCreatePassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  placeholder="Nhập lại chính xác mật khẩu phía trên"
+                  value={newUserForm.confirmPassword}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, confirmPassword: e.target.value })}
+                  className={`w-full px-3 py-2 rounded-xl bg-slate-50 border text-slate-800 focus:outline-none font-mono ${
+                    newUserForm.confirmPassword && newUserForm.password !== newUserForm.confirmPassword
+                      ? 'border-rose-400 focus:border-rose-500'
+                      : 'border-slate-200 focus:border-sky-500'
+                  }`}
+                />
+                {newUserForm.confirmPassword && newUserForm.password !== newUserForm.confirmPassword && (
+                  <p className="text-[11px] text-rose-600 font-semibold mt-1">Mật khẩu nhập lại không khớp!</p>
+                )}
+              </div>
+
               <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsCreateUserModalOpen(false)}
+                  onClick={() => { setIsCreateUserModalOpen(false); setShowCreatePassword(false); }}
                   className="px-4 py-2 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 font-semibold"
                 >
                   Hủy
