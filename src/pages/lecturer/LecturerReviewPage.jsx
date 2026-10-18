@@ -11,9 +11,11 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  Search,
+  Filter
 } from 'lucide-react';
-import { lecturerQuestionApi } from '../../services/api';
+import { lecturerQuestionApi, subjectApi } from '../../services/api';
 
 export default function LecturerReviewPage() {
   const location = useLocation();
@@ -26,6 +28,10 @@ export default function LecturerReviewPage() {
   const [editExpectedAnswer, setEditExpectedAnswer] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
   const [expandedIds, setExpandedIds] = useState(new Set());
+  const [subjects, setSubjects] = useState([]);
+  const [filterSubjectUuid, setFilterSubjectUuid] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [difficultyFilter, setDifficultyFilter] = useState('ALL');
 
   const passedQuestions = location.state?.generatedQuestions;
   const passedSubject = location.state?.subjectCode || 'CS301';
@@ -48,17 +54,32 @@ export default function LecturerReviewPage() {
   };
 
   const toggleExpandAll = () => {
-    if (expandedIds.size === questions.length) {
+    if (expandedIds.size === filteredQuestions.length) {
       setExpandedIds(new Set());
     } else {
-      setExpandedIds(new Set(questions.map((q) => q.id)));
+      setExpandedIds(new Set(filteredQuestions.map((q) => q.id)));
     }
   };
 
-  const fetchPendingQuestions = async () => {
+  const fetchSubjects = async () => {
+    try {
+      const res = await subjectApi.getSubjects();
+      const list = res?.data?.result || [];
+      setSubjects(list);
+    } catch (err) {
+      console.warn('Could not fetch subjects from API:', err);
+      setSubjects([]);
+    }
+  };
+
+  const fetchPendingQuestions = async (filterUuid = 'ALL') => {
     setLoading(true);
     try {
-      const res = await lecturerQuestionApi.getQuestions({ status: 'PENDING' });
+      const params = { status: 'PENDING' };
+      if (filterUuid && filterUuid !== 'ALL') {
+        params.subjectUuid = filterUuid;
+      }
+      const res = await lecturerQuestionApi.getQuestions(params);
       if (res?.data?.result) {
         setQuestions(res.data.result);
         return;
@@ -72,13 +93,23 @@ export default function LecturerReviewPage() {
   };
 
   useEffect(() => {
+    fetchSubjects();
     if (passedQuestions && Array.isArray(passedQuestions) && passedQuestions.length > 0) {
       setQuestions(passedQuestions);
       showToast(`Đã nạp ${passedQuestions.length} câu hỏi AI vừa sinh để kiểm duyệt.`);
     } else {
-      fetchPendingQuestions();
+      fetchPendingQuestions('ALL');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [passedQuestions]);
+
+  useEffect(() => {
+    // Chỉ refetch khi filter thay đổi và không có câu hỏi được pass từ trang trước
+    if (!passedQuestions || !Array.isArray(passedQuestions) || passedQuestions.length === 0) {
+      fetchPendingQuestions(filterSubjectUuid);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterSubjectUuid]);
 
   const QUESTION_BANK_KEY = 'aives_question_bank';
 
@@ -105,8 +136,14 @@ export default function LecturerReviewPage() {
   };
 
   const handleApproveAll = async () => {
+    const approveParams = {};
+    if (filterSubjectUuid && filterSubjectUuid !== 'ALL') {
+      approveParams.subjectUuid = filterSubjectUuid;
+    } else if (passedSubject) {
+      approveParams.subjectCode = passedSubject;
+    }
     try {
-      await lecturerQuestionApi.approveAll({ subjectCode: passedSubject });
+      await lecturerQuestionApi.approveAll(approveParams);
     } catch (e) {
       console.warn('API approve all warning, updating UI:', e);
     }
@@ -172,6 +209,23 @@ export default function LecturerReviewPage() {
 
   const pendingCount = questions.filter((q) => !q.isApproved).length;
 
+  const filteredQuestions = questions.filter((q) => {
+    const matchesSearch = !searchTerm ||
+      q.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      q.code?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDifficulty = difficultyFilter === 'ALL' || q.difficulty === difficultyFilter;
+    return matchesSearch && matchesDifficulty;
+  });
+
+  const activeFilterSubject = subjects.find((s) => (s.id || s.uuid) === filterSubjectUuid);
+  const displaySubjectLabel = passedQuestions
+    ? passedSubject
+    : filterSubjectUuid === 'ALL'
+    ? 'Tất cả môn'
+    : activeFilterSubject
+    ? `${activeFilterSubject.code} - ${activeFilterSubject.name}`
+    : 'Đang tải...';
+
   return (
     <div className="space-y-5 max-w-5xl mx-auto pb-12 animate-fade-in">
       {/* Toast Notice */}
@@ -187,7 +241,7 @@ export default function LecturerReviewPage() {
       <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-slate-500">Môn: {passedSubject}</span>
+            <span className="text-xs font-semibold text-slate-500">Môn: {displaySubjectLabel}</span>
             <span className="text-slate-300">•</span>
             <span className="text-[11px] text-sky-800 font-bold bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">
               {pendingCount} câu chờ duyệt
@@ -199,12 +253,12 @@ export default function LecturerReviewPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {questions.length > 0 && (
+          {filteredQuestions.length > 0 && (
             <button
               onClick={toggleExpandAll}
               className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
             >
-              {expandedIds.size === questions.length ? 'Thu gọn tất cả' : 'Mở rộng tất cả'}
+              {expandedIds.size === filteredQuestions.length ? 'Thu gọn tất cả' : 'Mở rộng tất cả'}
             </button>
           )}
 
@@ -227,6 +281,49 @@ export default function LecturerReviewPage() {
         </div>
       </div>
 
+      {/* Filter Bar */}
+      {!passedQuestions && (
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col md:flex-row gap-3 items-center justify-between text-xs">
+          <div className="relative w-full md:w-80">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Tìm theo nội dung, mã câu hỏi..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500 text-xs"
+            />
+          </div>
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <select
+              value={filterSubjectUuid}
+              onChange={(e) => setFilterSubjectUuid(e.target.value)}
+              className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-sky-500 font-medium"
+            >
+              <option value="ALL">Tất cả môn học</option>
+              {subjects.map((s) => {
+                const sId = s.id || s.uuid;
+                return (
+                  <option key={sId} value={sId}>
+                    {s.code} - {s.name}
+                  </option>
+                );
+              })}
+            </select>
+            <select
+              value={difficultyFilter}
+              onChange={(e) => setDifficultyFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-sky-500 font-medium"
+            >
+              <option value="ALL">Mọi độ khó</option>
+              <option value="EASY">Dễ</option>
+              <option value="MEDIUM">Trung bình</option>
+              <option value="HARD">Nâng cao</option>
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Questions Compact Accordion List */}
       <div className="space-y-3">
         {loading ? (
@@ -236,8 +333,14 @@ export default function LecturerReviewPage() {
         ) : questions.length === 0 ? (
           <div className="p-10 rounded-2xl bg-white border border-slate-200 text-center space-y-3">
             <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-            <h3 className="text-sm font-bold text-slate-900">Không còn câu hỏi nào chờ duyệt</h3>
-            <p className="text-xs text-slate-500">Tất cả câu hỏi đã được phê duyệt vào Ngân hàng chính thức.</p>
+            <h3 className="text-sm font-bold text-slate-900">
+              {filterSubjectUuid !== 'ALL' ? 'Môn này chưa có câu hỏi chờ duyệt' : 'Không còn câu hỏi nào chờ duyệt'}
+            </h3>
+            <p className="text-xs text-slate-500">
+              {filterSubjectUuid !== 'ALL'
+                ? 'Chọn môn khác trong dropdown để xem thêm.'
+                : 'Tất cả câu hỏi đã được phê duyệt vào Ngân hàng chính thức.'}
+            </p>
             <div className="pt-1">
               <Link to="/question-bank" className="btn-glacier-primary px-4 py-2 text-xs inline-flex items-center gap-1.5">
                 <BookOpen className="w-4 h-4" />
@@ -246,7 +349,7 @@ export default function LecturerReviewPage() {
             </div>
           </div>
         ) : (
-          questions.map((q) => {
+          filteredQuestions.map((q) => {
             const isApproved = q.isApproved || q.status === 'ACTIVE';
             const rubricsList = q.rubrics || [];
             const isExpanded = expandedIds.has(q.id) || editingId === q.id;
