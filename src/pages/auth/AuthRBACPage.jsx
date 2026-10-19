@@ -16,7 +16,11 @@ import {
   Video,
   CheckCircle2,
   Building,
-  AlertCircle
+  AlertCircle,
+  Home,
+  Mic,
+  Scale,
+  Zap
 } from 'lucide-react';
 import { authApi } from '../../services/api';
 import { authenticateUser, findUserByEmail } from '../../services/userService';
@@ -168,24 +172,45 @@ export default function AuthRBACPage({ onLoginSuccess }) {
     <div className="min-h-[85vh] flex flex-col justify-center max-w-6xl mx-auto py-6 animate-fade-in">
       {/* Top micro bar */}
       <div className="flex items-center justify-between py-3 border-b border-slate-200/80 mb-8">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center text-white shadow-xs">
+        <Link
+          to="/"
+          className="flex items-center gap-2.5 group hover:opacity-90 transition-opacity"
+          title="Quay về Trang Chủ AIVES"
+        >
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">
             <Bot className="w-4 h-4" />
           </div>
-          <span className="text-sm font-bold text-slate-900 tracking-tight">AIVES</span>
-          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800">
-            PROCTORING v4.2
-          </span>
-        </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-slate-900 tracking-tight">AI Viva Voice Pro</span>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800">
+                PORTAL
+              </span>
+            </div>
+          </div>
+        </Link>
 
-        <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span>Chưa có tài khoản?</span>
+        <div className="flex items-center gap-3 text-xs">
           <Link
-            to="/register"
-            className="px-3.5 py-1.5 rounded-xl border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 font-bold transition-colors shadow-2xs"
+            to="/"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition-colors shadow-2xs"
+            title="Quay về Trang Chủ"
           >
-            Đăng ký tài khoản
+            <Home className="w-3.5 h-3.5 text-sky-600" />
+            <span>Trang Chủ</span>
           </Link>
+
+          <span className="text-slate-300 hidden sm:inline">|</span>
+
+          <div className="hidden sm:flex items-center gap-2 text-slate-500">
+            <span>Chưa có tài khoản?</span>
+            <Link
+              to="/register"
+              className="px-3.5 py-1.5 rounded-xl border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 font-bold transition-colors shadow-2xs"
+            >
+              Đăng ký ngay
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -195,55 +220,58 @@ export default function AuthRBACPage({ onLoginSuccess }) {
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold">
               <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>
-              <span>CÔNG NGHỆ VIVA ĐỘC BẢN — RAG MULTI-AGENT</span>
+              <span>NỀN TẢNG KHẢO THÍ VẤN ĐÁP THẾ HỆ MỚI</span>
             </div>
 
             <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight">
-              AIVES • AI Viva Exam
+              Khảo Thí Thông Minh • <br className="hidden sm:inline" />
+              <span className="bg-gradient-to-r from-sky-600 via-cyan-600 to-blue-700 bg-clip-text text-transparent">
+                Đánh Giá Thực Chất
+              </span>
             </h1>
 
             <p className="text-sm text-slate-600 leading-relaxed max-w-lg">
-              Hệ thống Khảo thí Vấn đáp Trực tuyến Thông minh ứng dụng AI & RAG. Đánh giá năng lực chuyên sâu, phản biện học thuật chuẩn mực theo thời gian thực.
+              Giải pháp toàn diện giúp chuẩn hóa ca thi vấn đáp, cá nhân hóa lộ trình phỏng vấn và cung cấp kết quả đánh giá năng lực minh bạch, công bằng.
             </p>
           </div>
 
-          {/* 3 Pillar Cards */}
+          {/* 3 Pillar Cards - Tiện ích hệ thống (Marketing / Value oriented) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-md border border-slate-200/80 shadow-xs space-y-1.5">
+            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-md border border-slate-200/80 shadow-xs space-y-1.5 hover:border-sky-300 transition-colors">
               <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
-                <Lock className="w-4 h-4" />
+                <Mic className="w-4 h-4" />
               </div>
-              <h3 className="text-xs font-bold text-slate-900">WebRTC E2EE</h3>
+              <h3 className="text-xs font-bold text-slate-900">Vấn Đáp Tương Tác</h3>
               <p className="text-[11px] text-slate-500 leading-tight">
-                Mã hóa đa kênh âm thanh & hình ảnh chuẩn quân sự
+                Phỏng vấn giọng nói tự nhiên, phản hồi linh hoạt và đa chiều như hội đồng thật.
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-md border border-slate-200/80 shadow-xs space-y-1.5">
+            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-md border border-slate-200/80 shadow-xs space-y-1.5 hover:border-cyan-300 transition-colors">
               <div className="w-8 h-8 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center">
-                <Fingerprint className="w-4 h-4" />
+                <Scale className="w-4 h-4" />
               </div>
-              <h3 className="text-xs font-bold text-slate-900">Sinh trắc học</h3>
+              <h3 className="text-xs font-bold text-slate-900">Chấm Điểm Chuẩn Barem</h3>
               <p className="text-[11px] text-slate-500 leading-tight">
-                Xác thực khuôn mặt 3D & phân tích âm sắc giọng nói
+                Tiêu chí Rubric rõ ràng, nhận xét chi tiết tức thì và minh bạch tuyệt đối.
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-md border border-slate-200/80 shadow-xs space-y-1.5">
+            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-md border border-slate-200/80 shadow-xs space-y-1.5 hover:border-indigo-300 transition-colors">
               <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <Shield className="w-4 h-4" />
+                <Zap className="w-4 h-4" />
               </div>
-              <h3 className="text-xs font-bold text-slate-900">AI Proctoring</h3>
+              <h3 className="text-xs font-bold text-slate-900">Tối Ưu Thời Gian</h3>
               <p className="text-[11px] text-slate-500 leading-tight">
-                Giám sát góc nhìn, hành vi & cảnh báo gian lận tức thì
+                Tiết kiệm 80% công sức tổ chức thi, linh hoạt địa điểm và chủ động lịch trình.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3 text-xs text-slate-400 font-medium pt-2">
-            <span>BỘ GIÁO DỤC & ĐÀO TẠO BẢO CHỨNG</span>
+            <span>ĐỒNG HÀNH CÙNG GIẢNG VIÊN & SINH VIÊN</span>
             <span>•</span>
-            <span>FPT EDU — VNU-HCM — HUST</span>
+            <span>CHUYỂN ĐỔI SỐ KHẢO THÍ ĐẠI HỌC</span>
           </div>
         </div>
 

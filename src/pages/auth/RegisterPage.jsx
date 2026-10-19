@@ -24,7 +24,8 @@ import {
   Fingerprint,
   RefreshCw,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Home
 } from 'lucide-react';
 
 export default function RegisterPage({ onLoginSuccess }) {
@@ -180,24 +181,45 @@ export default function RegisterPage({ onLoginSuccess }) {
     <div className="min-h-[85vh] flex flex-col justify-center max-w-6xl mx-auto py-6 animate-fade-in">
       {/* Top Header Micro Bar */}
       <div className="flex items-center justify-between py-3 border-b border-slate-200/80 mb-6">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center text-white shadow-xs">
+        <Link
+          to="/"
+          className="flex items-center gap-2.5 group hover:opacity-90 transition-opacity"
+          title="Quay về Trang Chủ AIVES"
+        >
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">
             <Bot className="w-4 h-4" />
           </div>
-          <span className="text-sm font-bold text-slate-900 tracking-tight">AIVES Viva</span>
-          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-            REGISTRATION
-          </span>
-        </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-slate-900 tracking-tight">AI Viva Voice Pro</span>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                REGISTRATION
+              </span>
+            </div>
+          </div>
+        </Link>
 
-        <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span>Đã có tài khoản?</span>
+        <div className="flex items-center gap-3 text-xs">
           <Link
-            to="/login"
-            className="px-3.5 py-1.5 rounded-xl border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 font-bold transition-colors shadow-2xs"
+            to="/"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition-colors shadow-2xs"
+            title="Quay về Trang Chủ"
           >
-            Đăng nhập ngay
+            <Home className="w-3.5 h-3.5 text-sky-600" />
+            <span>Trang Chủ</span>
           </Link>
+
+          <span className="text-slate-300 hidden sm:inline">|</span>
+
+          <div className="hidden sm:flex items-center gap-2 text-slate-500">
+            <span>Đã có tài khoản?</span>
+            <Link
+              to="/login"
+              className="px-3.5 py-1.5 rounded-xl border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 font-bold transition-colors shadow-2xs"
+            >
+              Đăng nhập ngay
+            </Link>
+          </div>
         </div>
       </div>
 
