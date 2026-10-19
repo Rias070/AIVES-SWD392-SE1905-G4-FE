@@ -90,10 +90,114 @@ const FALLBACK_VIVA_RESULT = {
   ]
 };
 
+const MOCK_EXAM_SESSIONS = [
+  {
+    id: 'CS301-VIVA-2026-99127',
+    examCode: 'CS301-VIVA-2026-99127',
+    courseName: 'CS301: Cấu trúc Dữ liệu & Giải thuật',
+    studentName: 'Nguyễn Văn An',
+    studentId: 'SE190504',
+    completedAt: '2026-10-19T10:15:00.000Z',
+    turnsCompleted: 3,
+    overallScore: 8.5,
+    bloomLevel: 'Bloom 4 - Phân tích & Đánh giá',
+    duration: '18 phút 42 giây',
+    isFinalized: false,
+    rubricScores: [
+      { name: 'Tính chính xác lý thuyết & Giải thuật', score: '4.5 / 5.0', rawScore: 4.5, maxScore: 5.0, percent: 90 },
+      { name: 'Khả năng phản biện câu hỏi xoáy', score: '4.0 / 5.0', rawScore: 4.0, maxScore: 5.0, percent: 80 },
+      { name: 'Diễn đạt lưu loát & Thuật ngữ khoa học', score: '4.5 / 5.0', rawScore: 4.5, maxScore: 5.0, percent: 90 }
+    ],
+    aiFeedback:
+      'Thí sinh nắm rất vững bản chất tham lam (Greedy) của thuật toán Dijkstra và lý do thất bại khi gặp trọng số âm. Khả năng phản xạ và lý giải cơ chế phát hiện chu trình âm của Bellman-Ford qua V-1 lần lặp rất thuyết phục và rành mạch.',
+    strengths:
+      'Lập luận logic chặt chẽ, diễn giải thuật toán đồ thị mạch lạc, thời gian phản xạ trả lời nhanh (trung bình 4.2s). Khả năng truy vết lỗi trong đồ thị và phân tích tiệm cận thời gian rất vững.',
+    gaps:
+      'Cần lưu ý thêm về trường hợp chu trình âm không tiếp cận được từ đỉnh nguồn (unreachable negative cycles) và cách phục hồi đường đi trong đồ thị có hướng.',
+    recommendations:
+      'Khuyến nghị đọc lại chương 5 - Đồ thị nâng cao (Slide 45-58) và bài toán tìm thành phần liên thông mạnh Tarjan SCC để hoàn thiện tư duy đồ thị.',
+    dialogueHistory: FALLBACK_VIVA_RESULT.dialogueHistory
+  },
+  {
+    id: 'PRJ301-VIVA-2026-88412',
+    examCode: 'PRJ301-VIVA-2026-88412',
+    courseName: 'PRJ301: Java Web Applications',
+    studentName: 'Trần Thị Mai',
+    studentId: 'SE190522',
+    completedAt: '2026-10-19T09:30:00.000Z',
+    turnsCompleted: 3,
+    overallScore: 9.0,
+    bloomLevel: 'Bloom 4 - Phân tích kiến trúc Web',
+    duration: '16 phút 15 giây',
+    isFinalized: true,
+    finalScore: 9.0,
+    lecturerFeedback: 'Sinh viên nắm rất sâu sắc cơ chế Filter Chain, Servlet Container và Session Replication. Lập luận chuẩn xác.',
+    rubricScores: [
+      { name: 'Tính chính xác lý thuyết & Vòng đời Servlet', score: '4.8 / 5.0', rawScore: 4.8, maxScore: 5.0, percent: 96 },
+      { name: 'Khả năng phản biện câu hỏi xoáy', score: '4.2 / 5.0', rawScore: 4.2, maxScore: 5.0, percent: 84 },
+      { name: 'Diễn đạt lưu loát & Thuật ngữ khoa học', score: '5.0 / 5.0', rawScore: 5.0, maxScore: 5.0, percent: 100 }
+    ],
+    aiFeedback:
+      'Sinh viên phân tích rất xuất sắc về vòng đời Servlet (init, service, destroy) và mô hình MVC trong Java EE.',
+    strengths: 'Hiểu rất sâu về thread-safety trong Servlet và cơ chế Connection Pooling với HikariCP.',
+    gaps: 'Cần củng cố thêm về xử lý distributed lock khi dùng Redis cache trong môi trường microservices.',
+    recommendations: 'Tham khảo tài liệu Spring Cloud & Redis Distributed Locking.',
+    dialogueHistory: [
+      { sender: 'ai', time: '09:15:10', text: 'Chào thí sinh Trần Thị Mai! Bắt đầu ca thi môn PRJ301.', isMainQuestion: false },
+      { sender: 'ai', time: '09:15:20', text: 'Hãy phân tích vòng đời của Servlet và cơ chế đa luồng (Multi-threading) trong Servlet Container.', isMainQuestion: true },
+      { sender: 'student', time: '09:16:40', text: 'Dạ, Servlet chỉ được khởi tạo một instance duy nhất. Mỗi request từ client sẽ được Container phân phối cho một thread riêng trong thread pool để thực thi service(). Do đó cần chú ý biến instance không thread-safe.' },
+      { sender: 'ai', time: '09:17:10', text: 'Rất chính xác. Vậy làm thế nào để đồng bộ hóa tài nguyên dùng chung trong Servlet mà không làm nghẽn toàn bộ hiệu năng của web app?', isMainQuestion: true },
+      { sender: 'student', time: '09:18:00', text: 'Dạ ta không nên dùng synchronized method trên service(), mà nên dùng concurrent collections như ConcurrentHashMap hoặc thread-local storage.' }
+    ]
+  },
+  {
+    id: 'SWD392-VIVA-2026-77309',
+    examCode: 'SWD392-VIVA-2026-77309',
+    courseName: 'SWD392: Software Architecture & Design',
+    studentName: 'Lê Hoàng Phúc',
+    studentId: 'SE190589',
+    completedAt: '2026-10-19T11:05:00.000Z',
+    turnsCompleted: 3,
+    overallScore: 7.5,
+    bloomLevel: 'Bloom 3 - Vận dụng thiết kế',
+    duration: '19 phút 10 giây',
+    isFinalized: false,
+    rubricScores: [
+      { name: 'Tính chính xác lý thuyết & Design Pattern', score: '4.0 / 5.0', rawScore: 4.0, maxScore: 5.0, percent: 80 },
+      { name: 'Khả năng phản biện câu hỏi xoáy', score: '3.5 / 5.0', rawScore: 3.5, maxScore: 5.0, percent: 70 },
+      { name: 'Diễn đạt lưu loát & Thuật ngữ khoa học', score: '4.0 / 5.0', rawScore: 4.0, maxScore: 5.0, percent: 80 }
+    ],
+    aiFeedback:
+      'Sinh viên trình bày đúng các nguyên lý SOLID, đặc biệt là Dependency Inversion. Tuy nhiên khi hỏi xoáy về Saga Pattern trong Microservices thì còn ngập ngừng.',
+    strengths: 'Nắm chắc kiến trúc Clean Architecture / Onion Architecture và cách tổ chức các tầng Layer.',
+    gaps: 'Chưa phân biệt rõ giữa Orchestration Saga và Choreography Saga khi xử lý bù trừ transaction (Compensating Transactions).',
+    recommendations: 'Đọc thêm chương Microservices Patterns (Chris Richardson) về Event-Driven Architecture.',
+    dialogueHistory: [
+      { sender: 'ai', time: '10:50:00', text: 'Chào thí sinh Lê Hoàng Phúc! Bắt đầu ca thi môn SWD392.', isMainQuestion: false },
+      { sender: 'ai', time: '10:50:15', text: 'Hãy giải thích tại sao kiến trúc Microservices lại ưu tiên Eventual Consistency thay vì ACID hai pha (2PC)?', isMainQuestion: true },
+      { sender: 'student', time: '10:51:30', text: 'Dạ, 2PC gây blocking cao và giảm độ sẵn sàng (Availability) theo CAP. Do đó microservices áp dụng Saga pattern với Eventual Consistency để tăng throughput.' },
+      { sender: 'ai', time: '10:52:00', text: 'Nếu một microservice trong chuỗi Saga gặp lỗi thanh toán, cơ chế bù trừ (Compensating Transaction) diễn ra như thế nào?', isMainQuestion: true },
+      { sender: 'student', time: '10:53:10', text: 'Dạ hệ thống sẽ bắn event ngược lại để hoàn tác các bước trước đó, ví dụ trả lại hàng vào kho hoặc hủy đơn hàng.' }
+    ]
+  }
+];
+
 export default function ExamResultPage() {
   const navigate = useNavigate();
 
+  // Current Logged-in User
+  const currentUser = (() => {
+    try {
+      const stored = localStorage.getItem('aives_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const isLecturer = currentUser?.role === 'LECTURER' || currentUser?.role === 'ADMIN';
+
   // Dynamic Exam Result State
+  const [selectedSessionId, setSelectedSessionId] = useState(MOCK_EXAM_SESSIONS[0].id);
   const [vivaResult, setVivaResult] = useState(FALLBACK_VIVA_RESULT);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const isPlayingAudioRef = useRef(false);
@@ -110,6 +214,33 @@ export default function ExamResultPage() {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [finalizeSuccessMsg, setFinalizeSuccessMsg] = useState('');
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [criteriaScores, setCriteriaScores] = useState([]);
+
+  // Switch student session (Lecturer Exam Hub)
+  const handleSelectSession = (sessionId) => {
+    setSelectedSessionId(sessionId);
+    const target = MOCK_EXAM_SESSIONS.find((s) => s.id === sessionId);
+    if (target) {
+      const isFin = target.isFinalized || false;
+      setIsFinalized(isFin);
+      const score = target.finalScore || target.overallScore || 8.5;
+      setFinalScoreInput(score);
+      setLecturerFeedbackInput(target.lecturerFeedback || '');
+      setVivaResult(target);
+      initCriteriaScores(target);
+    }
+  };
+
+  const initCriteriaScores = (res) => {
+    const list = res.rubricScores || FALLBACK_VIVA_RESULT.rubricScores;
+    setCriteriaScores(
+      list.map((r) => ({
+        name: r.name,
+        rawScore: typeof r.rawScore === 'number' ? r.rawScore : parseFloat(r.score) || 4.0,
+        maxScore: typeof r.maxScore === 'number' ? r.maxScore : 5.0,
+      }))
+    );
+  };
 
   // Load latest viva result from localStorage on mount
   useEffect(() => {
@@ -121,16 +252,21 @@ export default function ExamResultPage() {
         setIsFinalized(isFin);
         setFinalScoreInput(parsed.finalScore || parsed.overallScore || 8.5);
         setLecturerFeedbackInput(parsed.lecturerFeedback || '');
-        setVivaResult({
+        const merged = {
           ...FALLBACK_VIVA_RESULT,
           ...parsed,
           rubricScores: parsed.rubricScores || FALLBACK_VIVA_RESULT.rubricScores,
           dialogueHistory: parsed.dialogueHistory || parsed.dialogue || FALLBACK_VIVA_RESULT.dialogueHistory
-        });
+        };
+        setVivaResult(merged);
+        initCriteriaScores(merged);
+        return;
       }
     } catch (e) {
       console.warn('Lỗi khi đọc kết quả từ localStorage:', e);
     }
+
+    initCriteriaScores(FALLBACK_VIVA_RESULT);
 
     return () => {
       isPlayingAudioRef.current = false;
@@ -140,6 +276,16 @@ export default function ExamResultPage() {
     };
   }, []);
 
+  const handleUpdateCriterionScore = (idx, newScore) => {
+    const val = Math.max(0, Math.min(10, parseFloat(newScore) || 0));
+    const nextCriteria = criteriaScores.map((c, i) => (i === idx ? { ...c, rawScore: val } : c));
+    setCriteriaScores(nextCriteria);
+    const totalMax = nextCriteria.reduce((acc, c) => acc + (c.maxScore || 5.0), 0) || 15;
+    const totalRaw = nextCriteria.reduce((acc, c) => acc + (c.rawScore || 0), 0);
+    const calculatedFinal = Math.min(10, Math.round(((totalRaw / totalMax) * 10) * 10) / 10);
+    setFinalScoreInput(calculatedFinal);
+  };
+
   // Lecturer score finalization handler (Human-in-the-loop)
   const handleFinalizeScore = async () => {
     setIsFinalizing(true);
@@ -147,11 +293,26 @@ export default function ExamResultPage() {
     const sessionId = vivaResult.sessionId || vivaResult.sessionUuid || vivaResult.id;
     const scoreVal = parseFloat(finalScoreInput);
 
+    const updatedRubrics = vivaResult.rubricScores?.map((r, idx) => {
+      const matching = criteriaScores[idx];
+      if (matching) {
+        const maxS = matching.maxScore || 5.0;
+        return {
+          ...r,
+          rawScore: matching.rawScore,
+          score: `${matching.rawScore} / ${maxS}`,
+          percent: Math.min(100, Math.round((matching.rawScore / maxS) * 100))
+        };
+      }
+      return r;
+    }) || vivaResult.rubricScores;
+
     try {
       if (sessionId) {
         await lecturerExamSessionApi.finalizeScore(sessionId, {
           finalScore: scoreVal,
-          lecturerFeedback: lecturerFeedbackInput || 'Giảng viên đã duyệt và chốt điểm ca thi.'
+          lecturerFeedback: lecturerFeedbackInput || 'Giảng viên đã duyệt và chốt điểm ca thi.',
+          rubricScores: updatedRubrics
         });
       }
 
@@ -161,6 +322,7 @@ export default function ExamResultPage() {
         status: 'COMPLETED',
         finalScore: scoreVal,
         overallScore: scoreVal,
+        rubricScores: updatedRubrics,
         lecturerFeedback: lecturerFeedbackInput || 'Giảng viên đã duyệt và chốt điểm ca thi.'
       };
       setVivaResult(updated);
@@ -176,6 +338,7 @@ export default function ExamResultPage() {
         status: 'COMPLETED',
         finalScore: scoreVal,
         overallScore: scoreVal,
+        rubricScores: updatedRubrics,
         lecturerFeedback: lecturerFeedbackInput || 'Giảng viên đã duyệt và chốt điểm ca thi.'
       };
       setVivaResult(updated);
@@ -384,16 +547,19 @@ export default function ExamResultPage() {
         {/* Left: Back button & Title */}
         <div className="flex items-center gap-3">
           <Link
-            to="/student"
-            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors"
-            title="Quay lại Trang Sinh viên"
+            to={isLecturer ? "/question-bank" : "/student"}
+            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors flex items-center gap-1.5"
+            title={isLecturer ? "Quay lại Ngân Hàng Câu Hỏi & Khảo Thí" : "Quay lại Bảng Điều Khiển Sinh Viên"}
           >
             <ArrowLeft className="w-4 h-4" />
+            <span className="text-xs font-semibold hidden sm:inline">
+              {isLecturer ? "Ngân Hàng Câu Hỏi" : "Bảng điều khiển"}
+            </span>
           </Link>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm md:text-base font-bold text-slate-900">
-                Kết quả ca thi — {vivaResult.courseName}
+                {isLecturer ? "Thẩm định & Chốt điểm ca thi" : "Kết quả ca thi"} — {vivaResult.courseName}
               </h1>
               {isFinalized ? (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
@@ -408,7 +574,7 @@ export default function ExamResultPage() {
               )}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Mã ca thi: {vivaResult.examCode} • Hoàn thành lúc {new Date(vivaResult.completedAt).toLocaleTimeString('vi-VN')}
+              Thí sinh: <strong>{vivaResult.studentName} ({vivaResult.studentId})</strong> • Mã ca thi: {vivaResult.examCode}
             </p>
           </div>
         </div>
@@ -432,6 +598,50 @@ export default function ExamResultPage() {
           </button>
         </div>
       </div>
+
+      {/* ================= LECTURER EXAM SESSIONS QUEUE BAR ================= */}
+      {isLecturer && (
+        <div className="no-print p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <GraduationCap className="w-3.5 h-3.5 text-sky-600" />
+              Hàng đợi ca thi cần thẩm định của Giảng viên ({MOCK_EXAM_SESSIONS.length} ca thi)
+            </span>
+            <span className="text-[10px] text-slate-400">Chọn thí sinh để duyệt và chốt điểm</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {MOCK_EXAM_SESSIONS.map((sess) => {
+              const isSelected = sess.id === selectedSessionId;
+              const isDone = sess.isFinalized || (sess.id === vivaResult.id && isFinalized);
+
+              return (
+                <button
+                  key={sess.id}
+                  type="button"
+                  onClick={() => handleSelectSession(sess.id)}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-sky-50 border-sky-300 shadow-xs'
+                      : 'bg-slate-50/60 border-slate-200/80 hover:bg-slate-100 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                    <span className="truncate">{sess.studentName}</span>
+                    <span className="font-mono text-[11px] text-sky-700">{sess.overallScore}đ</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
+                    <span>{sess.studentId} • {sess.courseName.split(':')[0]}</span>
+                    <span className={`px-1.5 py-0.5 rounded font-semibold ${isDone ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                      {isDone ? 'Đã chốt' : 'Chờ duyệt'}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {finalizeSuccessMsg && (
         <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-fade-in">
@@ -812,9 +1022,44 @@ export default function ExamResultPage() {
                 </div>
               </div>
 
+              {/* Rubric Criteria Subscore Assessment */}
+              {criteriaScores && criteriaScores.length > 0 && (
+                <div className="space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="flex items-center justify-between text-slate-700 font-semibold mb-1">
+                    <span className="flex items-center gap-1">
+                      <Scale className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Thẩm định từng tiêu chí Rubric:</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">Tự động quy đổi điểm 10</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {criteriaScores.map((c, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-slate-200">
+                        <span className="text-slate-800 font-medium truncate flex-1 text-[11px]">{c.name}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max={c.maxScore || 5.0}
+                            value={c.rawScore}
+                            onChange={(e) => handleUpdateCriterionScore(idx, e.target.value)}
+                            className="w-14 px-2 py-1 text-center font-mono font-bold text-sky-700 bg-sky-50 border border-sky-200 rounded text-xs focus:outline-none"
+                          />
+                          <span className="text-[10px] text-slate-400">/ {c.maxScore || 5.0}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">
-                  Điểm chính thức Giảng viên quyết định (0.0 - 10.0):
+                <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                  <span>Điểm chính thức Giảng viên chốt (Thang 10):</span>
+                  <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    Quyền quyết định cuối cùng
+                  </span>
                 </label>
                 <input
                   type="number"

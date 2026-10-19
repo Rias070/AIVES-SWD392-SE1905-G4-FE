@@ -80,8 +80,7 @@ const ROLE_CONFIGS = {
     defaultPath: '/question-bank',
     menuItems: [
       { id: 'question-bank', label: 'Ngân hàng câu hỏi & Học liệu', icon: Database, path: '/question-bank' },
-      { id: 'scoring', label: 'Phòng thi / Chấm điểm', icon: Scale, path: '/viva' },
-      { id: 'results', label: 'Kết quả khảo thí', icon: Award, path: '/exam-result' },
+      { id: 'exam-review', label: 'Thẩm định & Chốt điểm ca thi', icon: Scale, path: '/exam-result' },
       { id: 'central-dashboard', label: 'Trung tâm khảo thí', icon: LayoutDashboard, path: '/dashboard' },
     ],
   },

@@ -48,6 +48,7 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
   const [editingId, setEditingId] = useState(null);
   const [editContent, setEditContent] = useState('');
   const [editExpectedAnswer, setEditExpectedAnswer] = useState('');
+  const [editRubrics, setEditRubrics] = useState([]);
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [filterDifficulty, setFilterDifficulty] = useState('ALL');
 
@@ -303,18 +304,51 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
     setEditingId(q.id);
     setEditContent(q.content);
     setEditExpectedAnswer(q.expectedAnswer || '');
+    setEditRubrics(
+      Array.isArray(q.rubrics) && q.rubrics.length > 0
+        ? JSON.parse(JSON.stringify(q.rubrics))
+        : [
+            { criterionName: 'Tính chính xác & Khái niệm cốt lõi', description: 'Trình bày đúng định nghĩa và cơ chế hoạt động', maxScore: 4.0, weight: 1.0 },
+            { criterionName: 'Khả năng vận dụng thực tiễn', description: 'Đưa ra ví dụ minh họa và xử lý bài toán kỹ thuật', maxScore: 3.5, weight: 1.0 },
+            { criterionName: 'Tư duy phản biện & Trade-offs', description: 'So sánh giải pháp thay thế và đánh giá tối ưu hóa', maxScore: 2.5, weight: 1.0 },
+          ]
+    );
     if (!expandedIds.has(q.id)) {
       setExpandedIds(new Set([...expandedIds, q.id]));
     }
   };
 
+  const handleAddEditRubricCriterion = () => {
+    setEditRubrics((prev) => [
+      ...prev,
+      { criterionName: 'Tiêu chí đánh giá mới', description: 'Mô tả chuẩn mực đạt điểm của sinh viên', maxScore: 2.0, weight: 1.0 },
+    ]);
+  };
+
+  const handleRemoveEditRubricCriterion = (idx) => {
+    setEditRubrics((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleUpdateEditRubricCriterion = (idx, field, value) => {
+    setEditRubrics((prev) =>
+      prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r))
+    );
+  };
+
   const handleSaveEdit = async (q) => {
+    const updatedRubrics = editRubrics.map((r) => ({
+      ...r,
+      maxScore: Number(r.maxScore) || 0,
+      weight: Number(r.weight) || 1.0,
+    }));
+
     try {
       await lecturerQuestionApi.updateQuestion(q.id, {
         content: editContent,
         expectedAnswer: editExpectedAnswer,
         difficulty: q.difficulty,
         bloomLevel: q.bloomLevel,
+        rubrics: updatedRubrics,
       });
     } catch (err) {
       console.warn('API updateQuestion fallback:', err);
@@ -322,11 +356,18 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
 
     setReviewQuestions((prev) =>
       prev.map((item) =>
-        item.id === q.id ? { ...item, content: editContent, expectedAnswer: editExpectedAnswer } : item
+        item.id === q.id
+          ? {
+              ...item,
+              content: editContent,
+              expectedAnswer: editExpectedAnswer,
+              rubrics: updatedRubrics,
+            }
+          : item
       )
     );
     setEditingId(null);
-    showToast('Đã cập nhật nội dung câu hỏi.');
+    showToast('Đã cập nhật nội dung và barem Rubric câu hỏi.');
   };
 
   const filteredReviewQuestions = reviewQuestions.filter((q) => {
@@ -722,30 +763,96 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
                         </div>
 
                         {/* Rubric Criteria */}
-                        {q.rubrics && q.rubrics.length > 0 && (
-                          <div>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
-                              <Scale className="w-3 h-3 text-sky-600" />
-                              Barem tiêu chí đánh giá Rubric ({q.rubrics.length} tiêu chí)
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                              <Scale className="w-3.5 h-3.5 text-sky-600" />
+                              Barem tiêu chí đánh giá Rubric ({isEditing ? editRubrics.length : (q.rubrics?.length || 0)} tiêu chí)
                             </span>
-                            <div className="space-y-1.5">
-                              {q.rubrics.map((r, rIdx) => (
+                            {isEditing && (
+                              <button
+                                type="button"
+                                onClick={handleAddEditRubricCriterion}
+                                className="px-2 py-1 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 text-[11px] font-bold flex items-center gap-1 transition-colors"
+                              >
+                                <Plus className="w-3 h-3 text-sky-600" />
+                                <span>Thêm tiêu chí</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              {editRubrics.map((r, rIdx) => (
                                 <div
                                   key={rIdx}
-                                  className="p-2 rounded-lg bg-sky-50/50 border border-sky-100 flex items-center justify-between text-xs"
+                                  className="p-2.5 rounded-xl bg-slate-50 border border-sky-200 space-y-2 text-xs"
                                 >
-                                  <div>
-                                    <span className="font-bold text-slate-800">{r.criterionName}</span>
-                                    <p className="text-[10px] text-slate-500">{r.description}</p>
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-5 h-5 rounded-full bg-sky-100 text-sky-800 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                      {rIdx + 1}
+                                    </span>
+                                    <input
+                                      type="text"
+                                      placeholder="Tên tiêu chí (vd: Tính chính xác lý thuyết)"
+                                      value={r.criterionName}
+                                      onChange={(e) => handleUpdateEditRubricCriterion(rIdx, 'criterionName', e.target.value)}
+                                      className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:border-sky-500"
+                                    />
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <input
+                                        type="number"
+                                        step="0.5"
+                                        min="0.5"
+                                        max="10"
+                                        value={r.maxScore}
+                                        onChange={(e) => handleUpdateEditRubricCriterion(rIdx, 'maxScore', e.target.value)}
+                                        className="w-16 px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono font-bold text-sky-700 text-center focus:outline-none focus:border-sky-500"
+                                      />
+                                      <span className="text-[10px] font-bold text-slate-400">điểm</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveEditRubricCriterion(rIdx)}
+                                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0"
+                                      title="Xóa tiêu chí này"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
-                                  <span className="px-2 py-0.5 rounded bg-white font-mono font-bold text-sky-700 border border-sky-200 text-[11px] shrink-0">
-                                    {r.maxScore} điểm
-                                  </span>
+                                  <input
+                                    type="text"
+                                    placeholder="Mô tả chi tiết chuẩn mực đánh giá..."
+                                    value={r.description}
+                                    onChange={(e) => handleUpdateEditRubricCriterion(rIdx, 'description', e.target.value)}
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] text-slate-600 focus:outline-none focus:border-sky-500"
+                                  />
                                 </div>
                               ))}
                             </div>
-                          </div>
-                        )}
+                          ) : (
+                            <div className="space-y-1.5">
+                              {q.rubrics && q.rubrics.length > 0 ? (
+                                q.rubrics.map((r, rIdx) => (
+                                  <div
+                                    key={rIdx}
+                                    className="p-2 rounded-lg bg-sky-50/50 border border-sky-100 flex items-center justify-between text-xs"
+                                  >
+                                    <div>
+                                      <span className="font-bold text-slate-800">{r.criterionName}</span>
+                                      <p className="text-[10px] text-slate-500">{r.description}</p>
+                                    </div>
+                                    <span className="px-2 py-0.5 rounded bg-white font-mono font-bold text-sky-700 border border-sky-200 text-[11px] shrink-0">
+                                      {r.maxScore} điểm
+                                    </span>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-[11px] text-slate-400 italic">Chưa gắn tiêu chí rubric cụ thể.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

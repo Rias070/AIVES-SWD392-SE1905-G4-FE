@@ -226,16 +226,57 @@ export default function ProfilePage({ currentUser, onUpdateProfile }) {
             </div>
           </div>
 
-          {/* Quick Notice Card */}
-          <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200/80 space-y-2 text-xs text-slate-700 shadow-xs">
-            <div className="flex items-center gap-2 font-bold text-sky-900">
-              <Sparkles className="w-4 h-4 text-sky-600 shrink-0" />
-              <span>Bảo Vệ Tính Toàn Vẹn Khảo Thí</span>
+          {/* Lecturer Assigned Subjects & Permissions */}
+          {currentUser?.role === 'LECTURER' ? (
+            <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200/80 space-y-3 text-xs text-slate-700 shadow-xs">
+              <div className="flex items-center justify-between font-bold text-sky-900">
+                <div className="flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>Môn Học & Quyền Khảo Thí</span>
+                </div>
+                <span className="text-[10px] font-mono bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full font-bold">
+                  3 Môn Phụ Trách
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {[
+                  { code: 'SWD392', title: 'Software Architecture & Design', rag: true, rubric: true },
+                  { code: 'PRJ301', title: 'Java Web Applications', rag: true, rubric: true },
+                  { code: 'CS301', title: 'Cấu trúc dữ liệu & Thuật toán', rag: true, rubric: true },
+                ].map((c) => (
+                  <div key={c.code} className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
+                    <div className="flex items-center justify-between font-bold text-slate-800">
+                      <span>{c.code}</span>
+                      <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
+                        Giám khảo chính
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 truncate">{c.title}</p>
+                    <div className="flex items-center gap-2 pt-1 text-[10px] text-slate-600">
+                      <span className="flex items-center gap-0.5 text-sky-700 font-semibold">
+                        ✓ Duyệt RAG
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-0.5 text-indigo-700 font-semibold">
+                        ✓ Barem Rubric
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <p className="text-[11px] text-slate-600 leading-relaxed">
-              Mọi cập nhật thông tin định danh và địa chỉ email sẽ được đồng bộ ngay vào hồ sơ dự thi và biên bản chấm vấn đáp AI.
-            </p>
-          </div>
+          ) : (
+            <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200/80 space-y-2 text-xs text-slate-700 shadow-xs">
+              <div className="flex items-center gap-2 font-bold text-sky-900">
+                <Sparkles className="w-4 h-4 text-sky-600 shrink-0" />
+                <span>Bảo Vệ Tính Toàn Vẹn Khảo Thí</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Mọi cập nhật thông tin định danh và địa chỉ email sẽ được đồng bộ ngay vào hồ sơ dự thi và biên bản chấm vấn đáp AI.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Update Form (8 cols) */}
