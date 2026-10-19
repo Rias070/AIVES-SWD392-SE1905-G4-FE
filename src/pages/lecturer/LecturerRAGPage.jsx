@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { lecturerDocumentApi, lecturerQuestionApi, lecturerRubricApi, subjectApi } from '../../services/api';
 
-export default function LecturerRAGPage() {
+export default function LecturerRAGPage({ onSwitchTab, onSelectDocForGen }) {
   const navigate = useNavigate();
 
   // Active states
@@ -386,7 +386,7 @@ export default function LecturerRAGPage() {
 
           {/* Quick link to Question Bank */}
           <button
-            onClick={() => navigate('/question-bank')}
+            onClick={() => onSwitchTab ? onSwitchTab('bank') : navigate('/question-bank')}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
           >
             <Database className="w-3.5 h-3.5 text-slate-600" />
@@ -395,7 +395,7 @@ export default function LecturerRAGPage() {
 
           {/* AI Generation */}
           <button
-            onClick={() => navigate('/generate')}
+            onClick={() => onSwitchTab ? onSwitchTab('generate') : navigate('/generate')}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-700 hover:to-cyan-700 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -527,6 +527,18 @@ export default function LecturerRAGPage() {
 
                     {/* Actions */}
                     <td className="py-3 pl-4 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => {
+                          if (onSelectDocForGen) onSelectDocForGen(doc);
+                          if (onSwitchTab) onSwitchTab('generate');
+                          else navigate('/generate', { state: { selectedDoc: doc } });
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold inline-flex items-center gap-1 transition-colors mr-1 shadow-2xs cursor-pointer"
+                        title="Sinh câu hỏi AI từ tài liệu này"
+                      >
+                        <Sparkles className="w-3 h-3 text-sky-600" />
+                        <span className="hidden sm:inline">Sinh đề AI</span>
+                      </button>
                       <button
                         onClick={() => handleDeleteDocument(doc.id)}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"

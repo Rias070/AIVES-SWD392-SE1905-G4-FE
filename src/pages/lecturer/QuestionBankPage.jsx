@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Database,
   Search,
@@ -21,10 +21,28 @@ import {
   Upload
 } from 'lucide-react';
 import { lecturerQuestionApi, subjectApi } from '../../services/api';
+import LecturerRAGPage from './LecturerRAGPage';
+import LecturerAIGenerationTab from './LecturerAIGenerationTab';
 
 const QUESTION_BANK_KEY = 'aives_question_bank';
 
-export default function QuestionBankPage() {
+export default function QuestionBankPage({ defaultTab = 'bank' }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || defaultTab || 'bank';
+  const [preselectedDocForGen, setPreselectedDocForGen] = useState(null);
+
+  const handleTabChange = (newTab) => {
+    setSearchParams({ tab: newTab });
+  };
+
+  const handleSelectDocForGen = (doc) => {
+    setPreselectedDocForGen(doc);
+    setSearchParams({ tab: 'generate' });
+  };
+
+  const handleQuestionsApprovedFromTab = () => {
+    fetchQuestions();
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('ALL');
   const [difficultyFilter, setDifficultyFilter] = useState('ALL');
@@ -464,43 +482,107 @@ export default function QuestionBankPage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-base md:text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Database className="w-5 h-5 text-sky-600" />
-            Ngân hàng câu hỏi
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Quản lý câu hỏi khảo thí vấn đáp và barem Rubric chấm điểm
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={fetchQuestions} 
-            disabled={loading}
-            className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-            title="Đồng bộ từ Backend"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${loading ? 'animate-spin' : ''}`} />
-            <span>Đồng bộ</span>
-          </button>
-          <button 
-            onClick={() => setIsImportModalOpen(true)} 
-            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-            title="Nhập câu hỏi từ tệp JSON"
-          >
-            <Upload className="w-3.5 h-3.5 text-sky-600" />
-            <span>Nhập câu hỏi</span>
-          </button>
-          <button 
-            onClick={() => setIsAddModalOpen(true)} 
-            className="btn-glacier-primary px-4 py-2 text-xs font-semibold flex items-center gap-1.5 shadow-2xs cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> <span>Thêm câu hỏi</span>
-          </button>
-        </div>
+      {/* ================= WORKSPACE NAVIGATION TABS ================= */}
+      <div className="p-1.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => handleTabChange('bank')}
+          className={`flex-1 min-w-[170px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === 'bank'
+              ? 'bg-sky-50 text-sky-700 shadow-xs border border-sky-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <Database className="w-4 h-4 text-sky-600" />
+          <span>Ngân Hàng Câu Hỏi & Barem</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-white text-sky-800 border border-sky-100 font-extrabold">
+            {filteredQuestions.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('documents')}
+          className={`flex-1 min-w-[170px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === 'documents'
+              ? 'bg-sky-50 text-sky-700 shadow-xs border border-sky-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <BookOpen className="w-4 h-4 text-cyan-600" />
+          <span>Kho Học Liệu & Tài Liệu RAG</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('generate')}
+          className={`flex-1 min-w-[170px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === 'generate'
+              ? 'bg-sky-50 text-sky-700 shadow-xs border border-sky-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-indigo-600" />
+          <span>Sinh Đề AI & Kiểm Duyệt</span>
+        </button>
       </div>
+
+      {/* ================= TAB 1: QUESTION BANK ================= */}
+      {activeTab === 'bank' && (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-base md:text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Database className="w-5 h-5 text-sky-600" />
+                Ngân hàng câu hỏi
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Quản lý câu hỏi khảo thí vấn đáp và barem Rubric chấm điểm
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={fetchQuestions} 
+                disabled={loading}
+                className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                title="Đồng bộ từ Backend"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-sky-600 ${loading ? 'animate-spin' : ''}`} />
+                <span>Đồng bộ</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange('documents')}
+                className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                title="Xem kho học liệu giáo trình RAG"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-cyan-600" />
+                <span>Học liệu RAG</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange('generate')}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                title="Sinh câu hỏi bằng AI RAG"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>+ Sinh đề AI</span>
+              </button>
+              <button 
+                onClick={() => setIsImportModalOpen(true)} 
+                className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                title="Nhập câu hỏi từ tệp JSON"
+              >
+                <Upload className="w-3.5 h-3.5 text-sky-600" />
+                <span>Nhập câu hỏi</span>
+              </button>
+              <button 
+                onClick={() => setIsAddModalOpen(true)} 
+                className="btn-glacier-primary px-4 py-2 text-xs font-semibold flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> <span>Thêm câu hỏi</span>
+              </button>
+            </div>
+          </div>
 
       {/* Filter Bar */}
       <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col md:flex-row gap-3 items-center justify-between text-xs">
@@ -1242,6 +1324,25 @@ export default function QuestionBankPage() {
             </form>
           </div>
         </div>
+      )}
+        </div>
+      )}
+
+      {/* ================= TAB 2: RAG DOCUMENTS ================= */}
+      {activeTab === 'documents' && (
+        <LecturerRAGPage
+          onSwitchTab={handleTabChange}
+          onSelectDocForGen={handleSelectDocForGen}
+        />
+      )}
+
+      {/* ================= TAB 3: AI GENERATION & REVIEW ================= */}
+      {activeTab === 'generate' && (
+        <LecturerAIGenerationTab
+          onSwitchTab={handleTabChange}
+          preselectedDoc={preselectedDocForGen}
+          onQuestionsApproved={handleQuestionsApprovedFromTab}
+        />
       )}
     </div>
   );

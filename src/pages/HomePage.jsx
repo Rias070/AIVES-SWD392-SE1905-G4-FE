@@ -142,10 +142,10 @@ export default function HomePage({ onOpenAuth, currentUser, roleConfigs }) {
           </div>
 
           <Link
-            to="/questions"
+            to="/question-bank"
             className="w-full py-2.5 px-4 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-semibold flex items-center justify-center gap-2 transition-colors border border-sky-200 shadow-2xs"
           >
-            <span>Vào Cổng Học Liệu Giảng Viên</span>
+            <span>Vào Cổng Khảo Thí & Học Liệu Giảng Viên</span>
             <ChevronRight className="w-4 h-4" />
           </Link>
         </div>

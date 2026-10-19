@@ -79,11 +79,9 @@ const ROLE_CONFIGS = {
     avatarBg: 'from-sky-500 to-cyan-600',
     defaultPath: '/question-bank',
     menuItems: [
-      { id: 'rag-portal', label: 'Tài liệu học phần (RAG)', icon: BookOpen, path: '/questions' },
-      { id: 'generate', label: 'Sinh câu hỏi AI', icon: Sparkles, path: '/generate' },
-      { id: 'review', label: 'Kiểm duyệt câu hỏi', icon: CheckCircle2, path: '/review' },
-      { id: 'question-bank', label: 'Ngân hàng câu hỏi', icon: Database, path: '/question-bank' },
+      { id: 'question-bank', label: 'Ngân hàng câu hỏi & Học liệu', icon: Database, path: '/question-bank' },
       { id: 'scoring', label: 'Phòng thi / Chấm điểm', icon: Scale, path: '/viva' },
+      { id: 'results', label: 'Kết quả khảo thí', icon: Award, path: '/exam-result' },
       { id: 'central-dashboard', label: 'Trung tâm khảo thí', icon: LayoutDashboard, path: '/dashboard' },
     ],
   },
@@ -109,7 +107,7 @@ const ROLE_CONFIGS = {
     menuItems: [
       { id: 'adm-users', label: 'Quản lý người dùng', icon: Users, path: '/admin/users' },
       { id: 'adm-config', label: 'Cấu hình hệ thống', icon: Languages, path: '/admin' },
-      { id: 'rag-portal', label: 'Học liệu & Đề thi RAG', icon: BookOpen, path: '/questions' },
+      { id: 'rag-portal', label: 'Ngân hàng câu hỏi & Học liệu', icon: Database, path: '/question-bank' },
       { id: 'central-dashboard', label: 'Trung tâm khảo thí', icon: LayoutDashboard, path: '/dashboard' },
     ],
   },
@@ -1620,36 +1618,37 @@ function AppContent() {
               }
             />
 
-            {/* Lecturer routes */}
+            {/* Lecturer routes - Unified Workspace Hub */}
+            <Route
+              path="/question-bank"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
+                  <QuestionBankPage defaultTab="bank" />
+                </ProtectedRoute>
+              }
+            />
+            {/* Backward compatible route aliases */}
             <Route
               path="/questions"
               element={
                 <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
-                  <LecturerRAGPage />
+                  <QuestionBankPage defaultTab="documents" />
                 </ProtectedRoute>
               }
             />
             <Route
               path="/generate"
               element={
-                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER']}>
-                  <LecturerAIGenerationPage />
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
+                  <QuestionBankPage defaultTab="generate" />
                 </ProtectedRoute>
               }
             />
             <Route
               path="/review"
               element={
-                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER']}>
-                  <LecturerReviewPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/question-bank"
-              element={
                 <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
-                  <QuestionBankPage />
+                  <QuestionBankPage defaultTab="generate" />
                 </ProtectedRoute>
               }
             />
