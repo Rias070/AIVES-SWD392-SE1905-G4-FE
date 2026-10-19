@@ -31,7 +31,8 @@ import {
   Calendar,
   GraduationCap,
   UserCheck,
-  Edit3
+  Edit3,
+  Scale
 } from 'lucide-react';
 import { lecturerExamSessionApi } from '../../services/api';
 

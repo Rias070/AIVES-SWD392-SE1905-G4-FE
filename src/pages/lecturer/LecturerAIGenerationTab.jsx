@@ -17,7 +17,8 @@ import {
   ChevronUp,
   Scale,
   Sliders,
-  Filter
+  Filter,
+  Plus
 } from 'lucide-react';
 import { lecturerDocumentApi, lecturerQuestionApi, subjectApi } from '../../services/api';
 
