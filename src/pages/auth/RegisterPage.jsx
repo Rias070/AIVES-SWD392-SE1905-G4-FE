@@ -610,6 +610,14 @@ export default function RegisterPage({ onLoginSuccess }) {
                   </>
                 )}
               </button>
+
+              {/* Bottom Login Link */}
+              <div className="pt-2 text-center text-xs text-slate-500 border-t border-slate-100">
+                <span>Đã có tài khoản học thuật? </span>
+                <Link to="/login" className="text-sky-600 font-bold hover:underline">
+                  Đăng nhập ngay
+                </Link>
+              </div>
             </form>
           </div>
         </div>

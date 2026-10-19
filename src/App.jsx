@@ -345,22 +345,20 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
         <div className="flex items-center gap-3 shrink-0">
           {!currentUser ? (
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onOpenAuth ? onOpenAuth('login') : navigate('/login')}
+              <Link
+                to="/login"
                 className="btn-glacier-primary px-4 py-2 text-xs font-semibold whitespace-nowrap inline-flex items-center justify-center gap-1.5 leading-none shadow-xs"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Đăng nhập</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenAuth ? onOpenAuth('register') : navigate('/register')}
+              </Link>
+              <Link
+                to="/register"
                 className="px-4 py-2 rounded-xl border border-sky-300 text-sky-700 bg-sky-50 hover:bg-sky-100 text-xs font-semibold whitespace-nowrap inline-flex items-center justify-center gap-1.5 leading-none transition-colors shadow-2xs"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>Đăng ký</span>
-              </button>
+              </Link>
             </div>
           ) : (
             <div className="flex items-center gap-3">
@@ -1451,7 +1449,7 @@ function AppContent() {
   const [authModalState, setAuthModalState] = useState({ isOpen: false, tab: 'login' });
 
   const isHomePage = location.pathname === '/' || location.pathname === '/home';
-  const showSidebar = !!currentUser && !isHomePage && location.pathname !== '/login';
+  const showSidebar = !!currentUser && !isHomePage && location.pathname !== '/login' && location.pathname !== '/register';
 
   const handleLoginSuccess = (userData) => {
     const normalized = {
@@ -1500,7 +1498,7 @@ function AppContent() {
       localStorage.removeItem('token');
       localStorage.removeItem('aives_user');
     } catch {}
-    navigate('/login');
+    navigate('/');
   };
 
   const openAuth = (tab = 'login') => {
@@ -1541,36 +1539,52 @@ function AppContent() {
 
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Routes>
-            {/* Unified root route: if authenticated -> redirect to role workspace, if guest -> redirect to /login */}
+            {/* Default root route: Landing / Home page */}
             <Route
               path="/"
               element={
-                currentUser ? (
-                  <Navigate
-                    to={
-                      (ROLE_CONFIGS[currentUser.role] || ROLE_CONFIGS.STUDENT).defaultPath ||
-                      '/question-bank'
-                    }
-                    replace
-                  />
-                ) : (
-                  <Navigate to="/login" replace />
-                )
-              }
-            />
-            {/* Landing page accessible at /home */}
-            <Route
-              path="/home"
-              element={
                 <HomePage
-                  onOpenAuth={openAuth}
                   currentUser={currentUser}
                   roleConfigs={ROLE_CONFIGS}
                 />
               }
             />
-            <Route path="/login" element={<AuthRBACPage onLoginSuccess={handleLoginSuccess} />} />
-            <Route path="/register" element={<RegisterPage onLoginSuccess={handleLoginSuccess} />} />
+            {/* Landing page alias /home redirects cleanly to / */}
+            <Route path="/home" element={<Navigate to="/" replace />} />
+
+            {/* Dedicated Authentication & Registration Pages */}
+            <Route
+              path="/login"
+              element={
+                currentUser ? (
+                  <Navigate
+                    to={
+                      (ROLE_CONFIGS[currentUser.role] || ROLE_CONFIGS.STUDENT).defaultPath ||
+                      '/student'
+                    }
+                    replace
+                  />
+                ) : (
+                  <AuthRBACPage onLoginSuccess={handleLoginSuccess} />
+                )
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                currentUser ? (
+                  <Navigate
+                    to={
+                      (ROLE_CONFIGS[currentUser.role] || ROLE_CONFIGS.STUDENT).defaultPath ||
+                      '/student'
+                    }
+                    replace
+                  />
+                ) : (
+                  <RegisterPage onLoginSuccess={handleLoginSuccess} />
+                )
+              }
+            />
 
             {/* Student routes */}
             <Route

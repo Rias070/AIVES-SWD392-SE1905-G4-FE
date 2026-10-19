@@ -24,8 +24,6 @@ export default function HomePage({ onOpenAuth, currentUser, roleConfigs }) {
     if (currentUser) {
       const defaultPath = roleConfigs?.[currentUser.role]?.defaultPath || '/student';
       navigate(defaultPath);
-    } else if (onOpenAuth) {
-      onOpenAuth('register');
     } else {
       navigate('/register');
     }
@@ -55,23 +53,16 @@ export default function HomePage({ onOpenAuth, currentUser, roleConfigs }) {
         <div className="pt-2 flex flex-col items-center justify-center gap-3">
           {!currentUser ? (
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => onOpenAuth ? onOpenAuth('register') : navigate('/register')}
+              <Link
+                to="/register"
                 className="btn-glacier-primary px-7 py-3 text-sm flex items-center gap-2 shadow-md shadow-sky-500/20 cursor-pointer"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>Đăng Ký Tài Khoản</span>
-              </button>
+              </Link>
 
               <Link
                 to="/login"
-                onClick={(e) => {
-                  if (onOpenAuth) {
-                    e.preventDefault();
-                    onOpenAuth('login');
-                  }
-                }}
                 className="px-6 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-all shadow-2xs flex items-center gap-2 cursor-pointer"
               >
                 <LogIn className="w-4 h-4 text-slate-500" />
