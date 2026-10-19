@@ -280,7 +280,9 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
 
   const handleDeleteOne = async (id) => {
     try {
-      await lecturerQuestionApi.deleteQuestion(id);
+      if (id && !String(id).startsWith('q-')) {
+        await lecturerQuestionApi.deleteQuestion(id);
+      }
     } catch (err) {
       console.warn('API deleteQuestion fallback:', err);
     }

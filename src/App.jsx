@@ -1428,10 +1428,18 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Unified persistent authentication state across all tabs & browser sessions
+  // Unified authentication state: Defaults to Guest on fresh project load.
+  // Only maintains active session within current browser tab (sessionStorage), never persists across browser restarts.
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('aives_user') || sessionStorage.getItem('aives_user');
+      // Clear persistent storage so launch is always clean Guest mode
+      localStorage.removeItem('aives_user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('aives_session_active');
+
+      const isActive = sessionStorage.getItem('aives_session_active') === 'true';
+      if (!isActive) return null;
+      const saved = sessionStorage.getItem('aives_user');
       if (!saved) return null;
       const parsed = JSON.parse(saved);
       if (parsed && parsed.role) {
@@ -1456,14 +1464,14 @@ function AppContent() {
     };
     setCurrentUser(normalized);
     try {
-      localStorage.setItem('aives_session_active', 'true');
-      localStorage.setItem('aives_user', JSON.stringify(normalized));
       sessionStorage.setItem('aives_session_active', 'true');
       sessionStorage.setItem('aives_user', JSON.stringify(normalized));
       if (userData.token) {
-        localStorage.setItem('token', userData.token);
         sessionStorage.setItem('token', userData.token);
       }
+      localStorage.removeItem('aives_session_active');
+      localStorage.removeItem('aives_user');
+      localStorage.removeItem('token');
     } catch {}
 
     const roleConfig = ROLE_CONFIGS[normalized.role] || ROLE_CONFIGS.STUDENT;
@@ -1477,7 +1485,6 @@ function AppContent() {
     };
     setCurrentUser(normalized);
     try {
-      localStorage.setItem('aives_user', JSON.stringify(normalized));
       sessionStorage.setItem('aives_user', JSON.stringify(normalized));
     } catch {}
 

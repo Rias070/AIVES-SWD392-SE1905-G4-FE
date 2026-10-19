@@ -331,7 +331,9 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
   const handleDeleteQuestion = async (id) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa câu hỏi này khỏi ngân hàng học liệu?')) return;
     try {
-      await lecturerQuestionApi.deleteQuestion(id);
+      if (id && !String(id).startsWith('q-')) {
+        await lecturerQuestionApi.deleteQuestion(id);
+      }
     } catch (err) {
       console.warn('API deleteQuestion fallback:', err);
     }
