@@ -83,6 +83,17 @@ export default function AuthRBACPage({ onLoginSuccess }) {
         }
       }
     } catch (apiErr) {
+      const backendMsg = apiErr.response?.data?.message;
+      if (backendMsg && (
+        backendMsg.includes('kích hoạt') || 
+        backendMsg.includes('ACTIVATED') || 
+        backendMsg.includes('khóa') || 
+        backendMsg.includes('vô hiệu hóa')
+      )) {
+        setLoginError(backendMsg);
+        return;
+      }
+
       // Auto-retry with backend canonical seed passwords if user entered demo credentials
       const canonicalSeedPasswords = {
         'admin@aives.edu.vn': 'Admin@123',

@@ -79,6 +79,7 @@ export const authApi = {
   login: (credentials) => api.post('/v1/auth/login', credentials),
   register: (userData) => api.post('/v1/auth/register', userData),
   activate: (token) => api.get('/v1/auth/activate', { params: { token } }),
+  resendActivation: (email) => api.post('/v1/auth/resend-activation', { email }),
 };
 
 // ==========================================

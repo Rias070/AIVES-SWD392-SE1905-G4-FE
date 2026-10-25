@@ -48,6 +48,7 @@ import HomePage from './pages/HomePage';
 // Auth pages
 import AuthRBACPage from './pages/auth/AuthRBACPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import ActivationPage from './pages/auth/ActivationPage';
 
 // Student pages
 import StudentDashboardPage from './pages/student/StudentDashboardPage';
@@ -929,6 +930,17 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
         }
       }
     } catch (apiErr) {
+      const backendMsg = apiErr.response?.data?.message;
+      if (backendMsg && (
+        backendMsg.includes('kích hoạt') || 
+        backendMsg.includes('ACTIVATED') || 
+        backendMsg.includes('khóa') || 
+        backendMsg.includes('vô hiệu hóa')
+      )) {
+        setFormError(backendMsg);
+        return;
+      }
+
       // Auto-retry with backend canonical seed passwords if user entered demo credentials
       const canonicalSeedPasswords = {
         'admin@aives.edu.vn': 'Admin@123',
@@ -1590,6 +1602,7 @@ function AppContent() {
                 )
               }
             />
+            <Route path="/activate" element={<ActivationPage />} />
 
             {/* Student routes */}
             <Route
