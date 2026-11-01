@@ -23,7 +23,12 @@ import {
   Zap
 } from 'lucide-react';
 import { authApi } from '../../services/api';
-import { authenticateUser, findUserByEmail } from '../../services/userService';
+import {
+  authenticateUser,
+  findUserByEmail,
+  updateRegistryUserStatus,
+  mapBackendStatus,
+} from '../../services/userService';
 
 export default function AuthRBACPage({ onLoginSuccess }) {
   const navigate = useNavigate();
@@ -40,12 +45,24 @@ export default function AuthRBACPage({ onLoginSuccess }) {
   useEffect(() => {
     if (location.state?.accountStatusError) {
       setLoginError(location.state.accountStatusError);
+      return;
     }
+    // Fallback: the reason survives a full page reload because it is persisted in sessionStorage
+    try {
+      const persisted = sessionStorage.getItem('aives_account_status_error');
+      if (persisted) {
+        setLoginError(persisted);
+        sessionStorage.removeItem('aives_account_status_error');
+      }
+    } catch {}
   }, [location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoginError(null);
+    try {
+      sessionStorage.removeItem('aives_account_status_error');
+    } catch {}
 
     const rawEmail = (email || '').trim();
     // Allow typing "admin" shorthand to map directly to canonical admin account
@@ -85,9 +102,10 @@ export default function AuthRBACPage({ onLoginSuccess }) {
     } catch (apiErr) {
       const backendMsg = apiErr.response?.data?.message;
       if (backendMsg && (
-        backendMsg.includes('kích hoạt') || 
-        backendMsg.includes('ACTIVATED') || 
-        backendMsg.includes('khóa') || 
+        backendMsg.includes('kích hoạt') ||
+        backendMsg.includes('ACTIVATED') ||
+        backendMsg.includes('PENDING') ||
+        backendMsg.includes('khóa') ||
         backendMsg.includes('vô hiệu hóa')
       )) {
         setLoginError(backendMsg);
@@ -128,6 +146,17 @@ export default function AuthRBACPage({ onLoginSuccess }) {
     // Authenticate with user registry (blocks deleted and deactivated accounts!)
     const existing = findUserByEmail(cleanEmail);
     const targetRole = backendUser?.role || (existing ? existing.role : 'STUDENT');
+
+    // The backend is the source of truth for the account status. Sync it back into the
+    // local registry so an account that was activated via email is no longer stuck in
+    // the local "pending" state.
+    if (backendUser?.status && existing) {
+      updateRegistryUserStatus(existing.id, mapBackendStatus(backendUser.status));
+      const refreshed = findUserByEmail(cleanEmail);
+      if (refreshed) {
+        existing.status = refreshed.status;
+      }
+    }
 
     const authResult = authenticateUser(cleanEmail, password, targetRole);
 
