@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { registerUser, isEmailRegistered } from '../../services/userService';
+import { authApi } from '../../services/api';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   GraduationCap,
@@ -50,6 +51,13 @@ export default function RegisterPage({ onLoginSuccess }) {
   const [formError, setFormError] = useState(null);
   const [successInfo, setSuccessInfo] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Email activation flow state
+  const [awaitingActivation, setAwaitingActivation] = useState(false);
+  const [resendEmail, setResendEmail] = useState('');
+  const [isResending, setIsResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState(null);
+  const [resendError, setResendError] = useState(null);
 
   // Calculate password strength
   const getPasswordStrength = () => {
@@ -151,7 +159,20 @@ export default function RegisterPage({ onLoginSuccess }) {
         phone: phone.trim(),
       });
 
-      setSuccessInfo(`Đăng ký thành công! Hệ thống AIVES đã gửi email xác nhận tài khoản tới ${email.trim()}. Đang chuyển hướng...`);
+      // The account is created as PENDING_EMAIL: the user must click the activation
+      // link in their inbox before they are allowed to sign in.
+      if (registeredUser?.needsActivation) {
+        setAwaitingActivation(true);
+        setResendEmail(email.trim());
+        setSuccessInfo(
+          `Đăng ký thành công! Hệ thống AIVES đã gửi email kích hoạt tới ${email.trim()}. ` +
+            `Vui lòng vào Gmail kiểm tra (kể cả thư rác) và bấm "Kích hoạt tài khoản" để đăng nhập.`
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      setSuccessInfo(`Đăng ký thành công! Đang chuyển hướng...`);
 
       setTimeout(() => {
         if (onLoginSuccess) {
@@ -172,6 +193,28 @@ export default function RegisterPage({ onLoginSuccess }) {
     } catch (err) {
       setFormError(err.message || 'Không thể hoàn tất đăng ký tài khoản. Vui lòng thử lại!');
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendActivation = async (e) => {
+    e.preventDefault();
+    if (!resendEmail.trim()) {
+      setResendError('Vui lòng nhập địa chỉ email đã đăng ký.');
+      return;
+    }
+    setIsResending(true);
+    setResendError(null);
+    setResendMessage(null);
+    try {
+      const response = await authApi.resendActivation(resendEmail.trim());
+      setResendMessage(
+        response.data?.message ||
+          'Email kích hoạt mới đã được gửi. Vui lòng kiểm tra hộp thư (bao gồm thư rác).'
+      );
+    } catch (err) {
+      setResendError(err.friendlyMessage || 'Không thể gửi lại email kích hoạt. Vui lòng thử lại sau.');
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -320,6 +363,104 @@ export default function RegisterPage({ onLoginSuccess }) {
         {/* ================= RIGHT COLUMN: REGISTRATION FORM (7 COLS) ================= */}
         <div className="lg:col-span-7">
           <div className="p-6 md:p-8 rounded-3xl bg-white/95 backdrop-blur-2xl border border-slate-200 shadow-xl space-y-5">
+            {/* ================= AWAITING EMAIL ACTIVATION PANEL ================= */}
+            {awaitingActivation && (
+              <div className="space-y-5">
+                <div className="text-center py-4 space-y-3">
+                  <div className="w-14 h-14 mx-auto rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center animate-pulse">
+                    <Mail className="w-7 h-7 text-sky-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900">Vui lòng xác thực qua email</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Tài khoản <strong className="text-sky-700">{resendEmail || email}</strong> đã được tạo ở trạng
+                    thái <strong>Chờ xác thực email</strong>. Bạn chỉ có thể đăng nhập sau khi bấm link kích hoạt
+                    trong email gửi tới hộp thư của bạn (kiểm tra cả thư rác / thư đã xem).
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-sky-50/60 border border-sky-200 space-y-2">
+                  <h4 className="text-xs font-bold text-sky-900 uppercase tracking-wider">
+                    Các bước kích hoạt
+                  </h4>
+                  <ol className="space-y-1.5 text-xs text-slate-700 list-decimal list-inside">
+                    <li>Mở hộp thư Gmail đã đăng ký.</li>
+                    <li>Tìm email tiêu đề "AIVES - Kích hoạt tài khoản để bắt đầu sử dụng".</li>
+                    <li>Bấm nút "Kích hoạt tài khoản AIVES" trong email.</li>
+                    <li>Quay lại trang đăng nhập và đăng nhập bằng email + mật khẩu của bạn.</li>
+                  </ol>
+                  <p className="text-[11px] text-slate-500 pt-1">
+                    Link kích hoạt có hiệu lực trong 24 giờ. Quá hạn thì dùng nút gửi lại bên dưới.
+                  </p>
+                </div>
+
+                {/* Resend activation form */}
+                <form onSubmit={handleResendActivation} className="space-y-3 pt-1 border-t border-slate-100">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Gửi lại email kích hoạt
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        value={resendEmail}
+                        onChange={(e) => setResendEmail(e.target.value)}
+                        placeholder="email đã đăng ký"
+                        required
+                        className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                      />
+                      <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    </div>
+                  </div>
+
+                  {resendError && (
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{resendError}</span>
+                    </div>
+                  )}
+
+                  {resendMessage && (
+                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>{resendMessage}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isResending}
+                    className="w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-sm"
+                  >
+                    {isResending ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Đang gửi lại email...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>Gửi lại email kích hoạt</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="flex items-center justify-between pt-1 text-xs">
+                  <Link to="/login" className="text-sky-600 hover:text-sky-700 font-semibold flex items-center gap-1">
+                    <ArrowRight className="w-3.5 h-3.5" />
+                    <span>Đã kích hoạt? Đăng nhập ngay</span>
+                  </Link>
+                  <Link to="/" className="text-slate-500 hover:text-slate-700 flex items-center gap-1">
+                    <Home className="w-3.5 h-3.5" />
+                    <span>Trang chủ</span>
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* ================= REGISTRATION FORM (hidden while awaiting activation) ================= */}
+            {!awaitingActivation && (
+              <>
             {/* Role Segmented Controller */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 block">
@@ -641,6 +782,8 @@ export default function RegisterPage({ onLoginSuccess }) {
                 </Link>
               </div>
             </form>
+              </>
+            )}
           </div>
         </div>
       </div>

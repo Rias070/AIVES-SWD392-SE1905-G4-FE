@@ -12,6 +12,7 @@ import {
   getRoleBadgeConfig,
   getAvatarText,
   isEmailRegistered,
+  mapBackendStatus,
 } from '../../services/userService';
 import {
   Users,
@@ -263,7 +264,8 @@ export default function UserManagementPage() {
         const mappedApiList = apiList.map((item) => {
           const normRole = normalizeUserRole(item);
           const badgeCfg = getRoleBadgeConfig(normRole);
-          const itemStatus = String(item.status || 'ACTIVE').toLowerCase();
+          const itemStatus = String(item.status || 'ACTIVE').toUpperCase();
+          const mappedStatus = mapBackendStatus(itemStatus);
           return {
             id: item.userCode || item.id || `USR-${Math.floor(1000 + Math.random() * 9000)}`,
             name: item.fullName || item.name || 'Người dùng',
@@ -273,8 +275,13 @@ export default function UserManagementPage() {
             roleBadgeColor: item.roleBadgeColor || badgeCfg.badgeColor,
             department: item.department || (normRole === 'STUDENT' ? 'Khoa Kỹ Thuật Phần Mềm' : 'Phòng Khảo Thí & Đảm Bảo Chất Lượng'),
             assigned: item.assigned || item.assignedSubjects || (normRole === 'ADMIN' ? 'Toàn quyền hệ thống' : normRole === 'LECTURER' ? 'SWD392, PRN211' : 'Lớp SE1704'),
-            status: itemStatus === 'active' ? 'active' : 'inactive',
-            statusText: itemStatus === 'active' ? 'Đang hoạt động' : 'Dừng hoạt động',
+            status: mappedStatus,
+            statusText:
+              mappedStatus === 'active'
+                ? 'Đang hoạt động'
+                : mappedStatus === 'pending'
+                  ? 'Chờ xác thực email'
+                  : 'Dừng hoạt động',
             avatarText: getAvatarText(item.fullName || item.name || item.email),
             createdAt: item.createdAt || new Date().toISOString(),
           };
@@ -710,7 +717,7 @@ export default function UserManagementPage() {
           role: userFormData.role,
           phoneNumber: userFormData.phone || null,
           assignedSubjects: effectiveAssigned,
-          status: userFormData.status === 'active' ? 'ACTIVE' : 'PENDING_SSO',
+            status: userFormData.status === 'active' ? 'ACTIVE' : 'PENDING_EMAIL',
         });
       } else {
         await adminUserApi.updateUser(userFormData.id, {
@@ -718,7 +725,7 @@ export default function UserManagementPage() {
           email: userFormData.email,
           role: userFormData.role,
           assignedSubjects: effectiveAssigned,
-          status: userFormData.status === 'active' ? 'ACTIVE' : 'PENDING_SSO',
+          status: userFormData.status === 'active' ? 'ACTIVE' : 'PENDING_EMAIL',
         });
       }
     } catch (error) {
@@ -739,10 +746,10 @@ export default function UserManagementPage() {
         department: effectiveDept,
         assigned: effectiveAssigned,
         status: userFormData.status,
-        statusText: userFormData.status === 'active' ? 'Đang hoạt động' : 'Chờ xác thực SSO',
+        statusText: userFormData.status === 'active' ? 'Đang hoạt động' : 'Chờ xác thực email',
         avatarText: initials || 'US',
       };
-      registerUser(newUser);
+      registerUser({ ...newUser, skipBackendAuth: true });
       setUsersListState(getAllUsers());
       showToast(`Đã thêm thành công tài khoản người dùng ${newUser.name}!`);
     } else {
@@ -1211,7 +1218,7 @@ export default function UserManagementPage() {
                             ) : u.status === 'pending' ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                Chờ duyệt SSO
+                                Chờ xác thực email
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-full">
@@ -1776,7 +1783,7 @@ export default function UserManagementPage() {
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-sky-500"
                   >
                     <option value="active">Đang hoạt động (ACTIVE)</option>
-                    <option value="pending">Chờ xác thực SSO (PENDING)</option>
+                    <option value="pending">Chờ xác thực email (PENDING_EMAIL)</option>
                     <option value="inactive">Vô hiệu hóa (INACTIVE)</option>
                   </select>
                   <p className="text-[10px] text-slate-500 leading-tight">

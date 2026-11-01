@@ -40,7 +40,8 @@ import {
   Shield,
   ArrowRight,
   Plus,
-  Video
+  Video,
+  Mail
 } from 'lucide-react';
 // Landing / Home page
 import HomePage from './pages/HomePage';
@@ -69,7 +70,14 @@ import UserManagementPage from './pages/admin/UserManagementPage';
 // Common pages
 import ProfilePage from './pages/common/ProfilePage';
 import { authApi } from './services/api';
-import { authenticateUser, registerUser, findUserByEmail, updateRegistryUser } from './services/userService';
+import {
+  authenticateUser,
+  registerUser,
+  findUserByEmail,
+  updateRegistryUser,
+  updateRegistryUserStatus,
+  mapBackendStatus,
+} from './services/userService';
 
 // Role configurations in Glacier Light style
 const ROLE_CONFIGS = {
@@ -882,11 +890,13 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
   const [role, setRole] = useState('STUDENT');
   const [showPassword, setShowPassword] = useState(false);
   const [modalError, setModalError] = useState(null);
+  const [modalSuccess, setModalSuccess] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     setTab(initialTab);
     setModalError(null);
+    setModalSuccess(null);
   }, [initialTab, isOpen]);
 
   if (!isOpen) return null;
@@ -932,12 +942,13 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
     } catch (apiErr) {
       const backendMsg = apiErr.response?.data?.message;
       if (backendMsg && (
-        backendMsg.includes('kích hoạt') || 
-        backendMsg.includes('ACTIVATED') || 
-        backendMsg.includes('khóa') || 
+        backendMsg.includes('kích hoạt') ||
+        backendMsg.includes('ACTIVATED') ||
+        backendMsg.includes('PENDING') ||
+        backendMsg.includes('khóa') ||
         backendMsg.includes('vô hiệu hóa')
       )) {
-        setFormError(backendMsg);
+        setModalError(backendMsg);
         return;
       }
 
@@ -974,6 +985,16 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
 
     const existing = findUserByEmail(cleanEmail);
     const targetRole = backendUser?.role || (existing ? existing.role : 'STUDENT');
+
+    // Sync the account status confirmed by the backend into the local registry so an
+    // account activated via email is not blocked as "pending" anymore.
+    if (backendUser?.status && existing) {
+      updateRegistryUserStatus(existing.id, mapBackendStatus(backendUser.status));
+      const refreshed = findUserByEmail(cleanEmail);
+      if (refreshed) {
+        existing.status = refreshed.status;
+      }
+    }
 
     const authResult = authenticateUser(cleanEmail, loginPassword, targetRole);
 
@@ -1062,6 +1083,16 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
         role: role,
       });
 
+      // The account is PENDING_EMAIL - the user must activate via the emailed link
+      // before they are allowed to sign in.
+      if (registered?.needsActivation) {
+        setModalSuccess(
+          `Đăng ký thành công! Hệ thống đã gửi email kích hoạt tới ${registerEmail.trim()}. ` +
+            `Vui lòng kiểm tra hộp thư (kể cả thư rác) và bấm link kích hoạt trước khi đăng nhập.`
+        );
+        return;
+      }
+
       onLoginSuccess(registered);
       onClose();
       const defaultPath = ROLE_CONFIGS[registered.role || role]?.defaultPath || '/student';
@@ -1100,7 +1131,11 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
         <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
           <button
             type="button"
-            onClick={() => setTab('login')}
+            onClick={() => {
+              setTab('login');
+              setModalError(null);
+              setModalSuccess(null);
+            }}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
               tab === 'login'
                 ? 'bg-white text-sky-700 font-bold shadow-xs'
@@ -1111,7 +1146,11 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
           </button>
           <button
             type="button"
-            onClick={() => setTab('register')}
+            onClick={() => {
+              setTab('register');
+              setModalError(null);
+              setModalSuccess(null);
+            }}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
               tab === 'register'
                 ? 'bg-white text-sky-700 font-bold shadow-xs'
@@ -1133,6 +1172,22 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
               type="button"
               onClick={() => setModalError(null)}
               className="text-rose-400 hover:text-rose-700 text-xs font-bold"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {modalSuccess && (
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center justify-between gap-2.5 animate-in fade-in shadow-xs">
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{modalSuccess}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setModalSuccess(null)}
+              className="text-emerald-400 hover:text-emerald-700 text-xs font-bold"
             >
               ✕
             </button>
@@ -1378,46 +1433,50 @@ function ProtectedRoute({ currentUser, allowedRoles, children }) {
   const location = useLocation();
   const isSessionActive = sessionStorage.getItem('aives_session_active') === 'true';
 
+  // Live security check: Ensure user was not deleted or deactivated while in session.
+  // Only the *reason* is computed here - the actual session teardown happens in an
+  // effect below, so we never mutate storage during render.
+  let blockReason = null;
+  if (currentUser?.email) {
+    const freshUser = findUserByEmail(currentUser.email);
+    if (!freshUser) {
+      blockReason =
+        'Đăng nhập không thành công: Sai mật khẩu hoặc email, hoặc tài khoản này đã bị xóa khỏi hệ thống!';
+    } else if (freshUser.status === 'pending') {
+      blockReason = `Đăng nhập không thành công: Tài khoản "${freshUser.name}" chưa được xác thực qua email. Vui lòng kiểm tra hộp thư (kể cả thư rác) và bấm link kích hoạt trước khi đăng nhập.`;
+    } else if (
+      freshUser.status === 'inactive' ||
+      freshUser.status === 'locked' ||
+      freshUser.status === 'deactivated'
+    ) {
+      blockReason = `Đăng nhập không thành công: Tài khoản "${freshUser.name}" đã bị Quản trị viên vô hiệu hóa / tạm khóa (hoặc sai mật khẩu/email, tài khoản bị xóa)!`;
+    }
+  }
+
+  // Tear down the session (storage + App state) and persist the reason so the login
+  // page can display it even after a full page reload.
+  useEffect(() => {
+    if (!blockReason) return;
+    try {
+      sessionStorage.removeItem('aives_session_active');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('aives_user');
+      localStorage.removeItem('aives_user');
+      localStorage.removeItem('token');
+      sessionStorage.setItem('aives_account_status_error', blockReason);
+    } catch {}
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aives_session_invalidated'));
+    }
+  }, [blockReason]);
+
   if (!currentUser || !isSessionActive) {
     // Guest or session ended (e.g. browser re-opened) -> redirect to login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Live security check: Ensure user was not deleted or deactivated while in session
-  if (currentUser.email) {
-    const freshUser = findUserByEmail(currentUser.email);
-    if (!freshUser) {
-      try {
-        sessionStorage.removeItem('aives_session_active');
-        sessionStorage.removeItem('token');
-        sessionStorage.removeItem('aives_user');
-        localStorage.removeItem('aives_user');
-        localStorage.removeItem('token');
-      } catch {}
-      return (
-        <Navigate
-          to="/login"
-          state={{ accountStatusError: 'Đăng nhập không thành công: Sai mật khẩu hoặc email, hoặc tài khoản này đã bị xóa khỏi hệ thống!' }}
-          replace
-        />
-      );
-    }
-    if (freshUser.status === 'inactive' || freshUser.status === 'locked' || freshUser.status === 'deactivated') {
-      try {
-        sessionStorage.removeItem('aives_session_active');
-        sessionStorage.removeItem('token');
-        sessionStorage.removeItem('aives_user');
-        localStorage.removeItem('aives_user');
-        localStorage.removeItem('token');
-      } catch {}
-      return (
-        <Navigate
-          to="/login"
-          state={{ accountStatusError: `Đăng nhập không thành công: Tài khoản "${freshUser.name}" đã bị Quản trị viên vô hiệu hóa / tạm khóa (hoặc sai mật khẩu/email, tài khoản bị xóa)!` }}
-          replace
-        />
-      );
-    }
+  if (blockReason) {
+    return <Navigate to="/login" state={{ accountStatusError: blockReason }} replace />;
   }
 
   const userRole = (currentUser.role || 'STUDENT').toUpperCase().replace(/^ROLE_/, '');
@@ -1465,6 +1524,17 @@ function AppContent() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [authModalState, setAuthModalState] = useState({ isOpen: false, tab: 'login' });
+
+  // Keep the App-level auth state in sync when a protected route invalidates the
+  // session (deleted / deactivated / not-yet-activated account). Without this the
+  // router would bounce the user between /login and the protected page.
+  useEffect(() => {
+    const handleInvalidated = () => {
+      setCurrentUser(null);
+    };
+    window.addEventListener('aives_session_invalidated', handleInvalidated);
+    return () => window.removeEventListener('aives_session_invalidated', handleInvalidated);
+  }, []);
 
   const isHomePage = location.pathname === '/' || location.pathname === '/home';
   const showSidebar = !!currentUser && !isHomePage && location.pathname !== '/login' && location.pathname !== '/register';

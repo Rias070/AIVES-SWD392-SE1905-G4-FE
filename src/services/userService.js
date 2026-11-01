@@ -278,6 +278,18 @@ export const ensureDemoAccountActive = (email) => {
 };
 
 /**
+ * Normalize a backend status (ACTIVE | PENDING_EMAIL | LOCKED | INACTIVE) into the
+ * local registry vocabulary ('active' | 'pending' | 'inactive').
+ */
+export const mapBackendStatus = (status) => {
+  const raw = String(status || '').trim().toUpperCase();
+  if (raw === 'ACTIVE') return 'active';
+  if (raw === 'PENDING_EMAIL' || raw === 'PENDING' || raw === 'PENDING_SSO') return 'pending';
+  if (raw === 'LOCKED' || raw === 'INACTIVE' || raw === 'DEACTIVATED') return 'inactive';
+  return raw ? 'inactive' : 'active';
+};
+
+/**
  * Save user list back to persistent registry
  */
 export const saveAllUsers = (users) => {
@@ -337,8 +349,9 @@ export const registerUser = async (data) => {
     department: data.department || (role === 'STUDENT' ? 'Khoa Kỹ Thuật Phần Mềm' : 'Viện Trí Tuệ Nhân Tạo & Khảo Thí'),
     dob: data.dob || null,
     idNumber: id,
-    status: 'active',
-    statusText: 'Đang hoạt động',
+    status: data.status || 'pending',
+    statusText:
+      data.status === 'active' ? 'Đang hoạt động' : 'Chờ xác thực email',
     avatarText: getAvatarText(data.name || data.fullName || email),
     createdAt: new Date().toISOString(),
   };
@@ -353,28 +366,17 @@ export const registerUser = async (data) => {
 
   saveAllUsers(users);
 
-  // Attempt backend registration in background if server is online
-  try {
-    const res = await api.post('/v1/auth/register', {
-      email: newUser.email,
-      password: newUser.password,
-      fullName: newUser.name,
-      phoneNumber: data.phone || data.phoneNumber || null,
-      userCode: newUser.id,
-      roleName: newUser.role,
-    });
-    if (res?.data?.result?.token) {
-      sessionStorage.setItem('token', res.data.result.token);
-      sessionStorage.setItem('aives_session_active', 'true');
-    }
-  } catch (apiErr) {
-    // If backend actively rejected with a business validation error, throw it to notify user
-    if (apiErr.response && (apiErr.response.status === 400 || apiErr.response.status === 409 || apiErr.response.status === 422)) {
-      throw new Error(apiErr.response?.data?.message || apiErr.friendlyMessage || 'Dữ liệu đăng ký không hợp lệ trên máy chủ.');
-    }
-    // Fallback: If auth/register doesn't exist (404/500/offline), try admin createUser
+  // Accounts created by an administrator are provisioned directly by the admin API and
+  // are active right away - they must not go through the email activation flow.
+  const isAdminProvisioned = data.skipBackendAuth === true || data.status === 'active';
+
+  // Register on the backend. The backend creates the account as PENDING_EMAIL and
+  // sends an activation email - no token / session is granted until the user
+  // clicks the activation link.
+  let backendStatus = isAdminProvisioned ? 'ACTIVE' : 'PENDING_EMAIL';
+  if (!isAdminProvisioned) {
     try {
-      await api.post('/v1/admin/users', {
+      const res = await api.post('/v1/auth/register', {
         email: newUser.email,
         password: newUser.password,
         fullName: newUser.name,
@@ -382,26 +384,32 @@ export const registerUser = async (data) => {
         userCode: newUser.id,
         roleName: newUser.role,
       });
-    } catch {}
+      backendStatus = res?.data?.result?.user?.status || backendStatus;
+      // Only the backend can grant a real session token (admin flow). Never fabricate one.
+      if (res?.data?.result?.token) {
+        sessionStorage.setItem('token', res.data.result.token);
+        sessionStorage.setItem('aives_session_active', 'true');
+      }
+    } catch (apiErr) {
+      // If backend actively rejected with a business validation error, throw it to notify user
+      if (apiErr.response && (apiErr.response.status === 400 || apiErr.response.status === 409 || apiErr.response.status === 422)) {
+        throw new Error(apiErr.response?.data?.message || apiErr.friendlyMessage || 'Dữ liệu đăng ký không hợp lệ trên máy chủ.');
+      }
+      // Offline / server unreachable: the account stays PENDING_EMAIL locally as well,
+      // so it still cannot be used until it is activated.
+      console.warn('Backend registration failed, account kept in PENDING state:', apiErr.friendlyMessage || apiErr);
+    }
   }
 
-  // Ensure session token and active flag are initialized
-  if (!sessionStorage.getItem('token')) {
-    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-    const payload = btoa(JSON.stringify({
-      sub: newUser.email,
-      role: newUser.role,
-      name: newUser.name,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 86400,
-    }));
-    sessionStorage.setItem('token', `${header}.${payload}.mock_aives_session_${Date.now()}`);
-  }
-  sessionStorage.setItem('aives_session_active', 'true');
   localStorage.removeItem('token');
   localStorage.removeItem('aives_user');
+  localStorage.removeItem('aives_session_active');
 
-  return newUser;
+  return {
+    ...newUser,
+    needsActivation: !isAdminProvisioned,
+    backendStatus,
+  };
 };
 
 /**
@@ -442,6 +450,15 @@ export const authenticateUser = (email, password, expectedRole) => {
     'admin',
     '123456',
   ];
+
+  // Account must be activated via email before it can be used to sign in.
+  if (existingUser.status === 'pending') {
+    return {
+      success: false,
+      error: 'ACCOUNT_PENDING',
+      message: `Đăng nhập không thành công: Tài khoản "${existingUser.name}" (${existingUser.email}) chưa được xác thực. Vui lòng kiểm tra hộp thư (kể cả thư rác) và bấm link kích hoạt trước khi đăng nhập.`,
+    };
+  }
 
   // If a core demo account was deactivated, auto-recover it when authenticating
   if (
@@ -560,8 +577,14 @@ export const updateRegistryUserStatus = (userId, status) => {
   const users = getAllUsers();
   const target = users.find((u) => u.id === userId || u.idNumber === userId);
   if (target) {
-    target.status = status;
-    target.statusText = status === 'active' ? 'Đang hoạt động' : status === 'pending' ? 'Chờ xác thực SSO' : 'Đã dừng hoạt động';
+    const normalized = mapBackendStatus(status);
+    target.status = normalized;
+    target.statusText =
+      normalized === 'active'
+        ? 'Đang hoạt động'
+        : normalized === 'pending'
+          ? 'Chờ xác thực email'
+          : 'Đã dừng hoạt động';
     saveAllUsers(users);
 
     if (typeof window !== 'undefined') {
