@@ -187,7 +187,6 @@ export const getAllUsers = () => {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      // 1. Deduplicate by email so localStorage doesn't accumulate duplicated accounts
       const seen = new Set();
       const deduplicated = [];
       let updated = false;
@@ -195,7 +194,6 @@ export const getAllUsers = () => {
       for (const u of parsed) {
         if (!u || !u.email) continue;
         const cleanEmail = u.email.trim().toLowerCase();
-        // Remove obsolete extra admin annv.sys if still cached in localStorage
         if (cleanEmail === 'annv.sys@fpt.edu.vn') {
           updated = true;
           continue;
@@ -208,7 +206,6 @@ export const getAllUsers = () => {
         }
       }
 
-      // 2. Always guarantee the canonical core demo accounts exist
       const coreEmails = ['admin@aives.edu.vn', 'lecturer@aives.edu.vn', 'student@aives.edu.vn'];
       for (const coreEmail of coreEmails) {
         const found = deduplicated.find((u) => u.email.trim().toLowerCase() === coreEmail);
@@ -319,10 +316,8 @@ export const registerUser = async (data) => {
   const role = (data.role || 'STUDENT').toUpperCase().replace(/^ROLE_/, '');
   const roleConfig = getRoleBadgeConfig(role);
 
-  // Check if email already registered
   const existingIdx = users.findIndex((u) => u.email.trim().toLowerCase() === email);
 
-  // Generate appropriate user code / ID
   let id = data.id || data.idNumber || data.userCode;
   if (!id) {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -357,10 +352,8 @@ export const registerUser = async (data) => {
   };
 
   if (existingIdx >= 0) {
-    // Update existing user with new profile info
     users[existingIdx] = { ...users[existingIdx], ...newUser };
   } else {
-    // Add new user at top of the list
     users.unshift(newUser);
   }
 
@@ -374,6 +367,7 @@ export const registerUser = async (data) => {
   // sends an activation email - no token / session is granted until the user
   // clicks the activation link.
   let backendStatus = isAdminProvisioned ? 'ACTIVE' : 'PENDING_EMAIL';
+  let activationLink = null;
   if (!isAdminProvisioned) {
     try {
       const res = await api.post('/v1/auth/register', {
@@ -384,21 +378,39 @@ export const registerUser = async (data) => {
         userCode: newUser.id,
         roleName: newUser.role,
       });
-      backendStatus = res?.data?.result?.user?.status || backendStatus;
+      const result = res?.data?.result;
+      backendStatus = result?.user?.status || backendStatus;
+      if (result?.activationLink) {
+        activationLink = result.activationLink;
+        newUser.activationLink = activationLink;
+      }
       // Only the backend can grant a real session token (admin flow). Never fabricate one.
-      if (res?.data?.result?.token) {
-        sessionStorage.setItem('token', res.data.result.token);
+      if (result?.token) {
+        sessionStorage.setItem('token', result.token);
         sessionStorage.setItem('aives_session_active', 'true');
       }
     } catch (apiErr) {
-      // If backend actively rejected with a business validation error, throw it to notify user
       if (apiErr.response && (apiErr.response.status === 400 || apiErr.response.status === 409 || apiErr.response.status === 422)) {
         throw new Error(apiErr.response?.data?.message || apiErr.friendlyMessage || 'Dữ liệu đăng ký không hợp lệ trên máy chủ.');
       }
-      // Offline / server unreachable: the account stays PENDING_EMAIL locally as well,
-      // so it still cannot be used until it is activated.
       console.warn('Backend registration failed, account kept in PENDING state:', apiErr.friendlyMessage || apiErr);
     }
+  }
+
+  if (!isAdminProvisioned || backendStatus === 'PENDING_EMAIL') {
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('aives_session_active');
+    sessionStorage.removeItem('aives_user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('aives_user');
+    localStorage.removeItem('aives_session_active');
+    return {
+      ...newUser,
+      needsActivation: true,
+      requiresActivation: true,
+      activationLink,
+      backendStatus,
+    };
   }
 
   localStorage.removeItem('token');
@@ -407,9 +419,45 @@ export const registerUser = async (data) => {
 
   return {
     ...newUser,
-    needsActivation: !isAdminProvisioned,
+    needsActivation: false,
     backendStatus,
   };
+};
+
+/**
+ * Sync a backend-authenticated user into the local registry so local checks stay consistent
+ */
+export const syncBackendUserToRegistry = (backendUser, password) => {
+  if (!backendUser || !backendUser.email) return null;
+  const users = getAllUsers();
+  const cleanEmail = backendUser.email.trim().toLowerCase();
+  const role = normalizeUserRole(backendUser.role);
+  const roleConfig = getRoleBadgeConfig(role);
+  const existingIdx = users.findIndex((u) => (u.email || '').trim().toLowerCase() === cleanEmail);
+
+  const synced = {
+    id: backendUser.id || backendUser.uuid || (existingIdx >= 0 ? users[existingIdx].id : `USR-${Date.now()}`),
+    name: backendUser.name || backendUser.fullName || (existingIdx >= 0 ? users[existingIdx].name : cleanEmail),
+    email: cleanEmail,
+    password: password || (existingIdx >= 0 ? users[existingIdx].password : 'password123'),
+    role,
+    roleBadge: roleConfig.badge,
+    roleBadgeColor: roleConfig.badgeColor,
+    assigned: existingIdx >= 0 ? users[existingIdx].assigned : (role === 'ADMIN' ? 'Toàn quyền hệ thống' : role === 'LECTURER' ? 'Học liệu & Đề cương RAG' : 'Lớp SE1905 - Khảo thí AI'),
+    department: existingIdx >= 0 ? users[existingIdx].department : 'Hệ thống Khảo thí AIVES',
+    idNumber: backendUser.userCode || backendUser.id || (existingIdx >= 0 ? users[existingIdx].idNumber : 'SE190000'),
+    status: 'active',
+    statusText: 'Đang hoạt động',
+    avatarText: getAvatarText(backendUser.name || backendUser.fullName || cleanEmail),
+  };
+
+  if (existingIdx >= 0) {
+    users[existingIdx] = { ...users[existingIdx], ...synced };
+  } else {
+    users.unshift({ ...synced, createdAt: new Date().toISOString() });
+  }
+  saveAllUsers(users);
+  return synced;
 };
 
 /**
@@ -479,6 +527,14 @@ export const authenticateUser = (email, password, expectedRole) => {
     }
   }
 
+  if (existingUser.status === 'pending' && !isCoreDemo) {
+    return {
+      success: false,
+      error: 'ACCOUNT_NOT_ACTIVATED',
+      message: `Tài khoản "${existingUser.email}" chưa được kích hoạt qua Email. Vui lòng kiểm tra hộp thư hoặc yêu cầu gửi lại email kích hoạt!`,
+    };
+  }
+
   // Password verification:
   if (existingUser.password && password) {
     const isMatched =
@@ -510,7 +566,6 @@ export const authenticateUser = (email, password, expectedRole) => {
   return {
     success: true,
     user: userData,
-    // Top-level properties for backward compatibility with direct destructuring
     ...userData,
   };
 };
@@ -544,7 +599,6 @@ export const updateRegistryUser = (userId, updatedData) => {
     };
     saveAllUsers(users);
 
-    // Notify all active components and browser tabs of registry updates
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('aives_user_registry_updated', { detail: users[index] }));
     }
@@ -571,11 +625,17 @@ export const deleteRegistryUser = (userId) => {
 };
 
 /**
- * Update status of user in the registry
+ * Update status of user in the registry (by userId, idNumber, or email)
  */
-export const updateRegistryUserStatus = (userId, status) => {
+export const updateRegistryUserStatus = (userIdOrEmail, status) => {
   const users = getAllUsers();
-  const target = users.find((u) => u.id === userId || u.idNumber === userId);
+  const cleanSearch = String(userIdOrEmail || '').trim().toLowerCase();
+  const target = users.find(
+    (u) =>
+      u.id === userIdOrEmail ||
+      u.idNumber === userIdOrEmail ||
+      (u.email || '').trim().toLowerCase() === cleanSearch
+  );
   if (target) {
     const normalized = mapBackendStatus(status);
     target.status = normalized;

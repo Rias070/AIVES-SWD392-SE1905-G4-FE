@@ -77,6 +77,7 @@ import {
   updateRegistryUser,
   updateRegistryUserStatus,
   mapBackendStatus,
+  syncBackendUserToRegistry,
 } from './services/userService';
 
 // Role configurations in Glacier Light style
@@ -983,6 +984,10 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
       }
     }
 
+    if (backendUser && token) {
+      syncBackendUserToRegistry(backendUser, loginPassword);
+    }
+
     const existing = findUserByEmail(cleanEmail);
     const targetRole = backendUser?.role || (existing ? existing.role : 'STUDENT');
 
@@ -996,7 +1001,9 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
       }
     }
 
-    const authResult = authenticateUser(cleanEmail, loginPassword, targetRole);
+    const authResult = backendUser
+      ? { success: true, user: backendUser }
+      : authenticateUser(cleanEmail, loginPassword, targetRole);
 
     if (!authResult || !authResult.success) {
       setModalError(authResult?.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản!');
@@ -1085,14 +1092,13 @@ function AuthModal({ isOpen, onClose, initialTab = 'login', onLoginSuccess }) {
 
       // The account is PENDING_EMAIL - the user must activate via the emailed link
       // before they are allowed to sign in.
-      if (registered?.needsActivation) {
+      if (registered?.needsActivation || registered?.requiresActivation) {
         setModalSuccess(
           `Đăng ký thành công! Hệ thống đã gửi email kích hoạt tới ${registerEmail.trim()}. ` +
             `Vui lòng kiểm tra hộp thư (kể cả thư rác) và bấm link kích hoạt trước khi đăng nhập.`
         );
         return;
       }
-
       onLoginSuccess(registered);
       onClose();
       const defaultPath = ROLE_CONFIGS[registered.role || role]?.defaultPath || '/student';

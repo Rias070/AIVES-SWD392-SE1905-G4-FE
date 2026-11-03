@@ -161,7 +161,7 @@ export default function RegisterPage({ onLoginSuccess }) {
 
       // The account is created as PENDING_EMAIL: the user must click the activation
       // link in their inbox before they are allowed to sign in.
-      if (registeredUser?.needsActivation) {
+      if (registeredUser?.needsActivation || registeredUser?.requiresActivation) {
         setAwaitingActivation(true);
         setResendEmail(email.trim());
         setSuccessInfo(

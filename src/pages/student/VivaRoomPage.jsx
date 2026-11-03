@@ -32,7 +32,7 @@ import {
   Edit3,
   ArrowRight
 } from 'lucide-react';
-import { subjectApi } from '../../services/api';
+import { subjectApi, studentExamApi } from '../../services/api';
 
 
 // Finite State Machine States
@@ -652,6 +652,61 @@ export default function VivaRoomPage() {
   const turnScoresRef = useRef([]);
   const [turnScores, setTurnScores] = useState([]);
   const handleWsTurnResponseRef = useRef(null);
+
+  // Handle incoming AI evaluation & adaptive follow-up from Backend (STOMP WebSocket or REST API)
+  const applyBackendTurnResult = (turnResult, studentAnswerText) => {
+    if (!isProcessingTurnRef.current) return;
+
+    const evaluatedScore = Number(turnResult.suggestedScore ?? turnResult.score ?? 8.5);
+    const newScore = {
+      turnOrder: turnResult.turnOrder || speechTurnRef.current,
+      score: evaluatedScore,
+      aiEvaluation: turnResult.aiEvaluation || 'Đánh giá AI: Lập luận mạch lạc, nắm vững nguyên lý học thuật.',
+      bloomLevel: turnResult.bloomLevel || 'Bloom 4 - Phân tích & Phản biện'
+    };
+    turnScoresRef.current = [...turnScoresRef.current, newScore];
+    setTurnScores([...turnScoresRef.current]);
+
+    const isLastTurn = Boolean(turnResult.lastTurn) || speechTurnRef.current >= maxTurns;
+    if (isLastTurn) {
+      finishExamSession(turnScoresRef.current, turnResult.aiEvaluation);
+      return;
+    }
+
+    const nextQuestionText = turnResult.followupQuestion;
+    if (nextQuestionText && nextQuestionText.trim().length > 0) {
+      setSpeechTurn((prev) => prev + 1);
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now
+        .getMinutes()
+        .toString()
+        .padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+      setDialogue((prev) => [
+        ...prev,
+        {
+          sender: 'ai',
+          time: timeStr,
+          text: nextQuestionText,
+          isMainQuestion: true
+        }
+      ]);
+
+      setCurrentQuestion({
+        title: nextQuestionText,
+        bloom: turnResult.bloomLevel || 'Bloom: Phản biện thích ứng AI'
+      });
+
+      setFsmState(STATES.AI_SPEAKING);
+      isProcessingTurnRef.current = false;
+    } else {
+      generateFollowUpQuestion(studentAnswerText || '');
+    }
+  };
+
+  handleWsTurnResponseRef.current = (wsData) => {
+    applyBackendTurnResult(wsData, liveTranscriptRef.current);
+  };
 
   // Dynamic Subject Language Synchronization from Backend
   useEffect(() => {
@@ -1510,8 +1565,10 @@ export default function VivaRoomPage() {
     const turnData = {
       sessionId: sessionUuid,
       turnOrder: speechTurnRef.current,
+      questionContent: currentQuestion.title,
       studentAnswer: finalAnswer,
-      turnDurationSeconds: 90 - turnSeconds,
+      studentTranscript: finalAnswer,
+      turnDurationSeconds: Math.max(5, 90 - turnSeconds),
       examLang: examLangRef.current
     };
 
@@ -1529,19 +1586,38 @@ export default function VivaRoomPage() {
       }
     }
 
-    // Safety fallback: if STOMP message doesn't receive a response within 6.5s or offline, execute local fallback
+    // Safety fallback: if STOMP doesn't respond within 5.5s or is disconnected, try Backend REST API first, then local fallback
     if (sentViaWs) {
       const turnSnapshot = speechTurnRef.current;
       setTimeout(() => {
         if (isProcessingTurnRef.current && speechTurnRef.current === turnSnapshot && fsmStateRef.current === STATES.AI_THINKING) {
-          console.warn('[AIVES STOMP] Response timeout, activating local reasoning fallback');
-          executeLocalTurnFallback(finalAnswer);
+          console.warn('[AIVES STOMP] Response timeout, falling back to Backend REST API /turns');
+          executeRestOrLocalTurnFallback(finalAnswer);
         }
-      }, 6500);
+      }, 5500);
     } else {
-      setTimeout(() => {
-        executeLocalTurnFallback(finalAnswer);
-      }, 1600);
+      executeRestOrLocalTurnFallback(finalAnswer);
+    }
+  };
+
+  const executeRestOrLocalTurnFallback = async (studentAnswer) => {
+    try {
+      const res = await studentExamApi.submitTurn(sessionUuid, {
+        turnOrder: speechTurnRef.current,
+        studentAnswer,
+        audioTranscript: studentAnswer,
+        turnDurationSeconds: Math.max(5, 90 - turnSeconds)
+      });
+      const turnRes = res?.data?.result;
+      if (turnRes && isProcessingTurnRef.current) {
+        applyBackendTurnResult(turnRes, studentAnswer);
+        return;
+      }
+    } catch (restErr) {
+      console.warn('[AIVES Viva REST] Backend /turns fallback warning, using local reasoning:', restErr.friendlyMessage || restErr);
+    }
+    if (isProcessingTurnRef.current) {
+      executeLocalTurnFallback(studentAnswer);
     }
   };
 
@@ -1621,13 +1697,32 @@ export default function VivaRoomPage() {
       avgScore = Number((sum / scoresToUse.length).toFixed(1));
     }
 
+    // Notify Backend that the exam session is completed
+    studentExamApi.finishExam(sessionUuid).catch((err) => {
+      console.warn('[AIVES Viva] finishExam background sync warning:', err.friendlyMessage || err);
+    });
+
+    let activeStudentName = 'Nguyễn Văn An';
+    let activeStudentCode = 'SE190504';
+    try {
+      const rawUser = sessionStorage.getItem('aives_user') || localStorage.getItem('aives_user');
+      if (rawUser) {
+        const parsedUser = JSON.parse(rawUser);
+        if (parsedUser.name || parsedUser.fullName) activeStudentName = parsedUser.name || parsedUser.fullName;
+        if (parsedUser.userCode || parsedUser.idNumber || parsedUser.id) {
+          const codeCandidate = String(parsedUser.userCode || parsedUser.idNumber || parsedUser.id);
+          if (codeCandidate.length <= 20) activeStudentCode = codeCandidate;
+        }
+      }
+    } catch {}
+
     const latestResult = {
       sessionId: sessionUuid,
       examCode: currentSession?.examId || `${activeSubject}-VIVA-2026-99127`,
       courseName: activeCourseName,
       subjectCode: activeSubject,
-      studentName: 'Nguyễn Văn An',
-      studentId: 'SE190504',
+      studentName: activeStudentName,
+      studentId: activeStudentCode,
       examLang: examLangRef.current,
       completedAt: new Date().toISOString(),
       turnsCompleted: maxTurns,
