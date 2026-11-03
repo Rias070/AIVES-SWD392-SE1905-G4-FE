@@ -20,7 +20,8 @@ import {
   Home,
   Mic,
   Scale,
-  Zap
+  Zap,
+  Mail
 } from 'lucide-react';
 import { authApi } from '../../services/api';
 import {
@@ -28,6 +29,7 @@ import {
   findUserByEmail,
   updateRegistryUserStatus,
   mapBackendStatus,
+  syncBackendUserToRegistry,
 } from '../../services/userService';
 
 export default function AuthRBACPage({ onLoginSuccess }) {
@@ -35,11 +37,13 @@ export default function AuthRBACPage({ onLoginSuccess }) {
   const location = useLocation();
 
   // Form states - Empty defaults so registered accounts can be entered directly
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(location.state?.registeredEmail || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loginError, setLoginError] = useState(null);
+  const [registrationNotice, setRegistrationNotice] = useState(location.state?.registrationNotice || null);
+  const [activationLink, setActivationLink] = useState(location.state?.activationLink || null);
 
   // Catch security errors passed from ProtectedRoute (e.g., account deleted/deactivated while in session)
   useEffect(() => {
@@ -47,7 +51,6 @@ export default function AuthRBACPage({ onLoginSuccess }) {
       setLoginError(location.state.accountStatusError);
       return;
     }
-    // Fallback: the reason survives a full page reload because it is persisted in sessionStorage
     try {
       const persisted = sessionStorage.getItem('aives_account_status_error');
       if (persisted) {
@@ -55,6 +58,15 @@ export default function AuthRBACPage({ onLoginSuccess }) {
         sessionStorage.removeItem('aives_account_status_error');
       }
     } catch {}
+    if (location.state?.registrationNotice) {
+      setRegistrationNotice(location.state.registrationNotice);
+    }
+    if (location.state?.activationLink) {
+      setActivationLink(location.state.activationLink);
+    }
+    if (location.state?.registeredEmail) {
+      setEmail(location.state.registeredEmail);
+    }
   }, [location.state]);
 
   const handleSubmit = async (e) => {
@@ -63,6 +75,7 @@ export default function AuthRBACPage({ onLoginSuccess }) {
     try {
       sessionStorage.removeItem('aives_account_status_error');
     } catch {}
+    setRegistrationNotice(null);
 
     const rawEmail = (email || '').trim();
     // Allow typing "admin" shorthand to map directly to canonical admin account
@@ -83,6 +96,8 @@ export default function AuthRBACPage({ onLoginSuccess }) {
     // Attempt real Backend API login if available
     let backendUser = null;
     let token = null;
+    let backendRespondedWithError = false;
+    let backendErrorMsg = null;
 
     try {
       const res = await authApi.login({ email: cleanEmail, password });
@@ -92,6 +107,7 @@ export default function AuthRBACPage({ onLoginSuccess }) {
         if (user) {
           backendUser = {
             id: user.uuid || user.id,
+            userCode: user.userCode,
             name: user.fullName || user.name,
             email: user.email,
             role: user.role?.name || user.role || 'STUDENT',
@@ -119,7 +135,8 @@ export default function AuthRBACPage({ onLoginSuccess }) {
         'student@aives.edu.vn': 'Student@123',
       };
       const seedPass = canonicalSeedPasswords[cleanEmail.toLowerCase()];
-      if (seedPass && seedPass !== password) {
+      const demoAllowedPasswords = ['password123', 'Admin@123', 'admin@123', 'Lecturer@123', 'lecturer@123', 'Student@123', 'student@123'];
+      if (seedPass && seedPass !== password && demoAllowedPasswords.includes(password)) {
         try {
           const retryRes = await authApi.login({ email: cleanEmail, password: seedPass });
           if (retryRes?.data?.result) {
@@ -128,6 +145,7 @@ export default function AuthRBACPage({ onLoginSuccess }) {
             if (user) {
               backendUser = {
                 id: user.uuid || user.id,
+                userCode: user.userCode,
                 name: user.fullName || user.name,
                 email: user.email,
                 role: user.role?.name || user.role || 'STUDENT',
@@ -135,12 +153,25 @@ export default function AuthRBACPage({ onLoginSuccess }) {
               };
             }
           }
-        } catch {
-          console.warn('Backend retry fallback to local registry');
+        } catch (retryErr) {
+          if (retryErr.response) {
+            backendRespondedWithError = true;
+            backendErrorMsg = retryErr.response?.data?.message;
+          }
         }
+      } else if (apiErr.response) {
+        backendRespondedWithError = true;
+        backendErrorMsg = backendMsg;
       } else {
         console.warn('Backend login fallback to local registry:', apiErr.friendlyMessage || apiErr);
       }
+    }
+
+    if (backendUser && token) {
+      syncBackendUserToRegistry(backendUser, password);
+    } else if (backendRespondedWithError) {
+      setLoginError(backendErrorMsg || 'Đăng nhập không thành công: Sai email hoặc mật khẩu!');
+      return;
     }
 
     // Authenticate with user registry (blocks deleted and deactivated accounts!)
@@ -158,7 +189,9 @@ export default function AuthRBACPage({ onLoginSuccess }) {
       }
     }
 
-    const authResult = authenticateUser(cleanEmail, password, targetRole);
+    const authResult = backendUser
+      ? { success: true, user: backendUser }
+      : authenticateUser(cleanEmail, password, targetRole);
 
     if (!authResult || !authResult.success) {
       setLoginError(authResult?.message || 'Đăng nhập không thành công: Sai mật khẩu hoặc email, hoặc tài khoản đã bị xóa khỏi hệ thống!');
@@ -207,6 +240,8 @@ export default function AuthRBACPage({ onLoginSuccess }) {
       navigate('/student');
     }
   };
+
+  const isActivationError = loginError && (loginError.includes('kích hoạt') || loginError.includes('ACTIVATED'));
 
   return (
     <div className="min-h-[85vh] flex flex-col justify-center max-w-6xl mx-auto py-6 animate-fade-in">
@@ -353,20 +388,70 @@ export default function AuthRBACPage({ onLoginSuccess }) {
               </div>
             </div>
 
+            {/* Registration Notice Banner */}
+            {registrationNotice && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 space-y-2 animate-in fade-in shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>{registrationNotice}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRegistrationNotice(null)}
+                    className="text-emerald-500 hover:text-emerald-800 text-xs font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="pl-6 flex flex-col gap-1.5">
+                  {activationLink && (
+                    <a
+                      href={activationLink}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold w-fit shadow-2xs transition-colors"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Kích hoạt tài khoản ngay (Liên kết trực tiếp)</span>
+                    </a>
+                  )}
+                  <Link
+                    to="/activate"
+                    className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 underline font-bold"
+                  >
+                    <Mail className="w-3 h-3" />
+                    <span>Chưa nhận được email? Gửi lại liên kết kích hoạt</span>
+                  </Link>
+                </div>
+              </div>
+            )}
+
             {/* Error Message */}
             {loginError && (
-              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 flex items-center justify-between gap-2.5 animate-in fade-in shadow-xs">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{loginError}</span>
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 space-y-2 animate-in fade-in shadow-xs">
+                <div className="flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{loginError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLoginError(null)}
+                    className="text-rose-400 hover:text-rose-700 text-xs font-bold"
+                  >
+                    ✕
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setLoginError(null)}
-                  className="text-rose-400 hover:text-rose-700 text-xs font-bold"
-                >
-                  ✕
-                </button>
+                {isActivationError && (
+                  <div className="pl-6">
+                    <Link
+                      to="/activate"
+                      className="inline-flex items-center gap-1 text-[11px] text-rose-700 hover:text-rose-900 underline font-bold"
+                    >
+                      <Mail className="w-3 h-3" />
+                      <span>Mở trang kích hoạt hoặc gửi lại email xác thực</span>
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
 
@@ -389,9 +474,9 @@ export default function AuthRBACPage({ onLoginSuccess }) {
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
                   <label className="font-semibold text-slate-700">Mật khẩu bảo mật</label>
-                  <a href="#" className="text-[11px] text-sky-600 hover:underline">
-                    Quên mật khẩu?
-                  </a>
+                  <Link to="/activate" className="text-[11px] text-sky-600 hover:underline">
+                    Kích hoạt tài khoản?
+                  </Link>
                 </div>
                 <div className="relative">
                   <input

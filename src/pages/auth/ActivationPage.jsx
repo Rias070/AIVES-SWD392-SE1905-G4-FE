@@ -12,6 +12,7 @@ import {
   Home
 } from 'lucide-react';
 import { authApi } from '../../services/api';
+import { updateRegistryUserStatus, normalizeUserRole } from '../../services/userService';
 
 export default function ActivationPage() {
   const [searchParams] = useSearchParams();
@@ -45,6 +46,9 @@ export default function ActivationPage() {
           setMessage(res.message || 'Tài khoản của bạn đã được kích hoạt thành công!');
           if (res.result) {
             setUserData(res.result);
+            if (res.result.email || res.result.uuid || res.result.id) {
+              updateRegistryUserStatus(res.result.email || res.result.uuid || res.result.id, 'active');
+            }
           }
         }
       } catch (err) {
@@ -130,7 +134,7 @@ export default function ActivationPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Vai trò:</span>
-                  <span className="font-semibold text-sky-700">{userData.role || 'STUDENT'}</span>
+                  <span className="font-semibold text-sky-700">{normalizeUserRole(userData.role)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Trạng thái:</span>
@@ -140,7 +144,7 @@ export default function ActivationPage() {
             )}
 
             <button
-              onClick={() => navigate('/login')}
+              onClick={() => navigate('/login', { state: { registeredEmail: userData?.email } })}
               className="w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-sky-600/20"
             >
               <span>Đăng nhập vào hệ thống</span>
