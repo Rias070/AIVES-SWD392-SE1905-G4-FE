@@ -1,18 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Layers,
-  Plus,
-  Trash2,
   Save,
-  Copy,
   RefreshCw,
-  Download,
-  Upload,
   BookOpen,
   ListChecks,
   AlertTriangle,
   CheckCircle2,
-  X,
   ChevronRight,
 } from 'lucide-react';
 import { lecturerRubricApi, lecturerQuestionApi, subjectApi } from '../../services/api';
@@ -45,8 +39,6 @@ export default function LecturerRubricManagementPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
-  const [isImportOpen, setIsImportOpen] = useState(false);
-  const [importText, setImportText] = useState('');
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -191,84 +183,8 @@ export default function LecturerRubricManagementPage() {
   };
 
   // ---------------------------------------------------------------
-  // Áp dụng template môn học
+  // Tổng điểm / trọng số do RubricBuilder tự hiển thị ở footer
   // ---------------------------------------------------------------
-  const handleApplyTemplateToQuestion = async () => {
-    if (!selectedQuestionId) return;
-    setSaving(true);
-    try {
-      const res = await lecturerRubricApi.copyTemplateToQuestion(selectedQuestionId);
-      const copied = res?.data?.result || 0;
-      await loadQuestionRubrics(selectedQuestionId);
-      showToast(
-        copied > 0
-          ? `Đã áp dụng Barem môn học cho câu hỏi (${copied} tiêu chí)`
-          : 'Câu hỏi đã có rubric riêng nên không bị ghi đè',
-        copied > 0 ? 'success' : 'info'
-      );
-    } catch (e) {
-      console.error('Copy template failed:', e);
-      showToast(e?.response?.data?.message || 'Không áp dụng được Barem môn học', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleApplyTemplateToAll = async () => {
-    if (!subjectId) return;
-    setSaving(true);
-    try {
-      const res = await lecturerRubricApi.applyTemplateToSubject(subjectId);
-      const copied = res?.data?.result || 0;
-      await loadQuestions(subjectId);
-      if (selectedQuestionId) await loadQuestionRubrics(selectedQuestionId);
-      showToast(`Đã áp dụng Barem môn học cho ${copied} câu hỏi`);
-    } catch (e) {
-      console.error('Apply template failed:', e);
-      showToast(e?.response?.data?.message || 'Không áp dụng được Barem môn học', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ---------------------------------------------------------------
-  // Import / Export JSON
-  // ---------------------------------------------------------------
-  const handleExport = () => {
-    const payload = {
-      subjectId,
-      template: template.map((r) => ({
-        criterionName: r.criterionName,
-        description: r.description,
-        maxScore: r.maxScore,
-      })),
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rubric-template-${subjectId || 'subject'}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImport = () => {
-    try {
-      const parsed = JSON.parse(importText);
-      const incoming = Array.isArray(parsed) ? parsed : parsed.template;
-      if (!Array.isArray(incoming)) throw new Error('Dữ liệu không hợp lệ');
-      setTemplate(incoming.map(normalizeRubricItem));
-      setIsImportOpen(false);
-      setImportText('');
-      showToast(`Đã nạp ${incoming.length} tiêu chí từ file JSON`);
-    } catch (e) {
-      showToast('JSON không hợp lệ: ' + e.message, 'error');
-    }
-  };
-
-  const templateTotal = template.reduce((s, r) => s + (Number(r.maxScore) || 0), 0);
-  const questionTotal = questionRubrics.reduce((s, r) => s + (Number(r.maxScore) || 0), 0);
-
   return (
     <div className="space-y-5 pb-12 animate-fade-in max-w-7xl mx-auto">
       {/* ==================== HEADER ==================== */}
@@ -280,7 +196,7 @@ export default function LecturerRubricManagementPage() {
           <div>
             <h2 className="text-sm font-bold text-slate-900">Quản lý Rubric Chấm Điểm</h2>
             <p className="text-[11px] text-slate-500">
-              Barem môn học làm template; rubric của từng câu hỏi được copy từ template khi tạo câu hỏi mới.
+              Barem môn học làm tiêu chuẩn dự phòng; mỗi câu hỏi có bộ tiêu chí riêng để AI chấm điểm Viva.
             </p>
           </div>
         </div>
@@ -300,15 +216,6 @@ export default function LecturerRubricManagementPage() {
 
           <button
             type="button"
-            onClick={handleApplyTemplateToAll}
-            disabled={saving || !subjectId}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 disabled:opacity-50 cursor-pointer"
-          >
-            <Copy className="w-3.5 h-3.5" /> Áp dụng Barem cho tất cả câu hỏi
-          </button>
-
-          <button
-            type="button"
             onClick={() => {
               setTemplate(emptyTemplate());
               showToast('Đã tạo mẫu Barem mặc định, nhớ bấm "Lưu Barem môn học"');
@@ -316,22 +223,6 @@ export default function LecturerRubricManagementPage() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" /> Mẫu mặc định
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsImportOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 cursor-pointer"
-          >
-            <Upload className="w-3.5 h-3.5" /> Nhập JSON
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExport}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" /> Xuất JSON
           </button>
         </div>
       </div>
@@ -346,7 +237,7 @@ export default function LecturerRubricManagementPage() {
               <div>
                 <h3 className="text-xs font-bold text-slate-900">Barem môn học (Rubric Template)</h3>
                 <p className="text-[10.5px] text-slate-500">
-                  Áp dụng cho mọi câu hỏi mới của môn. Trọng số tự tính theo tỉ lệ điểm.
+                  Tiêu chuẩn dự phòng khi câu hỏi chưa có rubric riêng. Trọng số tự tính theo tỉ lệ điểm.
                 </p>
               </div>
             </div>
@@ -367,21 +258,6 @@ export default function LecturerRubricManagementPage() {
             emptyHint="Môn học chưa có Barem. Bấm 'Thêm tiêu chí' hoặc nạp từ JSON."
             targetScore={TARGET_SCORE}
           />
-
-          {template.length > 0 && (
-            <div className="flex items-center gap-2 text-[11px] text-slate-500 pt-1">
-              {Math.abs(templateTotal - TARGET_SCORE) < 0.01 ? (
-                <span className="flex items-center gap-1 text-emerald-600 font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Tổng điểm hợp lệ ({templateTotal}/{TARGET_SCORE})
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-amber-600 font-semibold">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  Tổng điểm hiện tại là {templateTotal.toFixed(1)}/{TARGET_SCORE}
-                </span>
-              )}
-            </div>
-          )}
         </section>
 
         {/* ---------- Cột 2: Rubric theo câu hỏi ---------- */}
@@ -459,29 +335,15 @@ export default function LecturerRubricManagementPage() {
                 <span className="text-[11px] font-bold text-slate-700">
                   Rubric của câu hỏi <span className="font-mono text-slate-500">{selectedQuestion.code}</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={handleApplyTemplateToQuestion}
-                  disabled={saving}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 disabled:opacity-50 cursor-pointer"
-                >
-                  <Copy className="w-3 h-3" /> Áp dụng Barem môn học
-                </button>
               </div>
 
               <RubricBuilder
                 value={questionRubrics}
                 onChange={setQuestionRubrics}
                 title="Tiêu chí của câu hỏi"
-                emptyHint="Câu hỏi này chưa có rubric. Bấm 'Áp dụng Barem môn học' để sao chép template của môn."
+                emptyHint="Câu hỏi này chưa có rubric. Bấm 'Thêm tiêu chí' để thêm tiêu chí đánh giá."
                 targetScore={TARGET_SCORE}
               />
-
-              {questionRubrics.length > 0 && (
-                <div className="text-[11px] text-slate-500">
-                  Tổng điểm: <b className="text-slate-800">{questionTotal.toFixed(1)}</b>/{TARGET_SCORE}
-                </div>
-              )}
             </div>
           ) : (
             <div className="pt-3 border-t border-slate-100 text-center text-[11px] text-slate-400">
@@ -490,56 +352,6 @@ export default function LecturerRubricManagementPage() {
           )}
         </section>
       </div>
-
-      {/* ==================== MODAL IMPORT JSON ==================== */}
-      {isImportOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-scale-in">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Upload className="w-4 h-4 text-sky-600" /> Nhập Barem từ JSON
-              </h3>
-              <button
-                onClick={() => setIsImportOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-3">
-              <textarea
-                rows={9}
-                value={importText}
-                onChange={(e) => setImportText(e.target.value)}
-                placeholder={`{
-  "template": [
-    { "criterionName": "Tính chính xác", "description": "Nêu đúng định nghĩa", "maxScore": 4 },
-    { "criterionName": "Vận dụng", "description": "Áp dụng thực tế", "maxScore": 6 }
-  ]
-}`}
-                className="w-full font-mono text-[11px] p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:border-sky-500"
-              />
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsImportOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  onClick={handleImport}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-sky-600 text-white hover:bg-sky-700 cursor-pointer"
-                >
-                  Nạp vào Barem
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ==================== TOAST ==================== */}
       {toast && (
