@@ -389,8 +389,10 @@ export default function LecturerAIGenerationPage() {
       ]
     };
 
+    const isAllBloom = !bloom || bloom === 'ALL';
+
     let targetPool = [];
-    if (bloom && bloom !== 'ALL') {
+    if (!isAllBloom) {
       for (const [key, list] of Object.entries(bloomCatalog)) {
         if (bloom.toUpperCase().includes(key.toUpperCase())) {
           targetPool = list;
@@ -402,8 +404,31 @@ export default function LecturerAIGenerationPage() {
       targetPool = Object.values(bloomCatalog).flat();
     }
 
+    // Bloom "ALL" => phân bổ NGẪU NHIÊN các mức Bloom trên toàn bộ dải 1-6:
+    // rút `count` nhóm KHÁC NHAU (lặp lại với thứ tự shuffle mới khi count > 6),
+    // nên 3 câu sẽ ra 3 mức bất kỳ thay vì cố định Bloom 1, 2, 3.
+    const shuffledGroups = isAllBloom
+      ? Object.keys(bloomCatalog)
+          .sort((a, b) => Number(a.replace(/\D/g, '')) - Number(b.replace(/\D/g, '')))
+          .map((key) => bloomCatalog[key])
+          .filter((list) => Array.isArray(list) && list.length > 0)
+      : [];
+    const bloomPlan = [];
+    while (isAllBloom && bloomPlan.length < count && shuffledGroups.length > 0) {
+      for (let i = shuffledGroups.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledGroups[i], shuffledGroups[j]] = [shuffledGroups[j], shuffledGroups[i]];
+      }
+      for (const group of shuffledGroups) {
+        if (bloomPlan.length >= count) break;
+        bloomPlan.push(group);
+      }
+    }
+
     return Array.from({ length: count }).map((_, idx) => {
-      const angle = targetPool[idx % targetPool.length];
+      const angle = isAllBloom && bloomPlan.length > 0
+        ? bloomPlan[idx % bloomPlan.length][idx % bloomPlan[idx % bloomPlan.length].length]
+        : targetPool[idx % targetPool.length];
       return {
         id: `ai-gen-${Date.now()}-${idx}`,
         code: `${subCode}-Q${Math.floor(100 + Math.random() * 900)}`,
