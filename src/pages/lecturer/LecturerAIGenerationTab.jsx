@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   UploadCloud,
-  FileText,
   CheckCircle2,
   AlertCircle,
   RefreshCw,
@@ -23,6 +22,10 @@ import { lecturerDocumentApi, lecturerQuestionApi, subjectApi } from '../../serv
 
 const QUESTION_BANK_KEY = 'aives_question_bank';
 
+const isValidUuid = (val) =>
+  typeof val === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
 export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, onQuestionsApproved }) {
   // Subjects
   const [subjects, setSubjects] = useState([
@@ -34,6 +37,8 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
 
   // Generation form states
   const [topic, setTopic] = useState('');
+  const [customContext, setCustomContext] = useState('');
+  const [useRag, setUseRag] = useState(true);
   const [selectedDocUuid, setSelectedDocUuid] = useState('ALL');
   const [availableDocs, setAvailableDocs] = useState([]);
   const [bloomLevel, setBloomLevel] = useState('ALL');
@@ -63,8 +68,11 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
   useEffect(() => {
     if (preselectedDoc) {
       if (preselectedDoc.subjectCode) setSelectedSubject(preselectedDoc.subjectCode);
-      if (preselectedDoc.filename || preselectedDoc.name) {
-        setTopic(preselectedDoc.filename || preselectedDoc.name);
+      // KHÔNG tự điền topic = tên file. Tên file là dữ liệu kỹ thuật
+      // (vd: "swd-test-quest.txt") và sẽ khiến AI sinh câu hỏi vô nghĩa.
+      // Giảng viên tự nhập Chủ đề / Context nếu cần giới hạn phạm vi.
+      if (preselectedDoc.id && isValidUuid(preselectedDoc.id)) {
+        setSelectedDocUuid(preselectedDoc.id);
       }
     }
   }, [preselectedDoc]);
@@ -86,6 +94,23 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
     };
     loadSubjects();
   }, [preselectedDoc]);
+
+  // Load available RAG documents for the selected subject
+  const fetchAvailableDocs = async (subjCode) => {
+    if (!subjCode) return;
+    try {
+      const res = await lecturerDocumentApi.getDocuments({ subjectCode: subjCode });
+      const list = res?.data?.result || [];
+      setAvailableDocs(list);
+    } catch (err) {
+      console.warn('Could not fetch RAG documents list:', err);
+      setAvailableDocs([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchAvailableDocs(selectedSubject);
+  }, [selectedSubject]);
 
   // Check if there are pending questions from previous sessions (without auto-dumping into review list)
   const fetchPendingQuestions = async () => {
@@ -148,8 +173,8 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
       let uploadedDoc = null;
       const currentSubjectObj = subjects.find((s) => s.code === selectedSubject);
 
-      // Step 1: Upload file if selected
-      if (file) {
+      // Step 1: Upload file if selected (chỉ khi RAG đang bật)
+      if (file && useRag) {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('subjectCode', selectedSubject);
@@ -167,17 +192,22 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
 
       setProgress(60);
 
-      const targetTopic = file ? file.name.replace(/\.[^/.]+$/, '') : (preselectedDoc?.filename || preselectedDoc?.name || topic || selectedSubject);
-      
-      const isValidUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
       const docUuid = isValidUuid(uploadedDoc?.id) ? uploadedDoc.id : (isValidUuid(preselectedDoc?.id) ? preselectedDoc.id : null);
       const subjUuid = isValidUuid(currentSubjectObj?.id) ? currentSubjectObj.id : (isValidUuid(currentSubjectObj?.uuid) ? currentSubjectObj.uuid : null);
       const targetDocUuid = (selectedDocUuid && selectedDocUuid !== 'ALL' && isValidUuid(selectedDocUuid)) ? selectedDocUuid : null;
 
+      // Topic do giảng viên nhập tay. KHÔNG dùng tên file làm topic vì
+      // sẽ sinh câu hỏi vô nghĩa (vd: "nêu định nghĩa của swd-test-quest.txt").
+      const cleanTopic = topic.trim();
+      const cleanContext = customContext.trim();
+
       const reqPayload = {
         subjectCode: selectedSubject,
         subjectUuid: subjUuid,
-        documentUuid: targetDocUuid || docUuid,
+        documentUuid: useRag ? (targetDocUuid || docUuid) : null,
+        topic: cleanTopic || null,
+        customContext: cleanContext || null,
+        useRagContext: useRag,
         bloomLevel: bloomLevel,
         difficulty: difficulty,
         count: Number(questionCount) || 3,
@@ -196,7 +226,7 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
           showToast(`AI đã sinh thành công ${generatedList.length} câu hỏi mới theo chuẩn RAG! Hãy kiểm duyệt bên dưới.`);
         } else {
           // Fallback simulation if backend returned empty
-          const simulated = createFallbackQuestions(selectedSubject, targetTopic, bloomLevel, difficulty, questionCount);
+          const simulated = createFallbackQuestions(selectedSubject, cleanTopic || selectedSubject, bloomLevel, difficulty, questionCount);
           setReviewQuestions(simulated);
           showToast(`Đã sinh ${simulated.length} câu hỏi học liệu! Vui lòng duyệt trước khi lưu vào ngân hàng.`);
         }
@@ -206,7 +236,34 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
       clearInterval(progressInterval);
       setProgress(100);
 
-      const targetTopic = file ? file.name.replace(/\.[^/.]+$/, '') : (topic || selectedSubject);
+      // KHÔNG dùng tên file làm topic: tên file là dữ liệu kỹ thuật và sẽ tạo
+      // ra câu hỏi vô nghĩa (vd: "nêu định nghĩa của swd-test-quest.txt").
+      const targetTopic = topic.trim() || selectedSubject;
+      const isTimeout = err?.code === 'ECONNABORTED' || /timeout/i.test(err?.message || '');
+
+      // Backend đã commit câu hỏi vào DB trước khi serialize response, nên khi
+      // timeout xảy ra câu hỏi vẫn còn trong DB (status PENDING).
+      // Đồng bộ lại để tránh sinh câu hỏi mồ côi + câu hỏi fallback trùng lặp.
+      if (isTimeout) {
+        try {
+          const pendingRes = await lecturerQuestionApi.getQuestions({ status: 'PENDING' });
+          const pendingAll = pendingRes?.data?.result || [];
+          // Chỉ lấy câu hỏi của môn đang làm việc để tránh lẫn với câu hỏi mồ côi môn khác
+          const pendingList = pendingAll.filter(
+            (q) => !q?.subjectCode || q.subjectCode === selectedSubject
+          );
+          if (pendingList.length > 0) {
+            setIsGenerating(false);
+            setReviewQuestions(pendingList);
+            setSavedPendingQuestions([]);
+            showToast(`AI đã sinh ${pendingList.length} câu hỏi nhưng phản hồi bị timeout - đã đồng bộ lại từ hệ thống. Vui lòng kiểm duyệt!`);
+            return;
+          }
+        } catch (syncErr) {
+          console.warn('Could not re-sync pending questions after timeout:', syncErr);
+        }
+      }
+
       const fallbackList = createFallbackQuestions(selectedSubject, targetTopic, bloomLevel, difficulty, questionCount);
 
       setTimeout(() => {
@@ -219,7 +276,19 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
 
   const createFallbackQuestions = (subCode, top, bloom, diff, cnt) => {
     const count = Number(cnt) || 3;
-    const targetTopic = top || 'Kiến thức cốt lõi học phần';
+    // Làm sạch topic: loại bỏ phần mở rộng tên file (vd: "swd-test-quest.txt")
+    // vì tên file là dữ liệu kỹ thuật, không phải chủ đề kiến thức.
+    let targetTopic = (top || '').trim();
+    if (/\.(txt|pdf|docx?|pptx?|md)$/i.test(targetTopic)) {
+      targetTopic = targetTopic.replace(/\.[^/.]+$/, '').trim();
+    }
+    // Mã môn học (vd: "SWD392") không phải chủ đề kiến thức -> bỏ qua
+    if (selectedSubject && targetTopic.toUpperCase() === selectedSubject.toUpperCase()) {
+      targetTopic = '';
+    }
+    if (!targetTopic) {
+      targetTopic = 'Kiến thức cốt lõi học phần';
+    }
     const safeDiff = diff && diff !== 'ALL' ? diff.toUpperCase() : 'MEDIUM';
 
     const bloomCatalog = {
@@ -563,8 +632,17 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
       ]
     };
 
+    // Bloom "ALL" => phân bổ NGẪU NHIÊN các mức Bloom trên toàn bộ dải 1-6.
+    // Các mức được rút ngẫu nhiên và KHÔNG trùng nhau (nếu count <= 6), nên 3 câu sẽ ra
+    // 3 mức bất kỳ (có thể gồm Bloom 5/6), thay vì cố định là Bloom 1, 2, 3.
+    const isAllBloom = !bloom || bloom === 'ALL';
+    const bloomGroups = Object.keys(bloomCatalog)
+      .sort((a, b) => Number(a.replace(/\D/g, '')) - Number(b.replace(/\D/g, '')))
+      .map((key) => bloomCatalog[key])
+      .filter((list) => Array.isArray(list) && list.length > 0);
+
     let targetPool = [];
-    if (bloom && bloom !== 'ALL') {
+    if (!isAllBloom) {
       for (const [key, list] of Object.entries(bloomCatalog)) {
         if (bloom.toUpperCase().includes(key.toUpperCase())) {
           targetPool = list;
@@ -576,8 +654,27 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
       targetPool = Object.values(bloomCatalog).flat();
     }
 
+    // Kế hoạch Bloom ngẫu nhiên cho nhánh ALL: rút `count` nhóm khác nhau từ 6 nhóm,
+    // lặp lại (với thứ tự shuffle mới) khi count > 6.
+    const shuffledGroups = isAllBloom ? [...bloomGroups] : [];
+    const bloomPlan = [];
+    while (isAllBloom && bloomPlan.length < count && shuffledGroups.length > 0) {
+      for (let i = shuffledGroups.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledGroups[i], shuffledGroups[j]] = [shuffledGroups[j], shuffledGroups[i]];
+      }
+      for (const group of shuffledGroups) {
+        if (bloomPlan.length >= count) break;
+        bloomPlan.push(group);
+      }
+    }
+
     return Array.from({ length: count }).map((_, idx) => {
-      const angle = targetPool[idx % targetPool.length];
+      // Với ALL: lấy theo kế hoạch ngẫu nhiên đã chọn (mỗi câu rơi vào một mức khác nhau),
+      // lấy phần tử con theo chỉ số để không lặp nội dung trong cùng một mức.
+      const angle = isAllBloom && bloomPlan.length > 0
+        ? bloomPlan[idx % bloomPlan.length][idx % bloomPlan[idx % bloomPlan.length].length]
+        : targetPool[idx % targetPool.length];
       return {
         id: `ai-gen-${Date.now()}-${idx}`,
         code: `${subCode}-Q${Math.floor(100 + Math.random() * 900)}`,
@@ -841,61 +938,114 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
             </div>
           </div>
 
-          {/* Reference Document Information */}
+          {/* Topic & Custom Context */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span>Nguồn học liệu RAG tự động</span>
-                <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Đọc trực tiếp nội dung file
-                </span>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Chủ đề / Chương bài giảng (Tùy chọn)
               </label>
-              <div className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-sky-600 shrink-0" />
-                <span className="truncate font-medium">
-                  {file ? file.name : (preselectedDoc?.filename || preselectedDoc?.name || `Toàn bộ kho giáo trình môn ${selectedSubject}`)}
-                </span>
-              </div>
+              <input
+                type="text"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="Ví dụ: Session Replication trong Spring Session, Saga Pattern trong Microservices..."
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-medium focus:outline-none focus:border-sky-500"
+              />
+              <p className="text-[10px] text-slate-400 mt-1 italic">
+                Khoanh vùng phạm vi kiến thức AI được phép trích xuất.
+              </p>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Tệp tài liệu tham chiếu RAG (Tùy chọn)
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="file"
-                  id="ai-tab-file"
-                  onChange={handleFileChange}
-                  accept=".pdf,.doc,.docx,.txt"
-                  className="hidden"
-                />
-                <label
-                  htmlFor="ai-tab-file"
-                  className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 hover:bg-slate-100 flex items-center justify-between cursor-pointer"
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Tham khảo tài liệu RAG</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={useRag}
+                  onClick={() => setUseRag((prev) => !prev)}
+                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+                    useRag ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                  title={useRag ? 'Đang bật tham khảo RAG - bấm để tắt' : 'Đang tắt RAG - bấm để bật'}
                 >
-                  <span className="truncate">{file ? file.name : (preselectedDoc?.filename || 'Chọn tệp PDF giáo trình...')}</span>
-                  <UploadCloud className="w-4 h-4 text-slate-400 shrink-0" />
-                </label>
-                {file && (
-                  <button
-                    type="button"
-                    onClick={() => setFile(null)}
-                    className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100"
-                    title="Hủy tệp"
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                      useRag ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </label>
+              {useRag ? (
+                <div className="space-y-2">
+                  <select
+                    value={selectedDocUuid}
+                    onChange={(e) => setSelectedDocUuid(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-medium focus:outline-none focus:border-sky-500"
                   >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+                    <option value="ALL">Toàn bộ kho giáo trình môn {selectedSubject}</option>
+                    {availableDocs.map((d) => (
+                      <option key={d.id || d.uuid} value={d.id || d.uuid}>
+                        {d.filename || d.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      id="ai-tab-file"
+                      onChange={handleFileChange}
+                      accept=".pdf,.doc,.docx,.txt"
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="ai-tab-file"
+                      className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 hover:bg-slate-100 flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="truncate">{file ? file.name : (preselectedDoc?.filename || 'Tải tệp giáo trình mới...')}</span>
+                      <UploadCloud className="w-4 h-4 text-slate-400 shrink-0" />
+                    </label>
+                    {file && (
+                      <button
+                        type="button"
+                        onClick={() => setFile(null)}
+                        className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100"
+                        title="Hủy tệp"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="font-medium">
+                    Không tham khảo tài liệu. AI chỉ dùng Chủ đề và Context bổ sung bạn nhập.
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Free-form Context */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+              <span>Context bổ sung (Tùy chọn)</span>
+              <span className="text-[10px] text-slate-400 font-normal">
+                Nội dung tự do, dán đề cương / ghi chú / đề thi cũ
+              </span>
+            </label>
+            <textarea
+              value={customContext}
+              onChange={(e) => setCustomContext(e.target.value)}
+              rows={5}
+              className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-medium focus:outline-none focus:border-sky-500 resize-y leading-relaxed"
+            />
+          </div>
+
           {/* Action Button & Progress */}
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <span className="text-[11px] text-slate-500 italic">
-              AI sẽ phân tích giáo trình, sinh câu hỏi phản biện, đáp án mẫu và barem điểm Rubric chi tiết.
-            </span>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-3">
 
             <button
               type="submit"
@@ -978,9 +1128,6 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
                   {filteredReviewQuestions.length} câu hỏi
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500">
-                Hiệu đính nội dung, kiểm tra barem điểm và bấm phê duyệt để lưu chính thức vào Ngân hàng
-              </p>
             </div>
           </div>
 

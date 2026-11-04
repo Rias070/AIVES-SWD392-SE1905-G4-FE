@@ -17,6 +17,7 @@ import {
   FileText,
   Search,
   ChevronRight,
+  ChevronLeft,
   ExternalLink,
   Shield,
   Layers,
@@ -43,11 +44,81 @@ import { subjectApi, studentExamApi } from '../../services/api';
 
 const DEFAULT_RECENT_EXAMS = [];
 
+// Reusable Pagination component
+function PaginationBar({ currentPage, totalPages, totalItems, itemsPerPage, onPageChange }) {
+  if (totalItems === 0) return null;
+  const startIdx = (currentPage - 1) * itemsPerPage + 1;
+  const endIdx = Math.min(currentPage * itemsPerPage, totalItems);
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3.5 py-2.5 bg-slate-50/90 border-t border-slate-200/70 text-xs text-slate-600">
+      <div className="flex items-center gap-1.5 font-medium text-[11px] sm:text-xs">
+        <span>Hiển thị</span>
+        <span className="font-bold text-slate-900">{startIdx}-{endIdx}</span>
+        <span>trong tổng số</span>
+        <span className="font-bold text-slate-900">{totalItems}</span>
+        <span>mục (10 mục / trang)</span>
+      </div>
+
+      <div className="flex items-center gap-1 self-end sm:self-auto">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage <= 1}
+          className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-35 disabled:cursor-not-allowed transition-all font-medium text-slate-700 flex items-center gap-0.5 cursor-pointer text-xs shadow-2xs"
+          title="Trang trước"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Trước</span>
+        </button>
+
+        <div className="flex items-center gap-1 px-1">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <button
+              key={p}
+              onClick={() => onPageChange(p)}
+              className={`w-6 h-6 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                currentPage === p
+                  ? 'bg-sky-600 text-white shadow-2xs'
+                  : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage >= totalPages}
+          className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-35 disabled:cursor-not-allowed transition-all font-medium text-slate-700 flex items-center gap-0.5 cursor-pointer text-xs shadow-2xs"
+          title="Trang sau"
+        >
+          <span className="hidden sm:inline">Sau</span>
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function StudentDashboardPage({ currentUser }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const studentName = currentUser?.fullName || 'Nguyễn Văn An';
-  const studentId = currentUser?.email ? currentUser.email.split('@')[0].toUpperCase() : '20210456';
+  const resolvedUser = currentUser || (() => {
+    try {
+      const raw = sessionStorage.getItem('aives_user') || localStorage.getItem('aives_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const studentName = resolvedUser?.fullName || resolvedUser?.name || 'Nguyễn Văn An';
+  const studentId = 
+    resolvedUser?.userCode || 
+    resolvedUser?.studentCode || 
+    resolvedUser?.idNumber || 
+    (resolvedUser?.id && !resolvedUser.id.includes('-') ? resolvedUser.id : 'SE198876');
 
   // Active Tab state
   const urlTab = searchParams.get('tab');
@@ -121,6 +192,12 @@ export default function StudentDashboardPage({ currentUser }) {
   // Audio test states for mic-check modal
   const [isMicTesting, setIsMicTesting] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+
+  // Pagination states (Max 10 items per page & fixed viewport frame)
+  const ITEMS_PER_PAGE = 10;
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyViewMode, setHistoryViewMode] = useState('grid'); // 'grid' | 'table'
 
   // Unified Cross-page Navigation & Session Persistence Handler
   const handleStartExamSession = ({
@@ -521,6 +598,27 @@ export default function StudentDashboardPage({ currentUser }) {
     });
   }, [scheduledExams]);
 
+  // Paginated Slices for fixed-frame 10 items/page view
+  const totalUpcomingPages = Math.ceil(upcomingExams.length / ITEMS_PER_PAGE) || 1;
+  const paginatedUpcomingExams = useMemo(() => {
+    const start = (upcomingPage - 1) * ITEMS_PER_PAGE;
+    return upcomingExams.slice(start, start + ITEMS_PER_PAGE);
+  }, [upcomingExams, upcomingPage]);
+
+  const totalHistoryPages = Math.ceil(recentExams.length / ITEMS_PER_PAGE) || 1;
+  const paginatedRecentExams = useMemo(() => {
+    const start = (historyPage - 1) * ITEMS_PER_PAGE;
+    return recentExams.slice(start, start + ITEMS_PER_PAGE);
+  }, [recentExams, historyPage]);
+
+  useEffect(() => {
+    if (upcomingPage > totalUpcomingPages) setUpcomingPage(1);
+  }, [upcomingExams.length, totalUpcomingPages]);
+
+  useEffect(() => {
+    if (historyPage > totalHistoryPages) setHistoryPage(1);
+  }, [recentExams.length, totalHistoryPages]);
+
   // Handle Start Mock Exam from Modal
   const handleStartMockExam = () => {
     handleStartExamSession({
@@ -549,9 +647,9 @@ export default function StudentDashboardPage({ currentUser }) {
   ];
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in text-slate-800">
+    <div className="space-y-4 pb-4 animate-fade-in text-slate-800">
       {/* ================= GREETING & UTILITY BAR ================= */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-4 md:px-6 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-2xl p-3 sm:px-5 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
@@ -613,7 +711,7 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
         </nav>
       </div>
 
-      {/* ================= TAB 2: LỊCH CA THI SẮP TỚI ================= */}
+      {/* ================= TAB: LỊCH CA THI SẮP TỚI ================= */}
       {activeTab === 'upcoming-exams' && (
         <section className="space-y-4 animate-fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
@@ -626,39 +724,51 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
               </p>
 
             </div>
-            <button
-              onClick={() =>
-                handleStartExamSession({
-                  subject: 'CS301',
-                  mode: 'check',
-                  difficulty: 'Chuẩn đề'
-                })
-              }
-              className="self-start sm:self-auto px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-            >
-              <Mic className="w-3.5 h-3.5 text-sky-600" />
-              <span>Thử thiết bị</span>
-            </button>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                onClick={() => {
+                  setMockForm({ subject: 'CS301', difficulty: 'Chuẩn đề', lang: examLang });
+                  setActiveModal('mock-register');
+                }}
+                className="px-3 py-1.5 rounded-xl bg-sky-50 border border-sky-200/80 text-sky-700 hover:bg-sky-100 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                <span>Đăng ký thi thử AI</span>
+              </button>
+              <button
+                onClick={() =>
+                  handleStartExamSession({
+                    subject: 'CS301',
+                    mode: 'check',
+                    difficulty: 'Chuẩn đề'
+                  })
+                }
+                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              >
+                <Mic className="w-3.5 h-3.5 text-sky-600" />
+                <span>Thử thiết bị</span>
+              </button>
+            </div>
           </div>
 
-          {/* Full-width Modern Exam Schedule Table */}
-          <div className="rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
+          {/* Full-width Modern Exam Schedule Table (Fixed frame max-h & 10 items/page) */}
+          <div className="rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col">
+            <div className="overflow-x-auto max-h-[calc(100vh-320px)] min-h-[280px] overflow-y-auto">
               <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200/70 bg-slate-50/50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="py-3.5 px-5">Môn thi & Ca</th>
-                    <th className="py-3.5 px-5">Thời gian</th>
-                    <th className="py-3.5 px-5">Phòng thi AI</th>
-                    <th className="py-3.5 px-5">Trạng thái</th>
-                    <th className="py-3.5 px-5 text-right">Thao tác</th>
+                <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm border-b border-slate-200/70 shadow-2xs">
+                  <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="py-2.5 px-4">Môn thi & Ca</th>
+                    <th className="py-2.5 px-4">Thời gian</th>
+                    <th className="py-2.5 px-4">Phòng thi AI</th>
+                    <th className="py-2.5 px-4">Trạng thái</th>
+                    <th className="py-2.5 px-4 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {upcomingExams.map((exam) => (
+                  {paginatedUpcomingExams.map((exam) => (
                     <tr key={exam.id} className="hover:bg-slate-50/70 transition-colors">
                       {/* Course & Session */}
-                      <td className="py-4 px-5">
+                      <td className="py-2.5 px-4">
                         <div className="flex items-center gap-3">
                           <span
                             className={`w-2.5 h-2.5 rounded-full shrink-0 ${
@@ -688,7 +798,7 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
                       </td>
 
                       {/* Time */}
-                      <td className="py-4 px-5 whitespace-nowrap">
+                      <td className="py-2.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5 text-slate-800 font-semibold">
                           <Clock className="w-3.5 h-3.5 text-slate-400" />
                           <span>{exam.time}</span>
@@ -697,14 +807,14 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
                       </td>
 
                       {/* Room */}
-                      <td className="py-4 px-5 whitespace-nowrap">
+                      <td className="py-2.5 px-4 whitespace-nowrap">
                         <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200/80">
                           {exam.room}
                         </span>
                       </td>
 
                       {/* Status */}
-                      <td className="py-4 px-5 whitespace-nowrap">
+                      <td className="py-2.5 px-4 whitespace-nowrap">
                         {exam.isOverdue ? (
                           <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
                             <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
@@ -729,7 +839,7 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
                       </td>
 
                       {/* Action */}
-                      <td className="py-4 px-5 text-right whitespace-nowrap">
+                      <td className="py-2.5 px-4 text-right whitespace-nowrap">
                         {exam.isOverdue ? (
                           <span className="text-xs font-semibold text-rose-500 py-1.5 px-3 bg-rose-50/60 rounded-xl border border-rose-200/60 inline-block">
                             Đã kết thúc
@@ -771,11 +881,20 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination for upcoming exams */}
+            <PaginationBar
+              currentPage={upcomingPage}
+              totalPages={totalUpcomingPages}
+              totalItems={upcomingExams.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setUpcomingPage}
+            />
           </div>
         </section>
       )}
 
-      {/* ================= TAB 3: LỊCH SỬ THI GẦN ĐÂY ================= */}
+      {/* ================= TAB: LỊCH SỬ THI GẦN ĐÂY ================= */}
       {activeTab === 'recent-history' && (
         <section className="space-y-4 animate-fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
@@ -787,94 +906,206 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
                 Dữ liệu lưu trữ đám mây có gắn chữ ký số chứng thực kết quả học tập
               </p>
             </div>
-            <Link
-              to="/exam-result"
-              className="self-start sm:self-auto px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-sky-700 hover:bg-sky-50 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-            >
-              <span>Xem bảng điểm chi tiết & Chứng chỉ</span>
-              <ArrowUpRight className="w-3.5 h-3.5 text-sky-600" />
-            </Link>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-0.5 text-xs shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setHistoryViewMode('grid')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                    historyViewMode === 'grid'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Dạng thẻ"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Dạng thẻ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoryViewMode('table')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                    historyViewMode === 'table'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Dạng bảng"
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Dạng bảng</span>
+                </button>
+              </div>
+
+              <Link
+                to="/exam-result"
+                className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-sky-700 hover:bg-sky-50 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+              >
+                <span className="hidden sm:inline">Bảng điểm chi tiết</span>
+                <span className="sm:hidden">Bảng điểm</span>
+                <ArrowUpRight className="w-3.5 h-3.5 text-sky-600" />
+              </Link>
+            </div>
           </div>
 
-          {/* 3-Column History Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recentExams.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 hover:border-sky-300 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
-              >
-                <div className="space-y-3">
-                  {/* Top: Code & Score */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200">
-                        {item.code}
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        {item.details?.date}
-                      </span>
-                    </div>
+          {/* Container fixed in viewport frame (Max 10 items/page) */}
+          {historyViewMode === 'grid' ? (
+            <div className="rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs p-3 sm:p-4 flex flex-col">
+              <div className="max-h-[calc(100vh-320px)] min-h-[280px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+                  {paginatedRecentExams.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-xl bg-white border border-slate-200 hover:border-sky-300 p-3 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between space-y-2.5"
+                    >
+                      <div className="space-y-2">
+                        {/* Top: Code & Score */}
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                            {item.code}
+                          </span>
+                          <span className="text-base font-black text-sky-700 font-mono tracking-tight">
+                            {item.score}
+                          </span>
+                        </div>
 
-                    <div className="text-right">
-                      <span className="text-xl font-black text-sky-700 font-mono tracking-tight">
-                        {item.score}
-                      </span>
-                    </div>
-                  </div>
+                        {/* Title & Date */}
+                        <div>
+                          <h3 className="text-xs font-bold text-slate-900 leading-snug line-clamp-1" title={item.title}>
+                            {item.title}
+                          </h3>
+                          <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                            {item.details?.date || 'Vừa xong'}
+                          </p>
+                        </div>
 
-                  {/* Title & Badge */}
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug line-clamp-1">
-                      {item.title}
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
-                      {item.description}
-                    </p>
-                  </div>
+                        {/* Rubric Mini Breakdown */}
+                        <div className="grid grid-cols-3 gap-1 pt-0.5 text-center">
+                          <div className="p-1 rounded bg-slate-50 border border-slate-100">
+                            <span className="text-[9px] text-slate-400 font-medium block">C.Xác</span>
+                            <span className="text-[11px] font-bold text-slate-800 font-mono">
+                              {item.details?.rubric?.accuracy ? item.details.rubric.accuracy.split('/')[0]?.trim() : (item.score ? item.score.split('/')[0]?.trim() : '--')}
+                            </span>
+                          </div>
+                          <div className="p-1 rounded bg-slate-50 border border-slate-100">
+                            <span className="text-[9px] text-slate-400 font-medium block">P.Biện</span>
+                            <span className="text-[11px] font-bold text-slate-800 font-mono">
+                              {item.details?.rubric?.reasoning ? item.details.rubric.reasoning.split('/')[0]?.trim() : (item.score ? item.score.split('/')[0]?.trim() : '--')}
+                            </span>
+                          </div>
+                          <div className="p-1 rounded bg-slate-50 border border-slate-100">
+                            <span className="text-[9px] text-slate-400 font-medium block">L.Loát</span>
+                            <span className="text-[11px] font-bold text-slate-800 font-mono">
+                              {item.details?.rubric?.fluency ? item.details.rubric.fluency.split('/')[0]?.trim() : (item.score ? item.score.split('/')[0]?.trim() : '--')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Rubric Mini Breakdown */}
-                  <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                      <span className="text-[10px] text-slate-400 font-medium block">Chính xác</span>
-                      <span className="text-xs font-bold text-slate-800 font-mono">
-                        {item.details?.rubric?.accuracy ? item.details.rubric.accuracy.split('/')[0]?.trim() : (item.score ? item.score.split('/')[0]?.trim() : '--')}
-                      </span>
+                      {/* Bottom CTA */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${item.badgeColor || 'bg-slate-50 text-slate-600'}`}>
+                          {item.rubricBadge}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setSelectedExamReview(item);
+                            setActiveModal('ai-feedback');
+                          }}
+                          className="font-semibold text-sky-600 hover:text-sky-800 transition-colors flex items-center gap-0.5 cursor-pointer text-[11px]"
+                        >
+                          <span>Nhận xét</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                      <span className="text-[10px] text-slate-400 font-medium block">Phản biện</span>
-                      <span className="text-xs font-bold text-slate-800 font-mono">
-                        {item.details?.rubric?.reasoning ? item.details.rubric.reasoning.split('/')[0]?.trim() : (item.score ? item.score.split('/')[0]?.trim() : '--')}
-                      </span>
-                    </div>
-                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                      <span className="text-[10px] text-slate-400 font-medium block">Lưu loát</span>
-                      <span className="text-xs font-bold text-slate-800 font-mono">
-                        {item.details?.rubric?.fluency ? item.details.rubric.fluency.split('/')[0]?.trim() : (item.score ? item.score.split('/')[0]?.trim() : '--')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bottom CTA */}
-                <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
-                  <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${item.badgeColor}`}>
-                    {item.rubricBadge}
-                  </span>
-
-                  <button
-                    onClick={() => {
-                      setSelectedExamReview(item);
-                      setActiveModal('ai-feedback');
-                    }}
-                    className="font-semibold text-sky-600 hover:text-sky-800 transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>Xem nhận xét AI</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
+
+              {/* Pagination */}
+              <PaginationBar
+                currentPage={historyPage}
+                totalPages={totalHistoryPages}
+                totalItems={recentExams.length}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onPageChange={setHistoryPage}
+              />
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col">
+              <div className="overflow-x-auto max-h-[calc(100vh-320px)] min-h-[280px] overflow-y-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm border-b border-slate-200/70 shadow-2xs">
+                    <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="py-2.5 px-4">Môn thi & Bài thi</th>
+                      <th className="py-2.5 px-4">Thời gian hoàn thành</th>
+                      <th className="py-2.5 px-4">Điểm số</th>
+                      <th className="py-2.5 px-4">Tiêu chí Rubric</th>
+                      <th className="py-2.5 px-4">Trạng thái</th>
+                      <th className="py-2.5 px-4 text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paginatedRecentExams.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-2.5 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                              {item.code}
+                            </span>
+                            <div>
+                              <p className="font-bold text-slate-900 text-xs sm:text-sm line-clamp-1">{item.title}</p>
+                              <p className="text-[11px] text-slate-400 line-clamp-1">{item.description}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-4 whitespace-nowrap text-slate-600 font-medium">
+                          {item.details?.date || 'Vừa xong'}
+                        </td>
+                        <td className="py-2.5 px-4 whitespace-nowrap font-mono font-black text-sky-700 text-sm">
+                          {item.score}
+                        </td>
+                        <td className="py-2.5 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2 text-[11px] font-mono text-slate-600">
+                            <span>CX: <strong className="text-slate-800">{item.details?.rubric?.accuracy ? item.details.rubric.accuracy.split('/')[0]?.trim() : '--'}</strong></span>
+                            <span>•</span>
+                            <span>PB: <strong className="text-slate-800">{item.details?.rubric?.reasoning ? item.details.rubric.reasoning.split('/')[0]?.trim() : '--'}</strong></span>
+                            <span>•</span>
+                            <span>LL: <strong className="text-slate-800">{item.details?.rubric?.fluency ? item.details.rubric.fluency.split('/')[0]?.trim() : '--'}</strong></span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-4 whitespace-nowrap">
+                          <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${item.badgeColor || 'bg-slate-50 text-slate-600'}`}>
+                            {item.rubricBadge}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => {
+                              setSelectedExamReview(item);
+                              setActiveModal('ai-feedback');
+                            }}
+                            className="px-3 py-1 rounded-xl border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold transition-colors cursor-pointer"
+                          >
+                            Xem nhận xét AI
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <PaginationBar
+                currentPage={historyPage}
+                totalPages={totalHistoryPages}
+                totalItems={recentExams.length}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onPageChange={setHistoryPage}
+              />
+            </div>
+          )}
         </section>
       )}
 

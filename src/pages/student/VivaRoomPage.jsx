@@ -804,28 +804,43 @@ export default function VivaRoomPage() {
 
   const urlSessionId = searchParams.get('sessionId') || searchParams.get('id') || currentSession?.sessionId || currentSession?.id;
 
-  const targetSessionFromStorage = (() => {
+  const resolveActiveExamSession = () => {
     try {
+      const urlSessionId = searchParams.get('sessionId') || searchParams.get('id');
       const allSessionsRaw = localStorage.getItem('aives_exam_sessions');
       if (allSessionsRaw) {
         const sessions = JSON.parse(allSessionsRaw);
         if (Array.isArray(sessions) && sessions.length > 0) {
+          // 1. Tìm theo URL param (so sánh cả id và sessionCode)
           if (urlSessionId) {
-            const m = sessions.find((s) => s.id === urlSessionId || s.sessionCode === urlSessionId);
-            if (m) return m;
+            const matched = sessions.find(s => s.id === urlSessionId || s.sessionCode === urlSessionId);
+            if (matched && matched.questions && matched.questions.length > 0) return matched;
           }
+          // 2. Tìm theo ca thi mới nhất được lưu trong aives_latest_active_exam
           const latestRaw = localStorage.getItem('aives_latest_active_exam');
           if (latestRaw) {
-            const parsed = JSON.parse(latestRaw);
-            const mLatest = sessions.find((s) => s.id === parsed.id || s.sessionCode === parsed.sessionCode);
-            if (mLatest) return mLatest;
+            const latest = JSON.parse(latestRaw);
+            const matchedLatest = sessions.find(s => s.id === latest.id || s.sessionCode === latest.sessionCode);
+            if (matchedLatest && matchedLatest.questions && matchedLatest.questions.length > 0) return matchedLatest;
+            if (latest && latest.questions && latest.questions.length > 0) return latest;
           }
-          return sessions[0];
+          // 3. Fallback lấy ca thi mới nhất trong mảng có chứa danh sách questions
+          const sessionWithQuestions = sessions.slice().reverse().find(s => s.questions && s.questions.length > 0);
+          if (sessionWithQuestions) return sessionWithQuestions;
         }
       }
-    } catch (e) {}
+      const directLatestRaw = localStorage.getItem('aives_latest_active_exam');
+      if (directLatestRaw) {
+        const directLatest = JSON.parse(directLatestRaw);
+        if (directLatest && directLatest.questions && directLatest.questions.length > 0) return directLatest;
+      }
+    } catch (e) {
+      console.warn('Error resolving active exam session:', e);
+    }
     return null;
-  })();
+  };
+
+  const targetSessionFromStorage = resolveActiveExamSession();
 
   const rawSubject =
     searchParams.get('subject') ||
@@ -987,7 +1002,13 @@ export default function VivaRoomPage() {
   }, [sessionUuid]);
 
   // Real question UUID tracked from database
-  const [activeQuestionUuid, setActiveQuestionUuid] = useState(null);
+  const [activeQuestionUuid, setActiveQuestionUuid] = useState(() => {
+    if (targetSessionFromStorage?.questions && targetSessionFromStorage.questions.length > 0) {
+      const firstQ = targetSessionFromStorage.questions[0];
+      return firstQ.uuid || firstQ.id || null;
+    }
+    return null;
+  });
 
   // Real-time STOMP WebSocket Client & Turn Score Tracking
   const stompClientRef = useRef(null);
@@ -1107,10 +1128,14 @@ export default function VivaRoomPage() {
 
     const initExamData = async () => {
       // 1. Fetch real approved questions from Question Bank & localStorage
+      let allQuestions = [];
       try {
         const qRes = await lecturerQuestionApi.getQuestions({ status: 'ACTIVE' });
         const list = qRes?.data?.result || qRes?.data || [];
-        let allQuestions = [...list];
+        allQuestions = [...list];
+      } catch (err) {
+        console.warn('[AIVES VivaRoom] Real question bank query notice, using default syllabus:', err);
+      }
 
         try {
           const localBankRaw = localStorage.getItem('aives_question_bank');
@@ -1132,8 +1157,9 @@ export default function VivaRoomPage() {
 
         // PRIORITY 1: Load directly from lecturer's configured active exam session in localStorage
         try {
-          if (targetSessionFromStorage?.questions && targetSessionFromStorage.questions.length > 0) {
-            assignedQuestions = targetSessionFromStorage.questions;
+          const activeSess = resolveActiveExamSession() || targetSessionFromStorage;
+          if (activeSess?.questions && activeSess.questions.length > 0) {
+            assignedQuestions = activeSess.questions;
           }
           if (assignedQuestions.length === 0) {
             const latestExamRaw = localStorage.getItem('aives_latest_active_exam');
@@ -1195,14 +1221,10 @@ export default function VivaRoomPage() {
           const chosenQ = assignedQuestions[0];
           setActiveQuestionUuid(chosenQ.uuid || chosenQ.id);
           setCurrentQuestion({
-            title: chosenQ.content,
-            bloom: chosenQ.bloomLevel || 'Bloom 3 - Vận dụng'
+            title: chosenQ.content || chosenQ.title,
+            bloom: chosenQ.bloomLevel || chosenQ.bloom || 'Bloom 3 - Vận dụng'
           });
         }
-      } catch (err) {
-        console.warn('[AIVES VivaRoom] Real question bank query notice, using default syllabus:', err);
-      }
-
       // 2. Initialize or connect real exam session in database
       try {
         const urlSessionId = searchParams.get('sessionId') || searchParams.get('id');
@@ -1292,6 +1314,13 @@ export default function VivaRoomPage() {
 
   // Current Question
   const [currentQuestion, setCurrentQuestion] = useState(() => {
+    if (targetSessionFromStorage?.questions && targetSessionFromStorage.questions.length > 0) {
+      const firstQ = targetSessionFromStorage.questions[0];
+      return {
+        title: firstQ.content || firstQ.title,
+        bloom: firstQ.bloomLevel || firstQ.bloom || 'Bloom 3 - Vận dụng'
+      };
+    }
     return getInitialVivaQuestion(activeSubject, urlSessionId);
   });
 

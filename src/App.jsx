@@ -29,6 +29,7 @@ import {
   Bell,
   Activity,
   Database,
+  ListChecks,
   TrendingUp,
   FileCheck,
   CheckCircle,
@@ -63,6 +64,7 @@ import LecturerRAGPage from './pages/lecturer/LecturerRAGPage';
 import LecturerAIGenerationPage from './pages/lecturer/LecturerAIGenerationPage';
 import LecturerReviewPage from './pages/lecturer/LecturerReviewPage';
 import QuestionBankPage from './pages/lecturer/QuestionBankPage';
+import LecturerRubricManagementPage from './pages/lecturer/LecturerRubricManagementPage';
 import ExamManagementPage from './pages/lecturer/ExamManagementPage';
 import GradingApprovalPage from './pages/lecturer/GradingApprovalPage';
 
@@ -95,6 +97,7 @@ const ROLE_CONFIGS = {
       { id: 'exam-mgmt', label: 'Tổ chức & Quản lý kỳ thi', icon: Calendar, path: '/exam-management' },
       { id: 'grading-approval', label: 'Duyệt & Chốt điểm ca thi', icon: CheckSquare, path: '/grading-approval' },
       { id: 'question-bank', label: 'Ngân hàng câu hỏi & Học liệu', icon: Database, path: '/question-bank' },
+      { id: 'rubric-mgmt', label: 'Quản lý Rubric chấm điểm', icon: ListChecks, path: '/rubrics' },
     ],
   },
   STUDENT: {
@@ -118,6 +121,7 @@ const ROLE_CONFIGS = {
       { id: 'adm-users', label: 'Quản lý người dùng', icon: Users, path: '/admin/users' },
       { id: 'adm-config', label: 'Cấu hình hệ thống', icon: Languages, path: '/admin' },
       { id: 'rag-portal', label: 'Ngân hàng câu hỏi & Học liệu', icon: Database, path: '/question-bank' },
+      { id: 'adm-rubric', label: 'Quản lý Rubric chấm điểm', icon: ListChecks, path: '/rubrics' },
     ],
   },
 };
@@ -1739,6 +1743,23 @@ function AppContent() {
               element={
                 <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
                   <QuestionBankPage defaultTab="bank" />
+                </ProtectedRoute>
+              }
+            />
+            {/* Dedicated Rubric Management workspace */}
+            <Route
+              path="/rubrics"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
+                  <LecturerRubricManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/question-bank/rubrics"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
+                  <QuestionBankPage defaultTab="rubrics" />
                 </ProtectedRoute>
               }
             />

@@ -211,11 +211,13 @@ export const lecturerDocumentApi = {
   uploadDocument: (docData) => api.post('/v1/lecturer/documents/upload', docData),
 
   // Tải lên tệp học liệu (PDF, DOCX, TXT) kèm phân tích chunking và vector hóa
+  // Timeout 300s: quá trình chunking + embedding vector cho mỗi chunk có thể mất thời gian dài.
   uploadDocumentFile: (formData) =>
     api.post('/v1/lecturer/documents/upload-file', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 300000,
     }),
 
   // Kích hoạt tiến trình chia đoạn (chunking) và vector hóa học liệu
@@ -236,7 +238,10 @@ export const lecturerQuestionApi = {
   getQuestionById: (questionId) => api.get(`/v1/lecturer/questions/${questionId}`),
 
   // Sinh câu hỏi và rubric tự động từ tài liệu học liệu RAG qua Gemini LLM
-  generateQuestionsRAG: (generateData) => api.post('/v1/lecturer/questions/generate-rag', generateData),
+  // Timeout riêng 300s: BE có thể mất 30-90s (Gemini retry fallback chain + embedding),
+  // timeout chung 30s sẽ khiến request bị hủy dù Backend đã lưu câu hỏi vào DB.
+  generateQuestionsRAG: (generateData) =>
+    api.post('/v1/lecturer/questions/generate-rag', generateData, { timeout: 300000 }),
 
   // Tạo câu hỏi mới trong ngân hàng
   createQuestion: (questionData) => api.post('/v1/lecturer/questions', questionData),
@@ -258,8 +263,21 @@ export const lecturerQuestionApi = {
 // 8. API SERVICE TIÊU CHÍ CHẤM RUBRIC (LECTURER ROLE)
 // ==========================================
 export const lecturerRubricApi = {
-  // Lấy danh sách tiêu chí rubric của một môn học
+  /**
+   * Lấy RUBRIC TEMPLATE (Barem chuẩn) của một môn học.
+   * Template là rubric KHÔNG gắn vào câu hỏi nào (question_uuid = NULL).
+   */
   getRubricsBySubject: (subjectId) => api.get(`/v1/lecturer/rubrics/by-subject/${subjectId}`),
+
+  /**
+   * Lấy TẤT CẢ rubric của môn học: template + rubric gắn vào từng câu hỏi.
+   */
+  getAllRubricsBySubject: (subjectId) => api.get(`/v1/lecturer/rubrics/by-subject/${subjectId}/all`),
+
+  /**
+   * Lấy rubric riêng của một câu hỏi.
+   */
+  getRubricsByQuestion: (questionId) => api.get(`/v1/lecturer/rubrics/by-question/${questionId}`),
 
   // Tạo tiêu chí chấm điểm rubric mới
   createRubric: (rubricData) => api.post('/v1/lecturer/rubrics', rubricData),
@@ -269,6 +287,23 @@ export const lecturerRubricApi = {
 
   // Xóa tiêu chí rubric
   deleteRubric: (rubricId) => api.delete(`/v1/lecturer/rubrics/${rubricId}`),
+
+  /**
+   * Lưu cả bộ rubric của một nhóm trong 1 lần gọi (đồng bộ theo diff).
+   * - Truyền questionUuid = null  -> lưu rubric TEMPLATE của môn học
+   * - Truyền questionUuid có giá trị -> lưu rubric riêng của câu hỏi
+   */
+  bulkSaveRubrics: (payload) => api.post('/v1/lecturer/rubrics/bulk', payload),
+
+  /**
+   * Copy rubric template của môn học vào một câu hỏi (chỉ khi câu hỏi chưa có rubric riêng).
+   */
+  copyTemplateToQuestion: (questionId) => api.post(`/v1/lecturer/rubrics/copy-template/${questionId}`),
+
+  /**
+   * Áp dụng rubric template của môn học cho mọi câu hỏi của môn chưa có rubric riêng.
+   */
+  applyTemplateToSubject: (subjectId) => api.post(`/v1/lecturer/rubrics/apply-template/${subjectId}`),
 };
 
 // ==========================================
