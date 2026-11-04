@@ -46,8 +46,21 @@ const DEFAULT_RECENT_EXAMS = [];
 export default function StudentDashboardPage({ currentUser }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const studentName = currentUser?.fullName || 'Nguyễn Văn An';
-  const studentId = currentUser?.email ? currentUser.email.split('@')[0].toUpperCase() : '20210456';
+  const resolvedUser = currentUser || (() => {
+    try {
+      const raw = sessionStorage.getItem('aives_user') || localStorage.getItem('aives_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const studentName = resolvedUser?.fullName || resolvedUser?.name || 'Nguyễn Văn An';
+  const studentId = 
+    resolvedUser?.userCode || 
+    resolvedUser?.studentCode || 
+    resolvedUser?.idNumber || 
+    (resolvedUser?.id && !resolvedUser.id.includes('-') ? resolvedUser.id : 'SE198876');
 
   // Active Tab state
   const urlTab = searchParams.get('tab');
