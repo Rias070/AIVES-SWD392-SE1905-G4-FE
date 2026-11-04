@@ -360,33 +360,7 @@ export default function AuthRBACPage({ onLoginSuccess }) {
               </p>
             </div>
 
-            {/* Quick Demo Accounts */}
-            <div className="p-2.5 rounded-2xl bg-sky-50/80 border border-sky-200/80 space-y-1.5">
-              <span className="text-[11px] font-bold text-sky-900 block">⚡ Đăng nhập nhanh tài khoản mẫu:</span>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => { setEmail('lecturer@aives.edu.vn'); setPassword('Lecturer@123'); }}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-sky-200 hover:bg-sky-100/70 text-sky-800 text-[11px] font-semibold shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
-                >
-                  <span>👨‍🏫 Giảng viên</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setEmail('student@aives.edu.vn'); setPassword('Student@123'); }}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-sky-200 hover:bg-sky-100/70 text-sky-800 text-[11px] font-semibold shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
-                >
-                  <span>🎓 Sinh viên</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setEmail('admin@aives.edu.vn'); setPassword('Admin@123'); }}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-sky-200 hover:bg-sky-100/70 text-sky-800 text-[11px] font-semibold shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
-                >
-                  <span>🛡️ Quản trị</span>
-                </button>
-              </div>
-            </div>
+
 
             {/* Registration Notice Banner */}
             {registrationNotice && (

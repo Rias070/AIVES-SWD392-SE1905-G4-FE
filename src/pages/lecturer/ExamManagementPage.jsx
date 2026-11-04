@@ -104,16 +104,35 @@ export default function ExamManagementPage() {
         if (localBankRaw) {
           const localBank = JSON.parse(localBankRaw);
           if (Array.isArray(localBank)) {
-            const existingIds = new Set(mergedQList.map((q) => q.uuid || q.id));
             localBank.forEach((q) => {
-              if (!existingIds.has(q.uuid || q.id)) {
-                mergedQList.push(q);
-              }
+              mergedQList.push(q);
             });
           }
         }
       } catch (e) {}
-      setQuestionsList(mergedQList);
+
+      // Robust deduplication by BOTH ID/UUID AND normalized text content!
+      const uniqueList = [];
+      const seenIds = new Set();
+      const seenContents = new Set();
+
+      for (const q of mergedQList) {
+        if (!q) continue;
+        const qId = q.uuid || q.id || q.code || q.questionCode;
+        const rawText = (q.content || q.title || '').trim();
+        if (!rawText) continue;
+
+        const normText = rawText.toLowerCase().replace(/\s+/g, ' ');
+
+        if (qId && seenIds.has(String(qId))) continue;
+        if (seenContents.has(normText)) continue;
+
+        if (qId) seenIds.add(String(qId));
+        seenContents.add(normText);
+        uniqueList.push(q);
+      }
+
+      setQuestionsList(uniqueList);
     } catch (err) {
       console.warn('[AIVES ExamMgmt] Fetch data notice:', err);
     } finally {
@@ -125,13 +144,29 @@ export default function ExamManagementPage() {
     fetchData();
   }, []);
 
-  // Filter questions for the modal STRICTLY by selected subject in form
+  // Filter questions for the modal STRICTLY by selected subject in form & ensure 100% uniqueness
   const formSubjectQuestions = useMemo(() => {
     const targetSubj = (examForm.subjectCode || 'SWD392').toUpperCase();
-    return questionsList.filter((q) => {
-      const qSubj = (q.subjectCode || '').toUpperCase();
-      return qSubj === targetSubj || !q.subjectCode;
+    const filtered = questionsList.filter((q) => {
+      const qSubj = (q.subjectCode || q.subject || '').toUpperCase();
+      return qSubj.includes(targetSubj) || (!q.subjectCode && !q.subject);
     });
+
+    const unique = [];
+    const seen = new Set();
+    const seenText = new Set();
+
+    for (const q of filtered) {
+      const qId = q.uuid || q.id || q.code || q.questionCode;
+      const text = (q.content || q.title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (qId && seen.has(String(qId))) continue;
+      if (text && seenText.has(text)) continue;
+
+      if (qId) seen.add(String(qId));
+      if (text) seenText.add(text);
+      unique.push(q);
+    }
+    return unique;
   }, [questionsList, examForm.subjectCode]);
 
   // When form subject changes, auto-generate default code and clear question selection
@@ -214,8 +249,18 @@ export default function ExamManagementPage() {
     const scheduledTime = new Date(examForm.scheduledAt).getTime();
     const endedTime = new Date(examForm.endedAt).getTime();
 
-    if (scheduledTime < nowMs - 2 * 60 * 1000) {
-      showToast('Thời gian bắt đầu ca thi không được trong quá khứ so với thời gian thực!', 'error');
+    if (isNaN(scheduledTime) || isNaN(endedTime)) {
+      showToast('Vui lòng chọn đầy đủ thời gian bắt đầu và kết thúc ca thi!', 'error');
+      return;
+    }
+
+    if (scheduledTime < nowMs - 60 * 1000) {
+      showToast('Thời gian bắt đầu ca thi không được ở trong quá khứ!', 'error');
+      return;
+    }
+
+    if (endedTime <= nowMs) {
+      showToast('Thời gian kết thúc ca thi không được ở trong quá khứ!', 'error');
       return;
     }
 
@@ -335,7 +380,7 @@ export default function ExamManagementPage() {
   // Statistics
   const scheduledCount = sessions.filter((s) => s.status === 'SCHEDULED').length;
   const inProgressCount = sessions.filter((s) => s.status === 'IN_PROGRESS').length;
-  const completedCount = sessions.filter((s) => s.status === 'COMPLETED').length;
+  const completedCount = sessions.filter((s) => s.status === 'COMPLETED' || s.status === 'WAITING_SCORE_CONFIRMATION' || s.status === 'SUBMITTED').length;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -505,9 +550,10 @@ export default function ExamManagementPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredSessions.map((exam) => {
-              const isScheduled = exam.status === 'SCHEDULED';
-              const isInProgress = exam.status === 'IN_PROGRESS';
-              const isCompleted = exam.status === 'COMPLETED';
+              const isWaitingGrading = exam.status === 'WAITING_SCORE_CONFIRMATION' || exam.status === 'SUBMITTED';
+              const isCompleted = exam.status === 'COMPLETED' || isWaitingGrading;
+              const isScheduled = exam.status === 'SCHEDULED' && !isCompleted;
+              const isInProgress = exam.status === 'IN_PROGRESS' && !isCompleted;
 
               // Extract question count from feedback if stored
               let questionsCountText = 'Bộ đề theo đề cương RAG';
@@ -556,17 +602,22 @@ export default function ExamManagementPage() {
                       </span>
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 ${
-                          isCompleted
+                          exam.status === 'COMPLETED'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : isWaitingGrading
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
                             : isInProgress
                             ? 'bg-sky-50 text-sky-700 border-sky-200'
                             : 'bg-amber-50 text-amber-700 border-amber-200'
                         }`}
                       >
                         {isInProgress && <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>}
-                        {isCompleted && <Check className="w-3 h-3 text-emerald-600" />}
-                        {isCompleted
+                        {exam.status === 'COMPLETED' && <Check className="w-3 h-3 text-emerald-600" />}
+                        {isWaitingGrading && <FileCheck className="w-3 h-3 text-purple-600" />}
+                        {exam.status === 'COMPLETED'
                           ? 'Đã hoàn thành'
+                          : isWaitingGrading
+                          ? 'Đã nộp bài (Chờ duyệt)'
                           : isInProgress
                           ? 'Đang diễn ra'
                           : 'Sắp diễn ra'}
@@ -622,18 +673,26 @@ export default function ExamManagementPage() {
                     </button>
 
                     <div className="flex items-center gap-2">
-                      {isCompleted ? (
+                      {exam.status === 'COMPLETED' ? (
                         <button
                           onClick={() => navigate(`/exam-result?sessionId=${exam.id}`)}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1 transition-all"
+                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
                         >
                           <Award className="w-3.5 h-3.5" />
                           <span>Bảng điểm</span>
                         </button>
+                      ) : isWaitingGrading ? (
+                        <button
+                          onClick={() => navigate(`/grading-approval?sessionId=${exam.id}`)}
+                          className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <FileCheck className="w-3.5 h-3.5" />
+                          <span>Duyệt điểm</span>
+                        </button>
                       ) : (
                         <button
                           onClick={() => navigate(`/viva?subject=${exam.subjectCode}&sessionId=${exam.id}`)}
-                          className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center gap-1 transition-all"
+                          className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span>Vào quan sát / Thi</span>
@@ -727,6 +786,7 @@ export default function ExamManagementPage() {
                   <input
                     type="datetime-local"
                     required
+                    min={new Date(Date.now() - 60000).toISOString().slice(0, 16)}
                     value={examForm.scheduledAt}
                     onChange={(e) => setExamForm({ ...examForm, scheduledAt: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -740,6 +800,7 @@ export default function ExamManagementPage() {
                   <input
                     type="datetime-local"
                     required
+                    min={examForm.scheduledAt || new Date().toISOString().slice(0, 16)}
                     value={examForm.endedAt}
                     onChange={(e) => setExamForm({ ...examForm, endedAt: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"

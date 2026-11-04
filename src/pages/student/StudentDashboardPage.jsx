@@ -52,14 +52,14 @@ export default function StudentDashboardPage({ currentUser }) {
   // Active Tab state
   const urlTab = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState(
-    urlTab && ['registered-courses', 'upcoming-exams', 'recent-history'].includes(urlTab)
+    urlTab && ['upcoming-exams', 'recent-history'].includes(urlTab)
       ? urlTab
-      : 'registered-courses'
+      : 'upcoming-exams'
   );
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['registered-courses', 'upcoming-exams', 'recent-history'].includes(tabParam)) {
+    if (tabParam && ['upcoming-exams', 'recent-history'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -493,7 +493,9 @@ export default function StudentDashboardPage({ currentUser }) {
     }
     const now = new Date();
     return scheduledExams.map((s, idx) => {
+      const isNotStartedYet = s.scheduledAt ? new Date(s.scheduledAt) > now : false;
       const isOverdue = s.endedAt ? new Date(s.endedAt) < now : false;
+      const canEnter = !isOverdue && !isNotStartedYet;
       return {
         id: s.id,
         code: s.subjectCode || 'SWD392',
@@ -504,12 +506,17 @@ export default function StudentDashboardPage({ currentUser }) {
           : 'Hôm nay (Phòng mở sẵn)',
         duration: `${s.durationMinutes || 30} phút`,
         room: 'AI Viva Voice Room',
-        status: isOverdue ? 'overdue' : (s.status === 'IN_PROGRESS' ? 'in_progress' : 'ready'),
-        statusText: isOverdue ? 'Đã hết hạn thi' : (s.status === 'IN_PROGRESS' ? 'Đang diễn ra' : 'Phòng thi AI sẵn sàng'),
-        canEnter: !isOverdue,
+        status: isOverdue ? 'overdue' : isNotStartedYet ? 'not_started' : (s.status === 'IN_PROGRESS' ? 'in_progress' : 'ready'),
+        statusText: isOverdue
+          ? 'Đã hết hạn thi'
+          : isNotStartedYet
+          ? `Chưa đến giờ thi (Mở lúc ${new Date(s.scheduledAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})`
+          : (s.status === 'IN_PROGRESS' ? 'Đang diễn ra' : 'Phòng thi AI sẵn sàng'),
+        canEnter,
         examId: s.sessionCode,
         sessionId: s.id,
-        isOverdue
+        isOverdue,
+        isNotStartedYet
       };
     });
   }, [scheduledExams]);
@@ -527,12 +534,6 @@ export default function StudentDashboardPage({ currentUser }) {
   // Tab navigation config
   const TABS = [
     {
-      id: 'registered-courses',
-      label: 'Môn học đã đăng ký',
-      icon: BookOpen,
-      badge: registeredCourses.length,
-    },
-    {
       id: 'upcoming-exams',
       label: 'Lịch ca thi sắp tới',
       icon: Calendar,
@@ -545,7 +546,6 @@ export default function StudentDashboardPage({ currentUser }) {
       icon: History,
       badge: recentExams.length,
     },
-
   ];
 
   return (
@@ -564,40 +564,16 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
           </p>
         </div>
 
-        {/* Quick controls: Language & Refresh */}
+        {/* Refresh Control */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50/80 p-1 text-xs">
-            <button
-              onClick={() => handleToggleLang('vi-VN')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                examLang === 'vi-VN'
-                  ? 'bg-white text-sky-700 font-bold shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Thi bằng Tiếng Việt"
-            >
-              🇻🇳 VI
-            </button>
-            <button
-              onClick={() => handleToggleLang('en-US')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-                examLang === 'en-US'
-                  ? 'bg-white text-sky-700 font-bold shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Exams in English"
-            >
-              🇺🇸 EN
-            </button>
-          </div>
-
           <button
             onClick={handleRefreshData}
             disabled={isRefreshing}
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
+            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5 text-xs font-medium"
             title="Làm mới dữ liệu"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-sky-600' : ''}`} />
+            <span className="hidden sm:inline">Làm mới</span>
           </button>
         </div>
       </div>
@@ -636,119 +612,6 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
           })}
         </nav>
       </div>
-
-      {/* ================= TAB 1: MÔN HỌC ĐÃ ĐĂNG KÝ ================= */}
-      {activeTab === 'registered-courses' && (
-        <section className="space-y-4 animate-fade-in">
-          {/* Subheader */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">
-                Môn học học kỳ hiện tại ({registeredCourses.length} môn)
-              </h2>
-              <p className="text-xs text-slate-500">
-                Học liệu RAG đồng bộ tự động từ giáo trình khoa CNTT
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  setMockForm({ subject: 'CS301', difficulty: 'Chuẩn đề', lang: examLang });
-                  setActiveModal('mock-register');
-                }}
-                className="px-3 py-1.5 rounded-xl bg-sky-50 border border-sky-200/80 text-sky-700 hover:bg-sky-100 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                <span>Đăng ký thi thử AI</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Grid 4 Columns */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {registeredCourses.map((c) => {
-              const isAmber = c.tagColor === 'amber';
-              const isBlue = c.tagColor === 'blue';
-              const isEmerald = c.tagColor === 'emerald';
-
-              return (
-                <div
-                  key={c.id}
-                  className="group rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 hover:border-sky-300 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-3.5"
-                >
-                  <div className="space-y-2.5">
-                    {/* Top: Code & Tag */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
-                        {c.code}
-                      </span>
-                      <span
-                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                          isAmber
-                            ? 'bg-amber-50 text-amber-800 border-amber-200'
-                            : isBlue
-                            ? 'bg-sky-50 text-sky-700 border-sky-200'
-                            : isEmerald
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-slate-50 text-slate-600 border-slate-200'
-                        }`}
-                      >
-                        {c.examTag}
-                      </span>
-                    </div>
-
-                    {/* Course Title */}
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug line-clamp-1 group-hover:text-sky-700 transition-colors">
-                      {c.title}
-                    </h3>
-
-                    {/* Compact Lecturer & RAG Info */}
-                    <div className="space-y-1 text-xs text-slate-500">
-                      <div className="flex items-center gap-1.5 truncate">
-                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{c.lecturer}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-slate-600 font-medium">
-                        <Layers className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                        <span>{c.ragStatus}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Progress & CTA */}
-                  <div className="space-y-3 pt-2.5 border-t border-slate-100">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500 font-medium">Tiến độ ôn</span>
-                        <span className="font-bold text-slate-800">{c.progress}%</span>
-                      </div>
-                      <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            c.progress >= 85
-                              ? 'bg-gradient-to-r from-teal-500 to-emerald-500'
-                              : 'bg-gradient-to-r from-sky-500 to-cyan-500'
-                          }`}
-                          style={{ width: `${c.progress}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={c.primaryAction}
-                      className="w-full py-2 px-3 rounded-xl border border-slate-200/90 bg-slate-50/80 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 text-xs font-semibold text-slate-700 transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      {c.actionText.includes('AI') && <Sparkles className="w-3.5 h-3.5 text-sky-600" />}
-                      <span>{c.actionText}</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
 
       {/* ================= TAB 2: LỊCH CA THI SẮP TỚI ================= */}
       {activeTab === 'upcoming-exams' && (
@@ -847,6 +710,11 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
                             <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
                             Đã hết hạn thi
                           </span>
+                        ) : exam.status === 'not_started' ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-300">
+                            <Clock className="w-3.5 h-3.5 text-slate-500" />
+                            {exam.statusText}
+                          </span>
                         ) : exam.status === 'in_progress' ? (
                           <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
                             <Clock className="w-3.5 h-3.5 text-amber-600" />
@@ -865,6 +733,10 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
                         {exam.isOverdue ? (
                           <span className="text-xs font-semibold text-rose-500 py-1.5 px-3 bg-rose-50/60 rounded-xl border border-rose-200/60 inline-block">
                             Đã kết thúc
+                          </span>
+                        ) : exam.status === 'not_started' ? (
+                          <span className="text-xs font-semibold text-slate-500 py-1.5 px-3 bg-slate-100 rounded-xl border border-slate-200 inline-block">
+                            Chưa mở phòng
                           </span>
                         ) : (
                           <div className="flex items-center justify-end gap-2">

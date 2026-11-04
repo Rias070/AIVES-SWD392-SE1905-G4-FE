@@ -459,16 +459,7 @@ export default function AdminDashboardPage() {
           >
             Phân Quyền Môn
           </button>
-          <button
-            onClick={() => setActiveTab('config')}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-              activeTab === 'config'
-                ? 'bg-white text-sky-700 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Cấu hình thi
-          </button>
+
         </div>
       </div>
 
@@ -645,107 +636,6 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* TAB 3: Cấu hình ngôn ngữ STT / TTS */}
-      {activeTab === 'config' && (
-        <form onSubmit={handleSaveConfig} className="glacier-light-card p-6 md:p-8 rounded-2xl space-y-6 shadow-xs">
-          <div className="border-b border-slate-200 pb-4">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Languages className="w-5 h-5 text-sky-600" />
-              Cấu Hình Ngôn Ngữ & Tham Số Nhận Diện Giọng Nói (STT / Whisper / TTS)
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Điều chỉnh ngôn ngữ mặc định và tham số phỏng vấn AI cho toàn bộ hệ thống ca thi.
-            </p>
-          </div>
-
-          {/* Toast Notice */}
-          {saveConfigNotice && (
-            <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-semibold flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{saveConfigNotice.text}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSaveConfigNotice(null)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-              <label className="block font-bold text-slate-800">Ngôn Ngữ Mặc Định Cho Ca Thi</label>
-              <select
-                id="stt-tts-lang-select"
-                value={aiConfig.defaultLanguage}
-                onChange={(e) => setAiConfig({ ...aiConfig, defaultLanguage: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-sky-500"
-              >
-                <option value="vi">Tiếng Việt (vi-VN)</option>
-                <option value="en">English (en-US)</option>
-              </select>
-              <p className="text-[11px] text-slate-500">Áp dụng cho giọng đọc và nhận diện lời nói trong phòng thi.</p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-              <label className="block font-bold text-slate-800">Giới Hạn Lượt Hỏi Xoáy Tối Đa Mỗi Câu</label>
-              <input 
-                id="stt-tts-max-turns"
-                type="number" 
-                value={aiConfig.maxFollowupTurns}
-                onChange={(e) => setAiConfig({ ...aiConfig, maxFollowupTurns: Math.max(1, Math.min(5, Number(e.target.value))) })}
-                min={1} 
-                max={5}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-sky-500"
-              />
-              <p className="text-[11px] text-slate-500">Số lần AI được phép hỏi sâu / làm rõ khi câu trả lời của sinh viên còn mơ hồ (Tối đa 5 lượt).</p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-              <label className="block font-bold text-slate-800">Thời Gian Tối Đa Mỗi Lượt Trả Lời (Giây)</label>
-              <input 
-                id="stt-tts-timeout"
-                type="number" 
-                value={aiConfig.maxAnswerTimeSec}
-                onChange={(e) => setAiConfig({ ...aiConfig, maxAnswerTimeSec: Number(e.target.value) })}
-                step={10}
-                min={30}
-                max={300}
-                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-sky-500"
-              />
-              <p className="text-[11px] text-slate-500">Đồng hồ đếm ngược tự động khóa micro khi sinh viên trả lời quá thời lượng quy định.</p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-              <label className="block font-bold text-slate-800">Chế Độ Chấm Điểm Thẩm Quyền</label>
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-800">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="text-[11px] font-semibold">Giảng viên luôn là người chốt điểm cuối (Bắt buộc)</span>
-              </div>
-              <p className="text-[11px] text-slate-500">AI chỉ cung cấp điểm gợi ý dựa trên Rubric, không tự ý công bố điểm chính thức.</p>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-slate-200 flex justify-end">
-            <button
-              id="btn-save-ai-config"
-              type="submit"
-              disabled={isSavingConfig}
-              className="btn-glacier-primary px-6 py-2.5 text-xs flex items-center gap-2"
-            >
-              {isSavingConfig ? (
-                <span>Đang lưu...</span>
-              ) : (
-                <span>Lưu Cấu Hình</span>
-              )}
-            </button>
-          </div>
-        </form>
       )}
 
       {/* MODAL: TẠO TÀI KHOẢN MỚI */}

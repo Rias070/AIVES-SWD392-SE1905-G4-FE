@@ -876,29 +876,103 @@ export default function VivaRoomPage() {
   const sessionUuidRef = useRef(sessionUuid);
   sessionUuidRef.current = sessionUuid;
 
+  const isExamFinishedRef = useRef(false);
+
   // Single-attempt enforcement: check if session is already completed or waiting confirmation
   useEffect(() => {
     const checkSessionStatus = async () => {
       const targetId = sessionUuid;
+      const urlId = searchParams.get('sessionId') || searchParams.get('id');
+
+      // 1. Check in local storage first (instant response for locally created exams)
+      try {
+        const rawSessions = localStorage.getItem('aives_exam_sessions');
+        if (rawSessions) {
+          const sessions = JSON.parse(rawSessions);
+          const found = sessions.find(
+            (s) => s.id === targetId || s.sessionCode === targetId || s.id === urlId || s.sessionCode === urlId
+          );
+          if (found) {
+            if (found.status === 'WAITING_SCORE_CONFIRMATION' || found.status === 'COMPLETED' || found.status === 'SUBMITTED' || (found.turns && found.turns.length > 0)) {
+              alert('Ca thi này đã hoàn tất hoặc đã đóng đề (mỗi lượt chỉ được tham gia 1 lần duy nhất). Hệ thống đang chuyển về màn hình chính.');
+              const role = sessionStorage.getItem('aives_role') || localStorage.getItem('aives_role');
+              navigate(role === 'lecturer' ? '/lecturer/exams' : '/student');
+              return;
+            }
+            if (found.scheduledAt && new Date(found.scheduledAt).getTime() > Date.now()) {
+              alert(`Ca thi này chưa đến thời gian bắt đầu! (Mở lúc: ${new Date(found.scheduledAt).toLocaleTimeString('vi-VN')}). Vui lòng quay lại vào đúng giờ thi.`);
+              const role = sessionStorage.getItem('aives_role') || localStorage.getItem('aives_role');
+              navigate(role === 'lecturer' ? '/lecturer/exams' : '/student');
+              return;
+            }
+          }
+        }
+      } catch (e) {}
+
+      // 2. Check backend API
       if (targetId && /^[0-9a-fA-F-]{36}$/.test(targetId)) {
         try {
           const res = await studentExamApi.getSessionById(targetId);
           if (res?.data?.result) {
             const s = res.data.result;
-            if (s.status === 'WAITING_SCORE_CONFIRMATION' || s.status === 'COMPLETED') {
+            if (s.status === 'WAITING_SCORE_CONFIRMATION' || s.status === 'COMPLETED' || s.status === 'SUBMITTED') {
               alert('Bạn đã hoàn tất lượt thi của ca này (mỗi sinh viên chỉ được thi 1 lần duy nhất). Hệ thống đang chuyển bạn về Bảng điều khiển.');
-              navigate('/student');
+              const role = sessionStorage.getItem('aives_role') || localStorage.getItem('aives_role');
+              navigate(role === 'lecturer' ? '/lecturer/exams' : '/student');
+              return;
             }
           }
         } catch (e) {
           // If session not found in DB yet, proceed
         }
       }
+
+      // 3. Mark session as IN_PROGRESS immediately upon entering
+      try {
+        const rawSessions = localStorage.getItem('aives_exam_sessions');
+        if (rawSessions) {
+          const sessions = JSON.parse(rawSessions);
+          const idx = sessions.findIndex(
+            (s) => s.id === targetId || s.sessionCode === targetId || s.id === urlId || s.sessionCode === urlId
+          );
+          if (idx !== -1 && sessions[idx].status === 'SCHEDULED') {
+            sessions[idx].status = 'IN_PROGRESS';
+            sessions[idx].startedAt = sessions[idx].startedAt || new Date().toISOString();
+            localStorage.setItem('aives_exam_sessions', JSON.stringify(sessions));
+          }
+        }
+      } catch (e) {}
     };
     checkSessionStatus();
-  }, [sessionUuid, navigate]);
+  }, [sessionUuid, navigate, searchParams]);
 
-  // Auto-submit when student closes the tab or navigates away
+  // Auto-submit when user navigates away or unmounts before completing
+  useEffect(() => {
+    return () => {
+      if (!isExamFinishedRef.current) {
+        isExamFinishedRef.current = true;
+        try {
+          const targetId = sessionUuidRef.current || sessionUuid;
+          const urlId = searchParams.get('sessionId') || searchParams.get('id');
+          const raw = localStorage.getItem('aives_exam_sessions');
+          if (raw) {
+            const exams = JSON.parse(raw);
+            const idx = exams.findIndex((e) => e.id === targetId || e.sessionCode === targetId || e.id === urlId || e.sessionCode === urlId);
+            if (idx !== -1 && exams[idx].status !== 'COMPLETED') {
+              exams[idx].status = 'WAITING_SCORE_CONFIRMATION';
+              exams[idx].endedAt = exams[idx].endedAt || new Date().toISOString();
+              localStorage.setItem('aives_exam_sessions', JSON.stringify(exams));
+            }
+          }
+          if (targetId && /^[0-9a-fA-F-]{36}$/.test(targetId)) {
+            studentExamApi.finishExam(targetId).catch(() => {});
+          }
+        } catch (e) {}
+      }
+    };
+  }, [sessionUuid, searchParams]);
+
+  // Auto-submit when student closes the tab
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (sessionUuid) {
@@ -1168,10 +1242,16 @@ export default function VivaRoomPage() {
 
   // Configured limits from lecturer session
   const configuredTimeLimit = Number(targetSessionFromStorage?.questionTimeLimitSeconds) || 90;
-  const configuredMaxFollowUps = Number(targetSessionFromStorage?.maxFollowUpsPerQuestion) ?? 1;
+  const rawFollowUps = targetSessionFromStorage?.maxFollowUpsPerQuestion;
+  const configuredMaxFollowUps =
+    rawFollowUps !== undefined && rawFollowUps !== null && !isNaN(Number(rawFollowUps))
+      ? Number(rawFollowUps)
+      : 1;
 
   const [questionTimeLimit, setQuestionTimeLimit] = useState(configuredTimeLimit);
   const [maxFollowUps, setMaxFollowUps] = useState(configuredMaxFollowUps);
+  const maxFollowUpsRef = useRef(configuredMaxFollowUps);
+  maxFollowUpsRef.current = maxFollowUps;
 
   // Exam Questions list
   const [examQuestions, setExamQuestions] = useState(() => {
@@ -1232,6 +1312,8 @@ export default function VivaRoomPage() {
   const finalAccumulatedTranscriptRef = useRef('');
   const liveTranscriptRef = useRef('');
   liveTranscriptRef.current = liveTranscript;
+  const accumulatedBaseRef = useRef('');
+  const sessionFinalTextRef = useRef('');
 
   // Recorded Audio Blob & URL for Candidate Review
   const [recordedAudioUrl, setRecordedAudioUrl] = useState(null);
@@ -1788,6 +1870,12 @@ export default function VivaRoomPage() {
         } catch (e) { }
       }
 
+      // Preserve existing text in textarea as the base before starting
+      if (liveTranscriptRef.current && !accumulatedBaseRef.current) {
+        accumulatedBaseRef.current = liveTranscriptRef.current;
+      }
+      sessionFinalTextRef.current = '';
+
       const activeLang = overrideLang || examLangRef.current || 'vi-VN';
       const recognition = new SpeechRecognitionClass();
       recognition.lang = activeLang;
@@ -1796,24 +1884,31 @@ export default function VivaRoomPage() {
       recognition.maxAlternatives = 1;
 
       recognition.onresult = (event) => {
-        let interimTranscript = '';
-        let currentFinal = '';
+        let currentSessionFinal = '';
+        let currentInterim = '';
 
         for (let i = 0; i < event.results.length; i++) {
           const res = event.results[i];
           if (res.isFinal) {
-            currentFinal += res[0].transcript + ' ';
+            currentSessionFinal += res[0].transcript + ' ';
           } else {
-            interimTranscript += res[0].transcript;
+            currentInterim += res[0].transcript;
           }
         }
 
-        const rawCombined = (currentFinal + interimTranscript).trim();
-        const combined = sanitizeITTranscript(rawCombined);
-        if (combined) {
-          setLiveTranscript(combined);
-          liveTranscriptRef.current = combined;
-          finalAccumulatedTranscriptRef.current = combined;
+        sessionFinalTextRef.current = currentSessionFinal;
+
+        const base = (accumulatedBaseRef.current || '').trim();
+        const spokenNow = sanitizeITTranscript((currentSessionFinal + currentInterim).trim());
+
+        const fullCombined = base
+          ? (spokenNow ? `${base} ${spokenNow}` : base)
+          : spokenNow;
+
+        if (fullCombined) {
+          setLiveTranscript(fullCombined);
+          liveTranscriptRef.current = fullCombined;
+          finalAccumulatedTranscriptRef.current = fullCombined;
         }
       };
 
@@ -1825,6 +1920,14 @@ export default function VivaRoomPage() {
       };
 
       recognition.onend = () => {
+        // Commit session's finalized speech into base accumulator so long answers are NEVER overwritten!
+        if (sessionFinalTextRef.current) {
+          const base = (accumulatedBaseRef.current || '').trim();
+          const newlyFinal = sessionFinalTextRef.current.trim();
+          accumulatedBaseRef.current = base ? `${base} ${newlyFinal}` : newlyFinal;
+          sessionFinalTextRef.current = '';
+        }
+
         if (!isManuallyStoppedRef.current && fsmStateRef.current === STATES.STUDENT_ANSWERING) {
           try {
             recognition.start();
@@ -2001,6 +2104,8 @@ export default function VivaRoomPage() {
     finalAccumulatedTranscriptRef.current = '';
     setLiveTranscript('');
     liveTranscriptRef.current = '';
+    accumulatedBaseRef.current = '';
+    sessionFinalTextRef.current = '';
     audioChunksRef.current = [];
     setTurnSeconds(questionTimeLimit);
     setFsmState(STATES.READY_TO_ANSWER);
@@ -2010,9 +2115,12 @@ export default function VivaRoomPage() {
   // Adaptive Follow-up Question Generator (Contextual to student answer & main question)
   const generateAdaptiveFollowUp = (finalAnswer, mainQuestion) => {
     setIsFollowUpPhase(true);
+    isFollowUpPhaseRef.current = true;
     finalAccumulatedTranscriptRef.current = '';
     setLiveTranscript('');
     liveTranscriptRef.current = '';
+    accumulatedBaseRef.current = '';
+    sessionFinalTextRef.current = '';
     if (recordedAudioUrl) {
       URL.revokeObjectURL(recordedAudioUrl);
       setRecordedAudioUrl(null);
@@ -2060,7 +2168,7 @@ export default function VivaRoomPage() {
 
     setFsmState(STATES.AI_THINKING);
 
-    const rawTranscript = liveTranscript.trim();
+    const rawTranscript = (liveTranscript || liveTranscriptRef.current || '').trim();
     const hasSpoken = rawTranscript.length >= 3;
     const finalAnswer = hasSpoken ? rawTranscript : '(Thí sinh không trả lời)';
     const isUnanswered = !hasSpoken || finalAnswer.includes('không trả lời');
@@ -2125,7 +2233,12 @@ export default function VivaRoomPage() {
 
     // PHASE LOGIC:
     // Case 1: Just finished Main Question AND maxFollowUps > 0 AND candidate answered -> Ask Adaptive Follow-Up
-    if (!isFollowUpPhaseRef.current && maxFollowUps > 0 && !isUnanswered) {
+    const allowedFollowUps =
+      maxFollowUpsRef.current !== undefined && !isNaN(Number(maxFollowUpsRef.current))
+        ? Number(maxFollowUpsRef.current)
+        : Number(maxFollowUps) || 1;
+
+    if (!isFollowUpPhaseRef.current && allowedFollowUps > 0 && !isUnanswered) {
       setTimeout(() => {
         isProcessingTurnRef.current = false;
         generateAdaptiveFollowUp(finalAnswer, activeMainQ);
@@ -2147,6 +2260,8 @@ export default function VivaRoomPage() {
         finalAccumulatedTranscriptRef.current = '';
         setLiveTranscript('');
         liveTranscriptRef.current = '';
+        accumulatedBaseRef.current = '';
+        sessionFinalTextRef.current = '';
 
         if (recordedAudioUrl) {
           URL.revokeObjectURL(recordedAudioUrl);
@@ -2259,11 +2374,17 @@ export default function VivaRoomPage() {
       ? 'Ca thi vấn đáp đã kết thúc. Hệ thống đã nộp bài và chuyển dữ liệu tới Giảng viên duyệt điểm.'
       : 'Chúc mừng thí sinh đã hoàn thành ca thi vấn đáp. Bài thi đã được ghi nhận và gửi tới Giảng viên duyệt điểm.';
 
+    isExamFinishedRef.current = true;
     let navigated = false;
     const goToResult = () => {
       if (navigated) return;
       navigated = true;
-      navigate(`/student?submitted=true&sessionId=${targetSessionId}`);
+      const role = sessionStorage.getItem('aives_role') || localStorage.getItem('aives_role');
+      if (role === 'lecturer') {
+        navigate(`/grading-approval?sessionId=${targetSessionId}`);
+      } else {
+        navigate(`/student?submitted=true&sessionId=${targetSessionId}`);
+      }
     };
 
     speakAIQuestion(closingText, goToResult);
@@ -2783,13 +2904,60 @@ export default function VivaRoomPage() {
                       rows={3}
                       value={liveTranscript}
                       onChange={(e) => {
-                        setLiveTranscript(e.target.value);
-                        liveTranscriptRef.current = e.target.value;
-                        finalAccumulatedTranscriptRef.current = e.target.value;
+                        const val = e.target.value;
+                        setLiveTranscript(val);
+                        liveTranscriptRef.current = val;
+                        finalAccumulatedTranscriptRef.current = val;
+                        accumulatedBaseRef.current = val;
+                        sessionFinalTextRef.current = '';
                       }}
                       placeholder="Nếu nhận diện bị thiếu hoặc sai từ khóa kỹ thuật, bạn có thể chỉnh sửa trực tiếp ở đây..."
                       className="w-full p-2.5 text-xs text-slate-800 bg-white rounded-xl border border-slate-200 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 leading-relaxed resize-none"
                     />
+
+                    {/* Quick Rubric Technical Keywords Assistant */}
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-sky-600" /> Chèn nhanh thuật ngữ chuyên môn:
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          'Microservices',
+                          'Saga Pattern',
+                          'Circuit Breaker',
+                          'Compensating Transaction',
+                          'Eventual Consistency',
+                          'Redis Cache',
+                          'Kafka Event',
+                          'Database Indexing'
+                        ].map((term) => (
+                          <button
+                            key={term}
+                            type="button"
+                            onClick={() => {
+                              const currentVal = liveTranscript || '';
+                              const newVal = currentVal ? (currentVal.trim() + ' ' + term) : term;
+                              setLiveTranscript(newVal);
+                              liveTranscriptRef.current = newVal;
+                              finalAccumulatedTranscriptRef.current = newVal;
+                              accumulatedBaseRef.current = newVal;
+                              sessionFinalTextRef.current = '';
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-[10px] font-medium transition-colors cursor-pointer"
+                          >
+                            + {term}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-1">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>🎙️ Bản ghi âm gốc luôn được lưu để đối soát học thuật với Hội đồng Giảng viên.</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

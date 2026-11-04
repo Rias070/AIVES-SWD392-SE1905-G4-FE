@@ -319,37 +319,7 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
           </Link>
         </div>
 
-        {/* Center: Navigation Links ONLY on HomePage */}
-        {isHomePage && (
-          <nav className="hidden md:flex items-center gap-1 text-xs text-slate-600">
-            <Link
-              to="/"
-              className={`whitespace-nowrap px-3 py-1.5 rounded-lg font-semibold transition-colors ${
-                location.pathname === '/' ? 'bg-sky-50 text-sky-700' : 'hover:text-sky-700 hover:bg-slate-50'
-              }`}
-            >
-              Trang Chủ
-            </Link>
-            <a
-              href="/#about"
-              className="whitespace-nowrap px-3 py-1.5 rounded-lg font-medium text-slate-600 hover:text-sky-700 hover:bg-slate-50 transition-colors"
-            >
-              Bối Cảnh & Thách Thức
-            </a>
-            <a
-              href="/#features"
-              className="whitespace-nowrap px-3 py-1.5 rounded-lg font-medium text-slate-600 hover:text-sky-700 hover:bg-slate-50 transition-colors"
-            >
-              Phân Hệ Tính Năng
-            </a>
-            <a
-              href="/#workflow"
-              className="whitespace-nowrap px-3 py-1.5 rounded-lg font-medium text-slate-600 hover:text-sky-700 hover:bg-slate-50 transition-colors"
-            >
-              Quy Trình Thi
-            </a>
-          </nav>
-        )}
+
 
         {/* Right: User account & Actions */}
         <div className="flex items-center gap-3 shrink-0">

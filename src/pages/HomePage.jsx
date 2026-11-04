@@ -82,25 +82,7 @@ export default function HomePage({ onOpenAuth, currentUser, roleConfigs }) {
           )}
         </div>
 
-        {/* 4 Feature Badges */}
-        <div className="pt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl mx-auto text-xs">
-          <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-center gap-2 text-slate-700 font-medium">
-            <Mic className="w-4 h-4 text-sky-600 shrink-0" />
-            <span>Voice STT & TTS</span>
-          </div>
-          <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-center gap-2 text-slate-700 font-medium">
-            <Sparkles className="w-4 h-4 text-cyan-600 shrink-0" />
-            <span>Sinh Đề RAG</span>
-          </div>
-          <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-center gap-2 text-slate-700 font-medium">
-            <Scale className="w-4 h-4 text-indigo-600 shrink-0" />
-            <span>Chấm Rubric Chuẩn</span>
-          </div>
-          <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-center gap-2 text-slate-700 font-medium">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Lưu Vết Minh Bạch</span>
-          </div>
-        </div>
+
       </section>
 
       {/* ==================== 2 ROLE PORTALS ==================== */}

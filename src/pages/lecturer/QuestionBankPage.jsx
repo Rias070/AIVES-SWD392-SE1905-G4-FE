@@ -132,11 +132,22 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
             rubricCount: q.rubrics?.length || q.rubricCount || 0,
           }));
 
-        // Smart merge: Retain locally stored ACTIVE questions so we never wipe questions that haven't synced yet
+        // Smart merge with rigorous content-based deduplication
         const cached = loadStoredQuestions().filter((q) => q.status === 'ACTIVE' || q.isApproved);
-        const backendIds = new Set(formatted.map(q => q.code || q.questionCode || q.id));
-        const unsynced = cached.filter(q => !backendIds.has(q.code || q.questionCode || q.id));
-        saveQuestions([...formatted, ...unsynced]);
+        const combined = [...formatted, ...cached];
+        const deduped = [];
+        const seenIds = new Set();
+        const seenTexts = new Set();
+        for (const q of combined) {
+          const qId = q.id || q.uuid || q.code || q.questionCode;
+          const text = (q.content || q.title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+          if (qId && seenIds.has(String(qId))) continue;
+          if (text && seenTexts.has(text)) continue;
+          if (qId) seenIds.add(String(qId));
+          if (text) seenTexts.add(text);
+          deduped.push(q);
+        }
+        saveQuestions(deduped);
         return;
       }
     } catch (err) {
