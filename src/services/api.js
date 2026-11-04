@@ -211,11 +211,13 @@ export const lecturerDocumentApi = {
   uploadDocument: (docData) => api.post('/v1/lecturer/documents/upload', docData),
 
   // Tải lên tệp học liệu (PDF, DOCX, TXT) kèm phân tích chunking và vector hóa
+  // Timeout 300s: quá trình chunking + embedding vector cho mỗi chunk có thể mất thời gian dài.
   uploadDocumentFile: (formData) =>
     api.post('/v1/lecturer/documents/upload-file', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 300000,
     }),
 
   // Kích hoạt tiến trình chia đoạn (chunking) và vector hóa học liệu
@@ -236,7 +238,10 @@ export const lecturerQuestionApi = {
   getQuestionById: (questionId) => api.get(`/v1/lecturer/questions/${questionId}`),
 
   // Sinh câu hỏi và rubric tự động từ tài liệu học liệu RAG qua Gemini LLM
-  generateQuestionsRAG: (generateData) => api.post('/v1/lecturer/questions/generate-rag', generateData),
+  // Timeout riêng 300s: BE có thể mất 30-90s (Gemini retry fallback chain + embedding),
+  // timeout chung 30s sẽ khiến request bị hủy dù Backend đã lưu câu hỏi vào DB.
+  generateQuestionsRAG: (generateData) =>
+    api.post('/v1/lecturer/questions/generate-rag', generateData, { timeout: 300000 }),
 
   // Tạo câu hỏi mới trong ngân hàng
   createQuestion: (questionData) => api.post('/v1/lecturer/questions', questionData),
