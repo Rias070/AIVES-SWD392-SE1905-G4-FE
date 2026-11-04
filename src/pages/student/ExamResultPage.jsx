@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Award,
   ChevronDown,
@@ -33,7 +33,7 @@ import {
   UserCheck,
   Edit3
 } from 'lucide-react';
-import { lecturerExamSessionApi } from '../../services/api';
+import { lecturerExamSessionApi, studentExamApi } from '../../services/api';
 
 const FALLBACK_VIVA_RESULT = {
   examCode: 'CS301-VIVA-2026-99127',
@@ -92,6 +92,8 @@ const FALLBACK_VIVA_RESULT = {
 
 export default function ExamResultPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const urlSessionId = searchParams.get('sessionId') || searchParams.get('id');
 
   // Dynamic Exam Result State
   const [vivaResult, setVivaResult] = useState(FALLBACK_VIVA_RESULT);
@@ -111,34 +113,126 @@ export default function ExamResultPage() {
   const [finalizeSuccessMsg, setFinalizeSuccessMsg] = useState('');
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
 
-  // Load latest viva result from localStorage on mount
+  // Load viva result from Backend by sessionId (or fallback to localStorage)
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('latest_viva_result');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const isFin = parsed.isFinalized || parsed.status === 'COMPLETED' || false;
+    let isMounted = true;
+
+    const loadExamResult = async () => {
+      let localResult = null;
+      try {
+        const stored = localStorage.getItem('latest_viva_result');
+        if (stored) {
+          localResult = JSON.parse(stored);
+        }
+      } catch (e) {}
+
+      let targetId = urlSessionId || localResult?.sessionId || localResult?.sessionUuid || localResult?.id;
+
+      if (!targetId || !/^[0-9a-fA-F-]{36}$/.test(targetId)) {
+        try {
+          const sessionsRes = await studentExamApi.getStudentSessions();
+          const sessList = sessionsRes?.data?.result;
+          if (Array.isArray(sessList) && sessList.length > 0) {
+            const found = sessList.find((s) => s.status === 'COMPLETED' || s.status === 'WAITING_SCORE_CONFIRMATION') || sessList[0];
+            if (found && found.id) {
+              targetId = found.id;
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (targetId && /^[0-9a-fA-F-]{36}$/.test(targetId)) {
+        try {
+          const [sessRes, turnsRes] = await Promise.allSettled([
+            studentExamApi.getSessionById(targetId),
+            studentExamApi.getSessionTurns(targetId)
+          ]);
+
+          const sessData = sessRes.status === 'fulfilled' ? sessRes.value?.data?.result : null;
+          const turnsData = turnsRes.status === 'fulfilled' ? turnsRes.value?.data?.result || [] : [];
+
+          if (isMounted && sessData) {
+            const isFin = sessData.status === 'COMPLETED';
+            setIsFinalized(isFin);
+            const scoreVal = sessData.totalScore != null ? Number(sessData.totalScore) : 0.0;
+            setFinalScoreInput(scoreVal);
+            setLecturerFeedbackInput(sessData.feedback || '');
+
+            let reconstructedDialogue = [];
+            if (turnsData.length > 0) {
+              turnsData.forEach((turn) => {
+                const turnTime = turn.createdAt
+                  ? new Date(turn.createdAt).toLocaleTimeString('vi-VN')
+                  : '14:00';
+                if (turn.questionContent) {
+                  reconstructedDialogue.push({
+                    sender: 'ai',
+                    time: turnTime,
+                    text: turn.questionContent,
+                    isMainQuestion: true
+                  });
+                }
+                if (turn.studentAnswer) {
+                  reconstructedDialogue.push({
+                    sender: 'student',
+                    time: turnTime,
+                    text: turn.studentAnswer
+                  });
+                }
+              });
+            } else if (localResult?.dialogueHistory) {
+              reconstructedDialogue = localResult.dialogueHistory;
+            }
+
+            setVivaResult({
+              ...FALLBACK_VIVA_RESULT,
+              ...(localResult || {}),
+              sessionId: sessData.id,
+              examCode: sessData.sessionCode || `${sessData.subjectCode || 'CS301'}-VIVA-2026`,
+              courseName: sessData.subjectName
+                ? `${sessData.subjectCode}: ${sessData.subjectName}`
+                : `${sessData.subjectCode || 'CS301'}: Khảo thí vấn đáp AI`,
+              studentName: sessData.studentName || localResult?.studentName || 'Nguyễn Văn An',
+              studentId: sessData.studentId ? String(sessData.studentId).slice(0, 8) : (localResult?.studentId || 'SE190504'),
+              overallScore: scoreVal,
+              finalScore: scoreVal,
+              status: sessData.status,
+              isFinalized: isFin,
+              aiFeedback: sessData.feedback || localResult?.aiFeedback || FALLBACK_VIVA_RESULT.aiFeedback,
+              dialogueHistory: reconstructedDialogue.length > 0 ? reconstructedDialogue : FALLBACK_VIVA_RESULT.dialogueHistory
+            });
+            return;
+          }
+        } catch (apiErr) {
+          console.warn('[AIVES ExamResult] Backend session fetch notice, using local cache:', apiErr);
+        }
+      }
+
+      // Fallback to local storage if API didn't return
+      if (isMounted && localResult) {
+        const isFin = localResult.isFinalized || localResult.status === 'COMPLETED' || false;
         setIsFinalized(isFin);
-        setFinalScoreInput(parsed.finalScore || parsed.overallScore || 8.5);
-        setLecturerFeedbackInput(parsed.lecturerFeedback || '');
+        setFinalScoreInput(localResult.finalScore || localResult.overallScore || 8.5);
+        setLecturerFeedbackInput(localResult.lecturerFeedback || '');
         setVivaResult({
           ...FALLBACK_VIVA_RESULT,
-          ...parsed,
-          rubricScores: parsed.rubricScores || FALLBACK_VIVA_RESULT.rubricScores,
-          dialogueHistory: parsed.dialogueHistory || parsed.dialogue || FALLBACK_VIVA_RESULT.dialogueHistory
+          ...localResult,
+          rubricScores: localResult.rubricScores || FALLBACK_VIVA_RESULT.rubricScores,
+          dialogueHistory: localResult.dialogueHistory || localResult.dialogue || FALLBACK_VIVA_RESULT.dialogueHistory
         });
       }
-    } catch (e) {
-      console.warn('Lỗi khi đọc kết quả từ localStorage:', e);
-    }
+    };
+
+    loadExamResult();
 
     return () => {
+      isMounted = false;
       isPlayingAudioRef.current = false;
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
     };
-  }, []);
+  }, [urlSessionId]);
 
   // Lecturer score finalization handler (Human-in-the-loop)
   const handleFinalizeScore = async () => {

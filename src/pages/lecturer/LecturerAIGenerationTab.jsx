@@ -34,6 +34,8 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
 
   // Generation form states
   const [topic, setTopic] = useState('');
+  const [selectedDocUuid, setSelectedDocUuid] = useState('ALL');
+  const [availableDocs, setAvailableDocs] = useState([]);
   const [bloomLevel, setBloomLevel] = useState('ALL');
   const [difficulty, setDifficulty] = useState('MEDIUM');
   const [questionCount, setQuestionCount] = useState(3);
@@ -165,17 +167,17 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
 
       setProgress(60);
 
-      const targetTopic = topic || (file ? file.name.replace(/\.[^/.]+$/, '') : (preselectedDoc?.filename || preselectedDoc?.name || 'Kiến thức cốt lõi học phần'));
+      const targetTopic = file ? file.name.replace(/\.[^/.]+$/, '') : (preselectedDoc?.filename || preselectedDoc?.name || topic || selectedSubject);
       
       const isValidUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
       const docUuid = isValidUuid(uploadedDoc?.id) ? uploadedDoc.id : (isValidUuid(preselectedDoc?.id) ? preselectedDoc.id : null);
       const subjUuid = isValidUuid(currentSubjectObj?.id) ? currentSubjectObj.id : (isValidUuid(currentSubjectObj?.uuid) ? currentSubjectObj.uuid : null);
+      const targetDocUuid = (selectedDocUuid && selectedDocUuid !== 'ALL' && isValidUuid(selectedDocUuid)) ? selectedDocUuid : null;
 
       const reqPayload = {
         subjectCode: selectedSubject,
         subjectUuid: subjUuid,
-        documentUuid: docUuid,
-        topic: targetTopic,
+        documentUuid: targetDocUuid || docUuid,
         bloomLevel: bloomLevel,
         difficulty: difficulty,
         count: Number(questionCount) || 3,
@@ -204,7 +206,7 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
       clearInterval(progressInterval);
       setProgress(100);
 
-      const targetTopic = topic || (file ? file.name.replace(/\.[^/.]+$/, '') : 'Kiến thức cốt lõi học phần');
+      const targetTopic = file ? file.name.replace(/\.[^/.]+$/, '') : (topic || selectedSubject);
       const fallbackList = createFallbackQuestions(selectedSubject, targetTopic, bloomLevel, difficulty, questionCount);
 
       setTimeout(() => {
@@ -839,19 +841,21 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
             </div>
           </div>
 
-          {/* Topic & Reference Document */}
+          {/* Reference Document Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Chủ đề / Khái niệm trọng tâm (Keywords)
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Nguồn học liệu RAG tự động</span>
+                <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Đọc trực tiếp nội dung file
+                </span>
               </label>
-              <input
-                type="text"
-                placeholder="Ví dụ: Microservices, Spring Security JWT, Caching Redis, Transaction ACID..."
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500"
-              />
+              <div className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-sky-600 shrink-0" />
+                <span className="truncate font-medium">
+                  {file ? file.name : (preselectedDoc?.filename || preselectedDoc?.name || `Toàn bộ kho giáo trình môn ${selectedSubject}`)}
+                </span>
+              </div>
             </div>
 
             <div>

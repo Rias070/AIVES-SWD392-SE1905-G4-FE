@@ -37,6 +37,7 @@ import {
   Calendar,
   Settings,
   LayoutDashboard,
+  CheckSquare,
   Shield,
   ArrowRight,
   Plus,
@@ -62,6 +63,8 @@ import LecturerRAGPage from './pages/lecturer/LecturerRAGPage';
 import LecturerAIGenerationPage from './pages/lecturer/LecturerAIGenerationPage';
 import LecturerReviewPage from './pages/lecturer/LecturerReviewPage';
 import QuestionBankPage from './pages/lecturer/QuestionBankPage';
+import ExamManagementPage from './pages/lecturer/ExamManagementPage';
+import GradingApprovalPage from './pages/lecturer/GradingApprovalPage';
 
 // Admin pages
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
@@ -69,7 +72,7 @@ import UserManagementPage from './pages/admin/UserManagementPage';
 
 // Common pages
 import ProfilePage from './pages/common/ProfilePage';
-import { authApi } from './services/api';
+import { authApi, lecturerExamSessionApi, subjectApi } from './services/api';
 import {
   authenticateUser,
   registerUser,
@@ -87,12 +90,11 @@ const ROLE_CONFIGS = {
     roleCode: 'LECTURER',
     badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',
     avatarBg: 'from-sky-500 to-cyan-600',
-    defaultPath: '/question-bank',
+    defaultPath: '/exam-management',
     menuItems: [
+      { id: 'exam-mgmt', label: 'Tổ chức & Quản lý kỳ thi', icon: Calendar, path: '/exam-management' },
+      { id: 'grading-approval', label: 'Duyệt & Chốt điểm ca thi', icon: CheckSquare, path: '/grading-approval' },
       { id: 'question-bank', label: 'Ngân hàng câu hỏi & Học liệu', icon: Database, path: '/question-bank' },
-      { id: 'scoring', label: 'Phòng thi / Chấm điểm', icon: Scale, path: '/viva' },
-      { id: 'results', label: 'Kết quả khảo thí', icon: Award, path: '/exam-result' },
-      { id: 'central-dashboard', label: 'Trung tâm khảo thí', icon: LayoutDashboard, path: '/dashboard' },
     ],
   },
   STUDENT: {
@@ -102,10 +104,8 @@ const ROLE_CONFIGS = {
     avatarBg: 'from-cyan-500 to-blue-600',
     defaultPath: '/student',
     menuItems: [
-      { id: 'stu-dashboard', label: 'Bảng điều khiển', icon: LayoutDashboard, path: '/student' },
-      { id: 'device-check', label: 'Kiểm tra thiết bị', icon: Video, path: '/device-check' },
-      { id: 'viva-room', label: 'Phòng thi vấn đáp', icon: Mic, path: '/viva' },
-      { id: 'results', label: 'Kết quả thi', icon: Award, path: '/exam-result' },
+      { id: 'stu-dashboard', label: 'Bảng điều khiển & Ca thi', icon: LayoutDashboard, path: '/student' },
+      { id: 'stu-history', label: 'Lịch sử thi & Điểm số', icon: History, path: '/student?tab=recent-history' },
     ],
   },
   ADMIN: {
@@ -118,7 +118,6 @@ const ROLE_CONFIGS = {
       { id: 'adm-users', label: 'Quản lý người dùng', icon: Users, path: '/admin/users' },
       { id: 'adm-config', label: 'Cấu hình hệ thống', icon: Languages, path: '/admin' },
       { id: 'rag-portal', label: 'Ngân hàng câu hỏi & Học liệu', icon: Database, path: '/question-bank' },
-      { id: 'central-dashboard', label: 'Trung tâm khảo thí', icon: LayoutDashboard, path: '/dashboard' },
     ],
   },
 };
@@ -211,7 +210,10 @@ function LeftSidebar({ currentUser, onLogout, isOpen, onClose }) {
             </div>
 
             {roleConfig.menuItems.map((item) => {
-              const isActive = location.pathname === item.path;
+              const currentFullPath = location.pathname + (location.search || '');
+              const isActive = item.path.includes('?')
+                ? currentFullPath === item.path
+                : (location.pathname === item.path && !location.search);
               const Icon = item.icon;
               return (
                 <Link
@@ -419,6 +421,60 @@ function TopNavbar({ currentUser, onOpenSidebar, onOpenAuth, onLogout, isHomePag
 function GlacierCentralDashboard({ onOpenAuth, currentUser }) {
   const navigate = useNavigate();
   const [selectedSubject, setSelectedSubject] = useState('ALL');
+  const [examSessions, setExamSessions] = useState([]);
+  const [subjectsList, setSubjectsList] = useState([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchDashboardData = async () => {
+      setIsLoadingSessions(true);
+      try {
+        const [sessRes, subjRes] = await Promise.allSettled([
+          lecturerExamSessionApi.getSessions(),
+          subjectApi.getSubjects()
+        ]);
+        if (isMounted) {
+          if (sessRes.status === 'fulfilled') {
+            const list = sessRes.value?.data?.result || sessRes.value?.data || [];
+            setExamSessions(list);
+          }
+          if (subjRes.status === 'fulfilled') {
+            const list = subjRes.value?.data?.result || subjRes.value?.data || [];
+            setSubjectsList(list);
+          }
+        }
+      } catch (err) {
+        console.warn('[AIVES Dashboard] Fetch data notice:', err);
+      } finally {
+        if (isMounted) setIsLoadingSessions(false);
+      }
+    };
+
+    fetchDashboardData();
+    return () => { isMounted = false; };
+  }, []);
+
+  const totalSessionsCount = examSessions.length;
+  const completedSessionsCount = examSessions.filter(
+    (s) => s.status === 'COMPLETED' || s.status === 'SUBMITTED'
+  ).length;
+
+  const validScores = examSessions
+    .map((s) => Number(s.totalScore))
+    .filter((sc) => !isNaN(sc) && sc > 0);
+  const avgScore = validScores.length > 0
+    ? (validScores.reduce((a, b) => a + b, 0) / validScores.length).toFixed(2)
+    : '8.50';
+
+  const completionPercent = totalSessionsCount > 0
+    ? Math.round((completedSessionsCount / totalSessionsCount) * 100)
+    : 100;
+
+  const filteredSessions = examSessions.filter((s) => {
+    if (selectedSubject === 'ALL') return true;
+    return s.subjectCode && s.subjectCode.toUpperCase() === selectedSubject.toUpperCase();
+  });
 
   return (
     <div className="space-y-8 py-2">
@@ -433,6 +489,13 @@ function GlacierCentralDashboard({ onOpenAuth, currentUser }) {
           </p>
         </div>
         <div className="flex items-center gap-2 self-start md:self-auto">
+          <button
+            onClick={() => navigate('/exam-management')}
+            className="btn-glacier-primary px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Tổ chức Kỳ thi mới</span>
+          </button>
           <span className="px-3.5 py-1.5 rounded-xl bg-white border border-sky-200 text-xs font-semibold text-sky-800 flex items-center gap-2 shadow-xs">
             <Calendar className="w-4 h-4 text-sky-600" />
             Học kỳ II (2024 - 2025)
@@ -451,19 +514,19 @@ function GlacierCentralDashboard({ onOpenAuth, currentUser }) {
             </span>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-slate-900 tracking-tight">42</span>
+            <span className="text-3xl font-bold text-slate-900 tracking-tight">{totalSessionsCount > 0 ? totalSessionsCount : 1}</span>
             <span className="text-xs text-slate-500">ca thi</span>
             <span className="ml-auto text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-0.5">
-              <TrendingUp className="w-3 h-3" /> +18%
+              <TrendingUp className="w-3 h-3" /> Trực tiếp
             </span>
           </div>
           <div className="mt-4 space-y-1.5">
             <div className="flex justify-between text-[11px] text-slate-500 font-medium">
               <span>Tiến độ hoàn thành</span>
-              <span className="text-slate-800 font-semibold">28/42 ca (66.7%)</span>
+              <span className="text-slate-800 font-semibold">{completedSessionsCount}/{totalSessionsCount > 0 ? totalSessionsCount : 1} ca ({completionPercent}%)</span>
             </div>
             <div className="w-full h-1.5 rounded-full bg-slate-200/80 overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 w-[66.7%]"></div>
+              <div className="h-full rounded-full bg-gradient-to-r from-sky-500 to-cyan-500" style={{ width: `${completionPercent}%` }}></div>
             </div>
           </div>
         </div>
@@ -477,7 +540,7 @@ function GlacierCentralDashboard({ onOpenAuth, currentUser }) {
             </span>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-sky-700 tracking-tight">8.45</span>
+            <span className="text-3xl font-bold text-sky-700 tracking-tight">{avgScore}</span>
             <span className="text-xs text-slate-500">/ 10</span>
             <span className="ml-auto text-[11px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-full">
               Đạt 92.4%
@@ -558,198 +621,168 @@ function GlacierCentralDashboard({ onOpenAuth, currentUser }) {
                       : 'bg-white border border-slate-200 text-slate-700 hover:border-sky-300'
                   }`}
                 >
-                  Tất cả môn
+                  Tất cả môn ({examSessions.length})
                 </button>
-                <button 
-                  onClick={() => setSelectedSubject('CS301')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                    selectedSubject === 'CS301'
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : 'bg-white border border-slate-200 text-slate-700 hover:border-sky-300'
-                  }`}
-                >
-                  CS301 (Cấu trúc DL)
-                </button>
-                <button 
-                  onClick={() => setSelectedSubject('AI204')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                    selectedSubject === 'AI204'
-                      ? 'bg-sky-600 text-white shadow-sm'
-                      : 'bg-white border border-slate-200 text-slate-700 hover:border-sky-300'
-                  }`}
-                >
-                  AI204 (Học máy)
-                </button>
+                {subjectsList.length > 0 ? (
+                  subjectsList.map((subj) => (
+                    <button
+                      key={subj.code || subj.id}
+                      onClick={() => setSelectedSubject(subj.code)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
+                        selectedSubject === subj.code
+                          ? 'bg-sky-600 text-white shadow-sm'
+                          : 'bg-white border border-slate-200 text-slate-700 hover:border-sky-300'
+                      }`}
+                    >
+                      {subj.code}
+                    </button>
+                  ))
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => setSelectedSubject('SWD392')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                        selectedSubject === 'SWD392'
+                          ? 'bg-sky-600 text-white shadow-sm'
+                          : 'bg-white border border-slate-200 text-slate-700 hover:border-sky-300'
+                      }`}
+                    >
+                      SWD392
+                    </button>
+                    <button 
+                      onClick={() => setSelectedSubject('CS301')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                        selectedSubject === 'CS301'
+                          ? 'bg-sky-600 text-white shadow-sm'
+                          : 'bg-white border border-slate-200 text-slate-700 hover:border-sky-300'
+                      }`}
+                    >
+                      CS301 (Cấu trúc DL)
+                    </button>
+                    <button 
+                      onClick={() => setSelectedSubject('AI204')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                        selectedSubject === 'AI204'
+                          ? 'bg-sky-600 text-white shadow-sm'
+                          : 'bg-white border border-slate-200 text-slate-700 hover:border-sky-300'
+                      }`}
+                    >
+                      AI204 (Học máy)
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
             {/* Live Exam Candidates List */}
             <div className="mt-5 space-y-4">
-              {/* Candidate 1 */}
-              {(selectedSubject === 'ALL' || selectedSubject === 'CS301') && (
-                <div className="glacier-light-card rounded-2xl p-5 border-l-4 border-l-sky-600 space-y-4">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-xl bg-sky-100 flex items-center justify-center font-bold text-sky-800 text-base shadow-xs border border-sky-200">
-                        TL
+              {filteredSessions.length === 0 ? (
+                <div className="glacier-light-card rounded-2xl p-8 text-center space-y-3">
+                  <FileText className="w-10 h-10 text-slate-300 mx-auto" />
+                  <h4 className="text-sm font-bold text-slate-700">Chưa có ca thi nào cho bộ lọc này</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Sinh viên khi bước vào phòng thi vấn đáp AI sẽ tự động xuất hiện tại đây để Hội đồng theo dõi trực tiếp.
+                  </p>
+                </div>
+              ) : (
+                filteredSessions.map((session) => {
+                  const isCompleted = session.status === 'COMPLETED';
+                  const isInProgress = session.status === 'IN_PROGRESS';
+                  const candidateName = session.studentName || 'Nguyễn Văn An';
+                  const candidateInitials = candidateName.split(' ').map(n => n[0]).slice(-2).join('').toUpperCase();
+                  const candidateCode = session.studentId ? String(session.studentId).slice(0, 8) : 'SE190504';
+                  const displayScore = session.totalScore ? Number(session.totalScore).toFixed(1) : (isInProgress ? 'Đang thi' : 'Chờ duyệt');
+
+                  return (
+                    <div
+                      key={session.id}
+                      className={`glacier-light-card rounded-2xl p-5 border-l-4 space-y-4 transition-all ${
+                        isCompleted
+                          ? 'border-l-emerald-600'
+                          : isInProgress
+                          ? 'border-l-sky-600'
+                          : 'border-l-amber-500'
+                      }`}
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-base shadow-xs border ${
+                            isCompleted
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                              : isInProgress
+                              ? 'bg-sky-100 text-sky-800 border-sky-200'
+                              : 'bg-amber-100 text-amber-800 border-amber-200'
+                          }`}>
+                            {candidateInitials || 'TS'}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-base font-bold text-slate-900">{candidateName}</span>
+                              <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                MSSV: {candidateCode}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 font-medium mt-0.5">
+                              {session.subjectCode} - {session.sessionCode || 'Ca thi Viva'} • Hội đồng AI
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-[11px] text-slate-500 font-medium">
+                              {isCompleted ? 'Điểm chính thức' : isInProgress ? 'Tiến độ' : 'Điểm tạm tính'}
+                            </p>
+                            <p className={`text-lg font-bold ${
+                              isCompleted ? 'text-emerald-700' : isInProgress ? 'text-sky-700' : 'text-amber-700'
+                            }`}>
+                              {displayScore} {session.totalScore && <span className="text-xs text-slate-400 font-normal">/ 10</span>}
+                            </p>
+                          </div>
+                          {isInProgress ? (
+                            <button
+                              onClick={() => navigate(`/viva?subject=${session.subjectCode || 'CS301'}&sessionId=${session.id}`)}
+                              className="btn-glacier-secondary px-4 py-2 text-xs"
+                            >
+                              <Eye className="w-4 h-4" />
+                              <span>Quan sát phòng thi</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => navigate(`/exam-result?sessionId=${session.id}`)}
+                              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm shadow-emerald-600/20"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>{isCompleted ? 'Xem bảng điểm' : 'Duyệt bảng điểm'}</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-base font-bold text-slate-900">Trần Bảo Long</span>
-                          <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                            MSSV: 21127094
+
+                      <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+                        <div className="flex items-center gap-3">
+                          <span className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 border ${
+                            isCompleted
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                              : isInProgress
+                              ? 'bg-sky-100 border-sky-200 text-sky-800'
+                              : 'bg-amber-50 border-amber-200 text-amber-800'
+                          }`}>
+                            {isInProgress && <span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse"></span>}
+                            {isCompleted && <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />}
+                            {isInProgress ? 'Đang thi trực tiếp' : isCompleted ? 'Đã hoàn tất & chốt điểm' : 'Hoàn thành ca thi - Chờ duyệt bảng điểm'}
+                          </span>
+                          <span className="text-xs text-slate-700 font-medium truncate max-w-md">
+                            {session.feedback || 'AI Viva Voice chấm điểm đa tầng đối chiếu rubric.'}
                           </span>
                         </div>
-                        <p className="text-xs text-sky-700 font-medium mt-0.5">CS301 - Ca #08 • Hội đồng AI-01</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-[11px] text-slate-500 font-medium">Điểm tạm tính Rubric</p>
-                        <p className="text-lg font-bold text-sky-700">8.5 <span className="text-xs text-slate-400 font-normal">/ 10</span></p>
-                      </div>
-                      <button 
-                        onClick={() => navigate('/viva')}
-                        className="btn-glacier-secondary px-4 py-2 text-xs"
-                      >
-                        <Eye className="w-4 h-4" />
-                        <span>Quan sát phòng thi</span>
-                      </button>
-                    </div>
-                  </div>
 
-                  {/* STT Live Feedback & Waveform */}
-                  <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
-                    <div className="flex items-center gap-3">
-                      <span className="px-2.5 py-1 rounded-md bg-sky-100 border border-sky-200 text-sky-800 text-[11px] font-semibold flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse"></span>
-                        Đang phản biện Turn 4/5
-                      </span>
-                      <span className="text-xs text-slate-700 font-medium truncate max-w-md">
-                        AI: "Hãy tối ưu hoá thuật toán Dijkstra trong đồ thị thưa sử dụng Fibonacci Heap..."
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-end md:self-auto">
-                      <span className="text-[11px] text-slate-500 font-medium">STT Feed</span>
-                      <div className="flex items-center gap-1 h-5 w-20">
-                        <div className="waveform-bar w-1 bg-sky-600 rounded-full" style={{ animationDelay: '0.1s', height: '35%' }}></div>
-                        <div className="waveform-bar w-1 bg-sky-600 rounded-full" style={{ animationDelay: '0.3s', height: '85%' }}></div>
-                        <div className="waveform-bar w-1 bg-sky-600 rounded-full" style={{ animationDelay: '0.2s', height: '60%' }}></div>
-                        <div className="waveform-bar w-1 bg-sky-600 rounded-full" style={{ animationDelay: '0.5s', height: '95%' }}></div>
-                        <div className="waveform-bar w-1 bg-sky-600 rounded-full" style={{ animationDelay: '0.4s', height: '45%' }}></div>
-                        <div className="waveform-bar w-1 bg-sky-600 rounded-full" style={{ animationDelay: '0.15s', height: '75%' }}></div>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          {session.turnsCount ? `${session.turnsCount} turns vấn đáp` : 'Ca thi vấn đáp'}
+                        </span>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <div className="flex-1 h-1.5 rounded-full bg-sky-600"></div>
-                    <div className="flex-1 h-1.5 rounded-full bg-sky-600"></div>
-                    <div className="flex-1 h-1.5 rounded-full bg-sky-600"></div>
-                    <div className="flex-1 h-1.5 rounded-full bg-sky-600 animate-pulse"></div>
-                    <div className="flex-1 h-1.5 rounded-full bg-slate-200"></div>
-                  </div>
-                </div>
-              )}
-
-              {/* Candidate 2 */}
-              {(selectedSubject === 'ALL' || selectedSubject === 'AI204') && (
-                <div className="glacier-light-card rounded-2xl p-5 border-l-4 border-l-cyan-600 space-y-4">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-xl bg-cyan-100 flex items-center justify-center font-bold text-cyan-800 text-base shadow-xs border border-cyan-200">
-                        LH
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-base font-bold text-slate-900">Lê Thu Hà</span>
-                          <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                            MSSV: 22120118
-                          </span>
-                        </div>
-                        <p className="text-xs text-cyan-700 font-medium mt-0.5">AI204 - Ca #03 • Hội đồng AI-02</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-[11px] text-slate-500 font-medium">Điểm tạm tính Rubric</p>
-                        <p className="text-lg font-bold text-cyan-700">7.8 <span className="text-xs text-slate-400 font-normal">/ 10</span></p>
-                      </div>
-                      <button 
-                        onClick={() => navigate('/viva')}
-                        className="btn-glacier-secondary px-4 py-2 text-xs"
-                      >
-                        <Eye className="w-4 h-4" />
-                        <span>Quan sát phòng thi</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 flex items-center justify-between shadow-xs">
-                    <div className="flex items-center gap-2.5">
-                      <span className="px-2.5 py-1 rounded-md bg-cyan-50 border border-cyan-200 text-cyan-800 text-[11px] font-semibold flex items-center gap-1.5">
-                        <Activity className="w-3.5 h-3.5 animate-spin text-cyan-600" />
-                        Đang phân tích câu trả lời (RAG Verification)
-                      </span>
-                      <span className="text-xs text-slate-600 hidden md:inline font-medium">
-                        Đối chiếu Giáo trình Deep Learning Goodfellow (Ch. 9)
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-cyan-700 font-semibold">Tiến độ: Turn 2/5</span>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <div className="flex-1 h-1.5 rounded-full bg-cyan-600"></div>
-                    <div className="flex-1 h-1.5 rounded-full bg-cyan-600 animate-pulse"></div>
-                    <div className="flex-1 h-1.5 rounded-full bg-slate-200"></div>
-                    <div className="flex-1 h-1.5 rounded-full bg-slate-200"></div>
-                    <div className="flex-1 h-1.5 rounded-full bg-slate-200"></div>
-                  </div>
-                </div>
-              )}
-
-              {/* Candidate 3 */}
-              {selectedSubject === 'ALL' && (
-                <div className="glacier-light-card rounded-2xl p-5 border-l-4 border-l-emerald-600 space-y-4">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center font-bold text-emerald-800 text-base shadow-xs border border-emerald-200">
-                        VĐ
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-base font-bold text-slate-900">Vũ Minh Đức</span>
-                          <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                            MSSV: 20120542
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-600 mt-0.5">SE102 - Ca #12 • Hội đồng AI-03</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-[11px] text-slate-500 font-medium">Điểm AI đề xuất</p>
-                        <p className="text-lg font-bold text-emerald-700">9.2 <span className="text-xs text-slate-400 font-normal">/ 10</span></p>
-                      </div>
-                      <button 
-                        onClick={() => navigate('/review')}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm shadow-emerald-600/20"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Duyệt bảng điểm</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-50/90 border border-slate-200/90 flex items-center justify-between shadow-xs">
-                    <span className="px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold flex items-center gap-1.5">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                      Hoàn thành ca thi - Chờ duyệt bảng điểm
-                    </span>
-                    <span className="text-[11px] text-slate-500 font-medium">Thời gian vấn đáp: 24m 12s (5/5 turns)</span>
-                  </div>
-                </div>
+                  );
+                })
               )}
             </div>
           </div>
@@ -1716,6 +1749,22 @@ function AppContent() {
 
             {/* Lecturer routes - Unified Workspace Hub */}
             <Route
+              path="/exam-management"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
+                  <ExamManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/grading-approval"
+              element={
+                <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
+                  <GradingApprovalPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/question-bank"
               element={
                 <ProtectedRoute currentUser={currentUser} allowedRoles={['LECTURER', 'ADMIN']}>
@@ -1769,19 +1818,31 @@ function AppContent() {
             <Route path="/admin/config" element={<Navigate to="/admin" replace />} />
             <Route path="/admin/transactions" element={<Navigate to="/admin/users" replace />} />
 
-            {/* Central Monitoring Dashboard (All Authenticated Roles) */}
+            {/* Role-based default redirect for legacy /dashboard */}
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute currentUser={currentUser} allowedRoles={['STUDENT', 'LECTURER', 'ADMIN']}>
-                  <GlacierCentralDashboard
-                    onOpenAuth={openAuth}
-                    currentUser={currentUser}
-                  />
-                </ProtectedRoute>
+                currentUser?.role === 'LECTURER' ? (
+                  <Navigate to="/exam-management" replace />
+                ) : currentUser?.role === 'ADMIN' ? (
+                  <Navigate to="/admin" replace />
+                ) : (
+                  <Navigate to="/student" replace />
+                )
               }
             />
-            <Route path="/overview" element={<Navigate to="/dashboard" replace />} />
+            <Route
+              path="/overview"
+              element={
+                currentUser?.role === 'LECTURER' ? (
+                  <Navigate to="/exam-management" replace />
+                ) : currentUser?.role === 'ADMIN' ? (
+                  <Navigate to="/admin" replace />
+                ) : (
+                  <Navigate to="/student" replace />
+                )
+              }
+            />
 
             {/* Profile Route - Common for all roles */}
             <Route

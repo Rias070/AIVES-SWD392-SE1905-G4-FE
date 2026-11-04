@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Mic,
   MicOff,
-  Video,
-  VideoOff,
   Volume2,
   CheckCircle2,
   AlertCircle,
@@ -13,20 +11,19 @@ import {
   RotateCcw,
   ArrowRight,
   Shield,
-  Layers,
   Sparkles,
-  Camera,
   Radio,
   Sliders,
-  Maximize2,
   Lock,
-  Eye,
   CheckSquare,
-  Square
+  Square,
+  Play,
+  Pause
 } from 'lucide-react';
 
 export default function PreExamDeviceCheckPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Active examination session details
   const currentSession = (() => {
@@ -38,17 +35,15 @@ export default function PreExamDeviceCheckPage() {
     }
   })();
 
-  // Hardware device lists & selected IDs
-  const [cameras, setCameras] = useState([]);
+  const activeSubject = searchParams.get('subject') || currentSession?.subject || 'SWD392';
+
+  // Hardware mic list & selected ID
   const [mics, setMics] = useState([]);
-  const [selectedCameraId, setSelectedCameraId] = useState('');
   const [selectedMicId, setSelectedMicId] = useState('');
 
   // Media stream & status
   const [stream, setStream] = useState(null);
-  const [cameraError, setCameraError] = useState(null);
   const [micError, setMicError] = useState(null);
-  const [videoResolution, setVideoResolution] = useState('1080p • 60 FPS');
 
   // Web Audio API states & real-time visualizer
   const [currentDb, setCurrentDb] = useState(-60);
@@ -56,19 +51,22 @@ export default function PreExamDeviceCheckPage() {
   const [isMicTesting, setIsMicTesting] = useState(false);
   const [hasTestedVoice, setHasTestedVoice] = useState(false);
   const [voiceTestResult, setVoiceTestResult] = useState('');
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState(null);
+  const [isPlayingTestAudio, setIsPlayingTestAudio] = useState(false);
 
   // Exam rules & countdown
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [countdownSeconds, setCountdownSeconds] = useState(286); // 04:46
 
   // Refs for cleanup and real-time processing
-  const videoRef = useRef(null);
   const streamRef = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const sourceNodeRef = useRef(null);
   const animationFrameRef = useRef(null);
-  const testRecordingRef = useRef(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const testAudioPlayerRef = useRef(null);
   const voiceActivityDetectedRef = useRef(false);
 
   // Countdown timer
@@ -104,21 +102,9 @@ export default function PreExamDeviceCheckPage() {
     if (!navigator.mediaDevices?.enumerateDevices) return;
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter((d) => d.kind === 'videoinput');
       const audioDevices = devices.filter((d) => d.kind === 'audioinput');
-
-      setCameras(videoDevices);
       setMics(audioDevices);
 
-      // Preserve or set default camera selection
-      if (videoDevices.length > 0) {
-        setSelectedCameraId((prev) => {
-          const exists = videoDevices.some((d) => d.deviceId === prev);
-          return exists && prev ? prev : videoDevices[0].deviceId;
-        });
-      }
-
-      // Preserve or set default mic selection
       if (audioDevices.length > 0) {
         setSelectedMicId((prev) => {
           const exists = audioDevices.some((d) => d.deviceId === prev);
@@ -126,7 +112,7 @@ export default function PreExamDeviceCheckPage() {
         });
       }
     } catch (err) {
-      console.error('Lỗi khi đọc danh sách thiết bị:', err);
+      console.error('Lỗi khi đọc danh sách thiết bị âm thanh:', err);
     }
   };
 
@@ -142,763 +128,508 @@ export default function PreExamDeviceCheckPage() {
       const dataArray = new Uint8Array(bufferLength);
       analyserRef.current.getByteFrequencyData(dataArray);
 
-      // Calculate average amplitude
       let sum = 0;
       for (let i = 0; i < bufferLength; i++) {
         sum += dataArray[i];
       }
       const avg = sum / bufferLength;
 
-      // Calculate Decibel (-60 dB to 0 dB)
-      let db = -60;
-      const normalized = avg / 128;
-      if (normalized > 0.01) {
-        db = Math.round(-60 + normalized * 50);
-        if (db > 0) db = 0;
-      }
-      setCurrentDb(db);
+      // Logarithmic approximation for dB
+      const normalized = Math.max(1, avg);
+      const calculatedDb = Math.round(20 * Math.log10(normalized / 255));
+      setCurrentDb(Math.max(-60, calculatedDb));
 
-      // Check voice activity during mic test
-      if (testRecordingRef.current && (avg > 15 || db > -48)) {
+      if (avg > 18) {
         voiceActivityDetectedRef.current = true;
       }
 
-      // Map to 14 Wave Visualizer bars
-      const barsCount = 14;
-      const step = Math.max(1, Math.floor(bufferLength / barsCount));
+      // Generate dynamic wave bars
+      const barCount = 14;
+      const step = Math.floor(bufferLength / barCount) || 1;
       const newBars = [];
-      for (let i = 0; i < barsCount; i++) {
+      for (let i = 0; i < barCount; i++) {
         const val = dataArray[i * step] || 0;
-        // Scale from min 12% to max 100%
-        const percent = Math.max(12, Math.min(100, Math.round((val / 255) * 100)));
-        newBars.push(percent);
+        const barHeight = Math.max(10, Math.min(100, Math.round((val / 255) * 100)));
+        newBars.push(barHeight);
       }
       setWaveBars(newBars);
 
       animationFrameRef.current = requestAnimationFrame(updateAudioVisualizer);
     };
 
-    animationFrameRef.current = requestAnimationFrame(updateAudioVisualizer);
+    updateAudioVisualizer();
   };
 
-  // Helper: Attach an audio track to the Web Audio AnalyserNode (Hot-swapping friendly)
+  // Helper: Attach single audio track to AnalyserNode
   const attachAudioTrackToAnalyser = (audioTrack) => {
     try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return;
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtxClass) return;
 
       if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
-        audioContextRef.current = new AudioContextClass();
+        audioContextRef.current = new AudioCtxClass();
       }
 
-      const audioCtx = audioContextRef.current;
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume().catch(() => { });
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume().catch(() => {});
       }
 
-      // Disconnect previous source if active
+      if (!analyserRef.current) {
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 64;
+        analyserRef.current.smoothingTimeConstant = 0.8;
+      }
+
       if (sourceNodeRef.current) {
         try {
           sourceNodeRef.current.disconnect();
-        } catch (e) { }
+        } catch (e) {}
       }
 
-      // Reuse or create analyser
-      if (!analyserRef.current) {
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 64;
-        analyser.smoothingTimeConstant = 0.75;
-        analyserRef.current = analyser;
-      }
-
-      const singleTrackStream = new MediaStream([audioTrack]);
-      const sourceNode = audioCtx.createMediaStreamSource(singleTrackStream);
-      sourceNodeRef.current = sourceNode;
-      // Do NOT connect to audioCtx.destination to prevent acoustic feedback loop!
-      sourceNode.connect(analyserRef.current);
+      const tempStream = new MediaStream([audioTrack]);
+      sourceNodeRef.current = audioContextRef.current.createMediaStreamSource(tempStream);
+      sourceNodeRef.current.connect(analyserRef.current);
 
       startVisualizerLoop();
     } catch (err) {
-      console.error('Lỗi khi gắn audio track vào AnalyserNode:', err);
+      console.warn('Lỗi khi kết nối Audio Analyser:', err);
     }
   };
 
-  // Helper: Setup Web Audio API with AnalyserNode
-  const setupWebAudio = (activeStream) => {
-    const audioTracks = activeStream.getAudioTracks();
-    if (audioTracks.length === 0) return;
-    attachAudioTrackToAnalyser(audioTracks[0]);
-  };
-
-  // Main: Request media stream with selected devices
-  const initMediaStream = async (camId, micId) => {
+  // Initialize Microphone Media Stream
+  const initMicrophoneStream = async (micId) => {
     stopTracks();
-
-    let combinedStream = null;
-    let camFail = null;
-    let micFail = null;
-
-    const videoConstraints = camId ? { deviceId: { exact: camId } } : true;
-    const audioConstraints = micId ? { deviceId: { exact: micId } } : true;
-
-    // 1. Try combined request first
-    try {
-      combinedStream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-        audio: audioConstraints
-      });
-      setCameraError(null);
-      setMicError(null);
-    } catch (combinedError) {
-      console.warn('Không thể mở đồng thời cả camera và micro, thử mở độc lập:', combinedError);
-
-      // 2. Fallback: Try camera separately
-      let videoStream = null;
-      try {
-        videoStream = await navigator.mediaDevices.getUserMedia({
-          video: videoConstraints
-        });
-        setCameraError(null);
-      } catch (cErr) {
-        camFail = 'Không thể truy cập camera. Vui lòng kiểm tra quyền thiết bị!';
-        setCameraError(camFail);
-      }
-
-      // 3. Fallback: Try microphone separately
-      let audioStream = null;
-      try {
-        audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: audioConstraints
-        });
-        setMicError(null);
-      } catch (mErr) {
-        micFail = 'Không thể truy cập microphone. Vui lòng cấp quyền!';
-        setMicError(micFail);
-      }
-
-      const activeTracks = [];
-      if (videoStream) activeTracks.push(...videoStream.getVideoTracks());
-      if (audioStream) activeTracks.push(...audioStream.getAudioTracks());
-
-      if (activeTracks.length > 0) {
-        combinedStream = new MediaStream(activeTracks);
-      }
-    }
-
-    if (combinedStream) {
-      streamRef.current = combinedStream;
-      setStream(combinedStream);
-
-      // Attach video stream to video element
-      if (videoRef.current) {
-        videoRef.current.srcObject = combinedStream;
-      }
-
-      // Detect camera track settings
-      const videoTrack = combinedStream.getVideoTracks()[0];
-      if (videoTrack && videoTrack.getSettings) {
-        const s = videoTrack.getSettings();
-        if (s.width && s.height) {
-          setVideoResolution(`${s.width}x${s.height} • ${Math.round(s.frameRate || 30)} FPS`);
-        }
-      }
-
-      // Connect Web Audio API
-      if (combinedStream.getAudioTracks().length > 0) {
-        setupWebAudio(combinedStream);
-      }
-    } else {
-      setStream(null);
-    }
-
-    // Refresh devices to populate full labels once permission is granted
-    await loadDeviceList();
-  };
-
-  // Sync video element when stream is updated
-  useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [stream]);
-
-  // Resume AudioContext on first user interaction to comply with browser Autoplay Policy
-  useEffect(() => {
-    const handleUserInteraction = () => {
-      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume().then(() => {
-          console.log('AudioContext resumed via user interaction');
-        }).catch((e) => {
-          console.warn('Failed to resume AudioContext:', e);
-        });
-      }
-    };
-
-    window.addEventListener('click', handleUserInteraction, { passive: true });
-    window.addEventListener('keydown', handleUserInteraction, { passive: true });
-    window.addEventListener('touchstart', handleUserInteraction, { passive: true });
-
-    return () => {
-      window.removeEventListener('click', handleUserInteraction);
-      window.removeEventListener('keydown', handleUserInteraction);
-      window.removeEventListener('touchstart', handleUserInteraction);
-    };
-  }, []);
-
-  // Initial mount & unmount cleanup
-  useEffect(() => {
-    initMediaStream('', '');
-
-    const handleDeviceChange = () => {
-      loadDeviceList();
-    };
-
-    if (navigator.mediaDevices?.addEventListener) {
-      navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
-    }
-
-    return () => {
-      if (navigator.mediaDevices?.removeEventListener) {
-        navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
-      }
-      stopTracks();
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (sourceNodeRef.current) {
-        try {
-          sourceNodeRef.current.disconnect();
-        } catch (e) { }
-      }
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        try {
-          audioContextRef.current.close();
-        } catch (e) { }
-      }
-    };
-  }, []);
-
-  // Handle switching camera (Optimized Track Hot-swapping)
-  const handleCameraChange = async (e) => {
-    const newCamId = e.target.value;
-    setSelectedCameraId(newCamId);
-
-    // If stream is not active or has no video tracks, fallback to full initialization
-    if (!streamRef.current || streamRef.current.getVideoTracks().length === 0) {
-      await initMediaStream(newCamId, selectedMicId);
-      return;
-    }
+    setMicError(null);
 
     try {
-      // 1. Chỉ lấy video track mới thông qua deviceId
-      const newVideoStream = await navigator.mediaDevices.getUserMedia({
-        video: newCamId ? { deviceId: { exact: newCamId } } : true
-      });
-      const newVideoTrack = newVideoStream.getVideoTracks()[0];
-      if (!newVideoTrack) return;
+      const constraints = {
+        audio: micId ? { deviceId: { exact: micId } } : true
+      };
 
-      // 2. Dừng và gỡ bỏ video track cũ trong streamRef.current (không ảnh hưởng tới audio track và AudioContext)
-      const oldVideoTracks = streamRef.current.getVideoTracks();
-      oldVideoTracks.forEach((track) => {
-        try {
-          streamRef.current.removeTrack(track);
-          track.stop();
-        } catch (err) { }
-      });
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = newStream;
+      setStream(newStream);
 
-      // 3. Thêm video track mới vào streamRef.current
-      streamRef.current.addTrack(newVideoTrack);
+      await loadDeviceList();
 
-      // Cập nhật thông số độ phân giải video
-      if (newVideoTrack.getSettings) {
-        const s = newVideoTrack.getSettings();
-        if (s.width && s.height) {
-          setVideoResolution(`${s.width}x${s.height} • ${Math.round(s.frameRate || 30)} FPS`);
-        }
+      const audioTrack = newStream.getAudioTracks()[0];
+      if (audioTrack) {
+        attachAudioTrackToAnalyser(audioTrack);
       }
-
-      // Đồng bộ video element và cập nhật React state
-      if (videoRef.current) {
-        videoRef.current.srcObject = streamRef.current;
-      }
-      setStream(new MediaStream(streamRef.current.getTracks()));
-      setCameraError(null);
     } catch (err) {
-      console.error('Lỗi khi chuyển đổi camera (hot-swap):', err);
-      setCameraError('Không thể chuyển sang camera đã chọn. Vui lòng thử lại!');
+      console.error('Không thể truy cập Microphone:', err);
+      setMicError('Chưa cấp quyền Microphone hoặc không tìm thấy thiết bị thu âm.');
     }
   };
 
-  // Handle switching mic (Optimized Track Hot-swapping)
+  useEffect(() => {
+    initMicrophoneStream(selectedMicId);
+
+    return () => {
+      stopTracks();
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(() => {});
+      }
+      if (recordedAudioUrl) {
+        URL.revokeObjectURL(recordedAudioUrl);
+      }
+    };
+  }, []);
+
   const handleMicChange = async (e) => {
     const newMicId = e.target.value;
     setSelectedMicId(newMicId);
+    await initMicrophoneStream(newMicId);
+  };
 
-    // If stream is not active or has no audio tracks, fallback to full initialization
+  // Run voice test (record 3s, then play back)
+  const handleRunVoiceTest = () => {
     if (!streamRef.current || streamRef.current.getAudioTracks().length === 0) {
-      await initMediaStream(selectedCameraId, newMicId);
+      alert('Vui lòng bật Microphone trước khi thử thu âm!');
       return;
     }
 
-    try {
-      // 1. Chỉ lấy audio track mới thông qua deviceId
-      const newAudioStream = await navigator.mediaDevices.getUserMedia({
-        audio: newMicId ? { deviceId: { exact: newMicId } } : true
-      });
-      const newAudioTrack = newAudioStream.getAudioTracks()[0];
-      if (!newAudioTrack) return;
-
-      // 2. Dừng và gỡ bỏ audio track cũ trong streamRef.current (không tắt/mở lại webcam)
-      const oldAudioTracks = streamRef.current.getAudioTracks();
-      oldAudioTracks.forEach((track) => {
-        try {
-          streamRef.current.removeTrack(track);
-          track.stop();
-        } catch (err) { }
-      });
-
-      // 3. Thêm audio track mới vào streamRef.current
-      streamRef.current.addTrack(newAudioTrack);
-
-      // 4. Ngắt sourceNode cũ và kết nối audio track mới vào AnalyserNode
-      attachAudioTrackToAnalyser(newAudioTrack);
-
-      setStream(new MediaStream(streamRef.current.getTracks()));
-      setMicError(null);
-    } catch (err) {
-      console.error('Lỗi khi chuyển đổi microphone (hot-swap):', err);
-      setMicError('Không thể chuyển sang micro đã chọn. Vui lòng thử lại!');
-    }
-  };
-
-  // Run voice test
-  const handleRunVoiceTest = () => {
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-      audioContextRef.current.resume().catch(() => { });
+      audioContextRef.current.resume().catch(() => {});
     }
-    setIsMicTesting(true);
-    voiceActivityDetectedRef.current = false;
-    testRecordingRef.current = true;
 
-    setTimeout(() => {
-      testRecordingRef.current = false;
+    if (recordedAudioUrl) {
+      URL.revokeObjectURL(recordedAudioUrl);
+      setRecordedAudioUrl(null);
+    }
+
+    setIsMicTesting(true);
+    setHasTestedVoice(false);
+    voiceActivityDetectedRef.current = false;
+    audioChunksRef.current = [];
+
+    try {
+      const recorder = new MediaRecorder(streamRef.current);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(audioBlob);
+        setRecordedAudioUrl(url);
+        setIsMicTesting(false);
+        setHasTestedVoice(true);
+
+        if (voiceActivityDetectedRef.current) {
+          setVoiceTestResult('Thu âm thành công: Âm thanh to, rõ ràng và bắt tín hiệu rất tốt!');
+        } else {
+          setVoiceTestResult('Âm thanh hơi nhỏ - Bạn vui lòng nói to hoặc chỉnh âm lượng Micro cao hơn.');
+        }
+      };
+
+      recorder.start();
+
+      setTimeout(() => {
+        if (recorder.state === 'recording') {
+          recorder.stop();
+        }
+      }, 3000);
+    } catch (e) {
+      console.warn('Lỗi ghi âm thử:', e);
       setIsMicTesting(false);
       setHasTestedVoice(true);
-      if (voiceActivityDetectedRef.current) {
-        setVoiceTestResult('Nhận diện: 100% chính xác (Âm thanh rõ nét)');
-      } else {
-        setVoiceTestResult('Âm thanh hơi nhỏ - Vui lòng nói to hoặc để mic gần hơn');
-      }
-    }, 2400);
+      setVoiceTestResult('Đã kiểm tra kết nối Micro ổn định.');
+    }
   };
 
-  const isVideoLive = stream && stream.getVideoTracks().some((t) => t.readyState === 'live');
-  const isAudioLive = stream && stream.getAudioTracks().some((t) => t.readyState === 'live');
+  const togglePlayTestAudio = () => {
+    if (!testAudioPlayerRef.current || !recordedAudioUrl) return;
+    if (isPlayingTestAudio) {
+      testAudioPlayerRef.current.pause();
+      setIsPlayingTestAudio(false);
+    } else {
+      testAudioPlayerRef.current.currentTime = 0;
+      testAudioPlayerRef.current.play();
+      setIsPlayingTestAudio(true);
+    }
+  };
+
+  const isAudioLive = stream && stream.getAudioTracks().some((t) => t.readyState === 'live') && !micError;
+
+  // Check if target session is overdue
+  const isOverdue = (() => {
+    try {
+      const sessId = searchParams.get('sessionId') || currentSession?.sessionId || currentSession?.id;
+      if (!sessId) return false;
+      const allExamsRaw = localStorage.getItem('aives_exam_sessions');
+      if (allExamsRaw) {
+        const exams = JSON.parse(allExamsRaw);
+        const match = exams.find((e) => e.id === sessId || e.sessionCode === sessId);
+        if (match?.endedAt && new Date(match.endedAt) < new Date()) {
+          return true;
+        }
+      }
+    } catch (e) {}
+    return false;
+  })();
+
+  const isReadyToStart = isAudioLive && rulesAccepted && !isOverdue;
+
+  const handleStartExam = () => {
+    if (!isReadyToStart || isOverdue) return;
+    stopTracks();
+    const params = new URLSearchParams(searchParams);
+    const resolvedSessionId = searchParams.get('sessionId') || currentSession?.sessionId || currentSession?.id;
+    if (resolvedSessionId) {
+      params.set('sessionId', resolvedSessionId);
+    }
+    if (!params.get('sessionId')) {
+      try {
+        const latestExamRaw = localStorage.getItem('aives_latest_active_exam');
+        if (latestExamRaw) {
+          const ex = JSON.parse(latestExamRaw);
+          if (ex.id) params.set('sessionId', ex.id);
+          if (ex.subjectCode && !params.get('subject')) params.set('subject', ex.subjectCode);
+        }
+      } catch (e) {}
+    }
+    if (!params.get('subject') && activeSubject) {
+      params.set('subject', activeSubject);
+    }
+    navigate(`/viva?${params.toString()}`);
+  };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12 animate-fade-in">
+    <div className="max-w-5xl mx-auto space-y-6 pb-12 animate-fade-in">
       {/* Top Header / Stepper Bar */}
       <div className="p-4 md:px-6 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        {/* Left: Brand */}
+        {/* Brand */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 to-cyan-600 flex items-center justify-center text-white shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center text-white shadow-sm">
             <Shield className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-slate-900">AIVES</span>
-              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-sky-100 text-sky-700">VIVA CORE</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">VIVA EXAM</span>
             </div>
-            <p className="text-[11px] text-slate-500">Phòng thi vấn đáp AI trực tuyến</p>
+            <p className="text-[11px] text-slate-500">Khảo thí vấn đáp AI - Môn {activeSubject}</p>
           </div>
         </div>
 
-        {/* Middle Stepper */}
+        {/* Stepper */}
         <div className="flex items-center gap-2 text-xs">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-sky-50 border border-sky-200 text-sky-800 font-semibold">
             <span className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center text-[10px] font-bold">1</span>
-            <span>Bước 1/2: Kiểm tra thiết bị & Âm thanh</span>
+            <span>Kiểm tra Micro & Giọng nói</span>
           </div>
           <span className="text-slate-300">›</span>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-slate-400 font-medium">
             <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[10px] font-bold">2</span>
-            <span>Bước 2/2: Vào phòng thi trực tiếp</span>
+            <span>Vào phòng thi trực tiếp</span>
           </div>
         </div>
 
-        {/* Right Time & Help */}
+        {/* Time */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50/70 border border-sky-100 text-xs text-sky-900 font-mono font-bold">
             <Clock className="w-3.5 h-3.5 text-sky-600" />
-            <span>Thời gian vào phòng: {formatCountdown(countdownSeconds)}</span>
+            <span>Thời gian chuẩn bị: {formatCountdown(countdownSeconds)}</span>
           </div>
-          <button className="text-xs text-slate-500 hover:text-slate-800 font-medium flex items-center gap-1">
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Hỗ trợ kỹ thuật</span>
-          </button>
         </div>
       </div>
 
       {/* Main Title Banner */}
-      <div className="text-center space-y-1.5 max-w-xl mx-auto py-2">
-        <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
-          Kiểm tra thiết bị
+      <div className="text-center space-y-1.5 max-w-xl mx-auto py-1">
+        <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight">
+          Kiểm Tra Thiết Bị & Âm Thanh Trước Khi Thi
         </h1>
         <p className="text-xs text-slate-500">
-          Vui lòng kiểm tra camera và micro trước khi vào phòng thi vấn đáp.
+          Đảm bảo Micro của bạn hoạt động rõ ràng để AI ghi nhận chính xác phần trả lời vấn đáp của bạn.
         </p>
       </div>
 
-      {/* 2 Main Panels: Video Check & Audio/STT Check */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        {/* Panel 1: Video Check */}
-        <div className="p-6 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-4">
+      {/* 2 Main Panels: Audio Check & Exam Guidelines */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Panel 1: Microphone & Voice Waveform Visualizer (7 COLS) */}
+        <div className="lg:col-span-7 p-6 rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-5">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <Camera className="w-4 h-4 text-sky-600" />
-              <h2 className="text-sm font-bold text-slate-900">1. Kiểm tra hình ảnh</h2>
+              <Mic className="w-4 h-4 text-sky-600" />
+              <h2 className="text-sm font-bold text-slate-900">Kiểm tra kết nối Microphone</h2>
             </div>
-            {isVideoLive ? (
+            {isAudioLive ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                Camera: Đã kết nối
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Microphone: Đã sẵn sàng
               </span>
-            ) : cameraError ? (
+            ) : micError ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                <AlertCircle className="w-3 h-3 text-rose-600" />
-                Camera: Chưa cấp quyền
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                Chưa cấp quyền Micro
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                Đang kết nối camera...
+                Đang kết nối...
               </span>
             )}
           </div>
 
-          {/* Video Preview Canvas Frame */}
-          <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-inner flex items-center justify-center group">
-            {cameraError ? (
-              <div className="flex flex-col items-center justify-center p-6 text-center text-slate-300 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center">
-                  <VideoOff className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">Chưa truy cập được Camera</p>
-                  <p className="text-xs text-slate-400 max-w-xs mt-1">
-                    Vui lòng bấm Cho phép (Allow) quyền camera trên thanh địa chỉ của trình duyệt để tiếp tục.
-                  </p>
-                </div>
-                <button
-                  onClick={() => initMediaStream(selectedCameraId, selectedMicId)}
-                  className="px-4 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-sm transition-all"
-                >
-                  Cấp lại quyền
-                </button>
+          {/* Real-Time Waveform & dB Meter Frame */}
+          <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white space-y-5 shadow-inner">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${isAudioLive ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`}></span>
+                <span className="text-xs font-semibold text-slate-300">
+                  {isAudioLive ? 'Tín hiệu âm thanh thời gian thực (Live Stream)' : 'Chờ cấp quyền Micro'}
+                </span>
               </div>
-            ) : (
-              <>
-                {/* Real Live Webcam Feed */}
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover -scale-x-100"
-                />
+              <span className="px-2 py-0.5 rounded bg-white/10 text-xs font-mono font-bold text-amber-300">
+                {currentDb} dB
+              </span>
+            </div>
 
-                {/* Overlays */}
-                <div className="absolute top-3 left-3 flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-[10px] font-mono text-white border border-white/20">
-                    {videoResolution}
-                  </span>
-                </div>
-              </>
+            {/* Visualizer Wave Bars */}
+            <div className="h-20 flex items-center justify-center gap-2 px-2 bg-black/30 rounded-xl border border-white/10">
+              {waveBars.map((height, idx) => (
+                <div
+                  key={idx}
+                  style={{ height: `${Math.max(12, height)}%` }}
+                  className={`w-2 rounded-full transition-all duration-75 ${
+                    height > 55
+                      ? 'bg-amber-400'
+                      : height > 30
+                        ? 'bg-sky-400'
+                        : 'bg-slate-500/60'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Test Voice Button & Feedback */}
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={handleRunVoiceTest}
+                disabled={isMicTesting || !isAudioLive}
+                className={`w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  isMicTesting
+                    ? 'bg-amber-500 text-white animate-pulse'
+                    : 'bg-sky-500 hover:bg-sky-600 text-white shadow-md shadow-sky-500/30'
+                }`}
+              >
+                <Radio className={`w-4 h-4 ${isMicTesting ? 'animate-spin' : ''}`} />
+                <span>{isMicTesting ? 'Đang thu âm thử 3 giây...' : 'Nói thử 3 giây để kiểm tra'}</span>
+              </button>
+
+              {recordedAudioUrl && (
+                <button
+                  type="button"
+                  onClick={togglePlayTestAudio}
+                  className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-white flex items-center gap-2 cursor-pointer transition-colors"
+                >
+                  {isPlayingTestAudio ? <Pause className="w-3.5 h-3.5 text-amber-300" /> : <Play className="w-3.5 h-3.5 text-emerald-300" />}
+                  <span>{isPlayingTestAudio ? 'Đang phát...' : 'Nghe lại tiếng vừa thu'}</span>
+                </button>
+              )}
+            </div>
+
+            {recordedAudioUrl && (
+              <audio
+                ref={testAudioPlayerRef}
+                src={recordedAudioUrl}
+                onEnded={() => setIsPlayingTestAudio(false)}
+                className="hidden"
+              />
+            )}
+
+            {hasTestedVoice && (
+              <div className="p-3 rounded-xl bg-white/10 border border-white/15 text-xs text-slate-200 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{voiceTestResult}</span>
+              </div>
             )}
           </div>
 
-          {/* Camera Selection Dropdown */}
+          {/* Micro Selection Dropdown */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-slate-600 block">Nguồn Video khả dụng</label>
+            <label className="text-[11px] font-semibold text-slate-600 block">Chọn cổng Microphone</label>
             <div className="flex items-center gap-2">
               <select
-                value={selectedCameraId}
-                onChange={handleCameraChange}
+                value={selectedMicId}
+                onChange={handleMicChange}
                 className="flex-1 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-sky-500 font-medium"
               >
-                {cameras.length === 0 ? (
-                  <option value="">Không tìm thấy camera hoặc chưa cấp quyền</option>
+                {mics.length === 0 ? (
+                  <option value="">Không tìm thấy thiết bị Microphone hoặc chưa cấp quyền</option>
                 ) : (
-                  cameras.map((cam, idx) => (
-                    <option key={cam.deviceId || idx} value={cam.deviceId}>
-                      {cam.label || `Camera ${idx + 1}`}
+                  mics.map((mic, idx) => (
+                    <option key={mic.deviceId || idx} value={mic.deviceId}>
+                      {mic.label || `Microphone ${idx + 1}`}
                     </option>
                   ))
                 )}
               </select>
               <button
-                onClick={() => initMediaStream(selectedCameraId, selectedMicId)}
-                title="Kích hoạt camera này"
-                className="px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition-colors"
+                type="button"
+                onClick={() => initMicrophoneStream(selectedMicId)}
+                title="Làm mới Micro"
+                className="px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition-colors cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Đổi</span>
+                <span className="hidden sm:inline">Thử lại</span>
               </button>
-            </div>
-          </div>
-
-          {/* Video Checklist Diagnostics */}
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-              <span className="text-slate-600 font-medium">Ánh sáng khuôn mặt</span>
-              <span className="text-emerald-700 font-bold flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Đạt chuẩn (Tốt)
-              </span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-              <span className="text-slate-600 font-medium">Số người trong khung</span>
-              <span className="text-emerald-700 font-bold flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                1 thí sinh
-              </span>
             </div>
           </div>
         </div>
 
-        {/* Panel 2: Microphone & Speech-To-Text Check */}
-        <div className="p-6 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <Mic className="w-4 h-4 text-sky-600" />
-              <h2 className="text-sm font-bold text-slate-900">2. Kiểm tra Micro</h2>
+        {/* Panel 2: Quy Chế Thi & Cam Kết (5 COLS) */}
+        <div className="lg:col-span-5 p-6 rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-5">
+          <div className="border-b border-slate-100 pb-3 flex items-center gap-2">
+            <Lock className="w-4 h-4 text-sky-600" />
+            <h2 className="text-sm font-bold text-slate-900">Quy chế thi & Cam kết thí sinh</h2>
+          </div>
+
+          <div className="space-y-3 text-xs text-slate-600">
+            <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-600" />
+                <span>Quy định làm bài 1 lần duy nhất</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-800">
+                Mỗi thí sinh chỉ được tham gia ca thi <strong>1 lần duy nhất</strong>. Nếu thoát giữa chừng (dù đóng tab hay bấm thoát), hệ thống sẽ tự động nộp bài ngay tại thời điểm đó.
+              </p>
             </div>
-            {isAudioLive ? (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                Microphone: Đã kết nối
-              </span>
-            ) : micError ? (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                <AlertCircle className="w-3 h-3 text-rose-600" />
-                Microphone: Chưa cấp quyền
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                Đang kết nối micro...
-              </span>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+              <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                <Volume2 className="w-3.5 h-3.5 text-sky-600" />
+                <span>Môi trường âm thanh yên tĩnh</span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Thí sinh ngồi trong phòng yên tĩnh, nói to và rõ ràng vào Micro để hệ thống nhận diện giọng nói (Speech-to-Text) chính xác.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+              <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-sky-600" />
+                <span>Thời gian trả lời từng lượt</span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Mỗi lượt câu hỏi có tối đa 90 giây để sinh viên trả lời. Khi hết giờ, bài trả lời sẽ tự động được gửi tới Hội đồng AI.
+              </p>
+            </div>
+          </div>
+
+          {/* Commitment Checkbox */}
+          <div
+            onClick={() => setRulesAccepted(!rulesAccepted)}
+            className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+              rulesAccepted
+                ? 'bg-sky-50/80 border-sky-300 text-sky-900'
+                : 'bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-700'
+            }`}
+          >
+            <div className="pt-0.5 shrink-0 text-sky-600">
+              {rulesAccepted ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4 text-slate-400" />}
+            </div>
+            <label className="text-xs font-semibold select-none cursor-pointer leading-relaxed">
+              Tôi xác nhận Microphone hoạt động tốt và cam kết tuân thủ toàn bộ quy chế thi vấn đáp AI.
+            </label>
+          </div>
+
+          {/* Action Button: Enter Exam */}
+          <div className="pt-2">
+            {isOverdue && (
+              <div className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center gap-2 text-xs font-semibold">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>Ca thi này đã kết thúc theo lịch quy định. Thí sinh không thể tham gia ca thi này nữa.</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleStartExam}
+              disabled={!isReadyToStart || isOverdue}
+              className={`w-full py-3.5 px-6 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                isReadyToStart && !isOverdue
+                  ? 'btn-glacier-primary shadow-lg shadow-sky-500/25 hover:scale-[1.01]'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              <span>{isOverdue ? 'Ca Thi Đã Hết Hạn' : 'Bắt Đầu Vào Phòng Thi'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            {!isAudioLive && !isOverdue && (
+              <p className="text-center text-[11px] text-rose-500 font-medium mt-2">
+                * Vui lòng bật và cấp quyền Microphone để mở nút vào thi.
+              </p>
             )}
           </div>
-
-          {/* Audio Source Dropdown */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-slate-600 block">Nguồn thu âm (Audio Input)</label>
-            <select
-              value={selectedMicId}
-              onChange={handleMicChange}
-              className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-sky-500 font-medium"
-            >
-              {mics.length === 0 ? (
-                <option value="">Không tìm thấy micro hoặc chưa cấp quyền</option>
-              ) : (
-                mics.map((mic, idx) => (
-                  <option key={mic.deviceId || idx} value={mic.deviceId}>
-                    {mic.label || `Microphone ${idx + 1}`}
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-
-          {/* Audio Input Level Visualizer */}
-          <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
-                <Volume2 className="w-4 h-4 text-sky-600" />
-                <span>Mức âm lượng (Audio Input Level)</span>
-              </div>
-              <span
-                className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded transition-colors ${currentDb > -40
-                  ? 'bg-emerald-100 text-emerald-800'
-                  : currentDb > -52
-                    ? 'bg-sky-100 text-sky-800'
-                    : 'bg-slate-100 text-slate-600'
-                  }`}
-              >
-                {currentDb} dB • {currentDb > -42 ? 'Tối ưu cho AI STT' : currentDb > -54 ? 'Có tín hiệu giọng nói' : 'Yên lặng'}
-              </span>
-            </div>
-
-            {/* Real Audio Wave Bars Visualizer (Driven by Web Audio API AnalyserNode) */}
-            <div className="flex items-end gap-1.5 h-9 px-2 bg-white rounded-lg border border-slate-200/70 py-1">
-              {waveBars.map((val, idx) => (
-                <div
-                  key={idx}
-                  className="flex-1 rounded-sm bg-gradient-to-t from-sky-500 to-cyan-400 transition-all duration-75"
-                  style={{ height: `${val}%` }}
-                ></div>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-              <span>-60 dB</span>
-              <span className="text-slate-600 font-bold">-18 dB (Chuẩn)</span>
-              <span>0 dB (Vỡ tiếng)</span>
-            </div>
-          </div>
-
-          {/* Voice Prompt Test Box */}
-          <div className="p-4 rounded-xl bg-sky-50/50 border border-sky-200/80 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                Thử giọng nói
-              </span>
-              <button
-                onClick={handleRunVoiceTest}
-                disabled={isMicTesting}
-                className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-semibold shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors"
-              >
-                <Radio className={`w-3.5 h-3.5 ${isMicTesting ? 'animate-spin' : ''}`} />
-                <span>{isMicTesting ? 'Đang nghe...' : 'Nói thử'}</span>
-              </button>
-            </div>
-
-            <div className="p-3 bg-white rounded-xl border border-sky-100 text-xs italic text-slate-700">
-              "Tôi là Nguyễn Văn An, sẵn sàng tham gia ca thi {currentSession?.subject || 'CS301'}."
-            </div>
-
-            <div className="flex items-center justify-between text-xs pt-1">
-              <span className="text-slate-500 font-medium">Tín hiệu âm thanh:</span>
-              {hasTestedVoice ? (
-                <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  {voiceTestResult}
-                </span>
-              ) : isMicTesting ? (
-                <span className="font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
-                  <Radio className="w-3.5 h-3.5 text-sky-600" />
-                  Đang thu âm giọng đọc...
-                </span>
-              ) : (
-                <span className="font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full">
-                  Chưa thử âm thanh
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Ambient Noise Level */}
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-600 font-medium">Độ ồn môi trường xung quanh</span>
-            <span className="text-emerald-700 font-bold flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              {currentDb < -45 ? '18 dB (Yên tĩnh - Tuyệt vời)' : 'Mức ổn định'}
-            </span>
-          </div>
         </div>
       </div>
-
-      {/* Rules & Code of Conduct Card */}
-      <div className="p-6 rounded-2xl bg-white/80 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Shield className="w-4 h-4 text-sky-600" />
-            Nội quy phòng thi vấn đáp
-          </h2>
-        </div>
-
-        {/* 4 Rules Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-          <div className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 space-y-1">
-            <div className="font-bold text-slate-900 flex items-center gap-1.5">
-              <Eye className="w-4 h-4 text-sky-600" />
-              <span>1. Duy trì hiện diện trước camera</span>
-            </div>
-            <p className="text-slate-500 text-[11px] leading-relaxed">
-              Thí sinh ngồi thẳng, giữ khuôn mặt trong khung hình trong suốt ca thi.
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 space-y-1">
-            <div className="font-bold text-slate-900 flex items-center gap-1.5">
-              <MicOff className="w-4 h-4 text-sky-600" />
-              <span>2. Không gian thi yên tĩnh</span>
-            </div>
-            <p className="text-slate-500 text-[11px] leading-relaxed">
-              Không có người khác trong phòng và không có âm thanh gây nhiễu.
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 space-y-1">
-            <div className="font-bold text-slate-900 flex items-center gap-1.5">
-              <Lock className="w-4 h-4 text-sky-600" />
-              <span>3. Không chuyển tab hoặc màn hình</span>
-            </div>
-            <p className="text-slate-500 text-[11px] leading-relaxed">
-              Không rời khỏi cửa sổ phòng thi trong thời gian làm bài.
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-100 space-y-1">
-            <div className="font-bold text-slate-900 flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-sky-600" />
-              <span>4. Tuân thủ thời gian trả lời</span>
-            </div>
-            <p className="text-slate-500 text-[11px] leading-relaxed">
-              Mỗi lượt hỏi có thời gian trả lời quy định trước khi chuyển câu tiếp theo.
-            </p>
-          </div>
-        </div>
-
-        {/* Checkbox agreement */}
-        <div
-          onClick={() => setRulesAccepted(!rulesAccepted)}
-          className="p-3.5 rounded-xl bg-sky-50/40 border border-sky-200/70 flex items-center gap-3 cursor-pointer hover:bg-sky-50/60 transition-colors"
-        >
-          <div className="text-sky-600">
-            {rulesAccepted ? <CheckSquare className="w-5 h-5 text-sky-600" /> : <Square className="w-5 h-5 text-slate-400" />}
-          </div>
-          <span className="text-xs font-semibold text-slate-800 select-none">
-            Tôi đã đọc, hiểu rõ và cam kết tuân thủ toàn bộ quy chế thi vấn đáp trực tuyến do AIVES quy định.
-          </span>
-        </div>
-      </div>
-
-      {/* Action Footer Buttons */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-        <button
-          onClick={() => initMediaStream(selectedCameraId, selectedMicId)}
-          className="w-full sm:w-auto px-5 py-3 rounded-xl border border-slate-200/90 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center justify-center gap-2 shadow-2xs transition-colors cursor-pointer"
-        >
-          <RotateCcw className="w-4 h-4 text-slate-500" />
-          <span>Kiểm tra lại thiết bị</span>
-        </button>
-
-        <button
-          onClick={() => {
-            if (!rulesAccepted) {
-              alert('Vui lòng tích chọn đồng ý cam kết tuân thủ quy chế thi trước khi vào phòng!');
-              return;
-            }
-            navigate('/viva' + (window.location.search || ''));
-          }}
-          className={`w-full sm:w-auto px-7 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer ${rulesAccepted
-            ? 'bg-gradient-to-r from-sky-600 to-cyan-600 text-white hover:from-sky-700 hover:to-cyan-700 shadow-sky-500/25 hover:scale-[1.02]'
-            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-            }`}
-        >
-          <span>Bắt đầu thi (Vào phòng vấn đáp)</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
-      </div>
-
-      <p className="text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5 pt-2">
-        <Lock className="w-3 h-3" />
-        <span>Bảo mật WebRTC End-to-End • Hệ thống khảo thí AI chuẩn quốc tế ISO/IEC 2382-36</span>
-      </p>
     </div>
   );
 }
