@@ -312,8 +312,12 @@ export const subjectApi = {
 export const lecturerExamSessionApi = {
   getSessions: (params) => api.get('/v1/lecturer/exam-sessions', { params }),
   getSessionById: (sessionId) => api.get(`/v1/lecturer/exam-sessions/${sessionId}`),
+  createSession: (data, params) => api.post('/v1/lecturer/exam-sessions', data, { params }),
+  deleteSession: (sessionId) => api.delete(`/v1/lecturer/exam-sessions/${sessionId}`),
   finalizeScore: (sessionId, scoreData) =>
     api.post(`/v1/lecturer/exam-sessions/${sessionId}/finalize-score`, scoreData),
+  getSessionTurns: (sessionId) =>
+    api.get(`/v1/lecturer/exam-sessions/${sessionId}/turns`),
 };
 
 export default api;

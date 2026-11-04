@@ -30,14 +30,16 @@ import {
   Globe,
   X,
   Edit3,
-  ArrowRight
+  ArrowRight,
+  Layers
 } from 'lucide-react';
-import { subjectApi, studentExamApi } from '../../services/api';
+import { subjectApi, studentExamApi, lecturerQuestionApi } from '../../services/api';
 
 
 // Finite State Machine States
 const STATES = {
   AI_SPEAKING: 'AI_SPEAKING',
+  READY_TO_ANSWER: 'READY_TO_ANSWER',
   STUDENT_ANSWERING: 'STUDENT_ANSWERING',
   STUDENT_REVIEWING: 'STUDENT_REVIEWING',
   AI_THINKING: 'AI_THINKING',
@@ -71,11 +73,119 @@ export const COURSE_CATALOG = {
     name: 'Kiến trúc Phần mềm',
     nameEn: 'Software Architecture',
     nameJa: 'ソフトウェアアーキテクチャ'
+  },
+  SWD392: {
+    code: 'SWD392',
+    name: 'Kiến trúc & Thiết kế Phần mềm',
+    nameEn: 'Software Architecture and Design',
+    nameJa: 'ソフトウェアアーキテクチャと設計'
   }
 };
 
 // Multilingual Question Bank & Speech Content by Course Subject
 export const COURSE_MULTILANG_CONTENT = {
+  SWD392: {
+    'vi-VN': {
+      googleLang: 'vi',
+      initialQuestion: {
+        title:
+          'Hãy phân tích sự khác nhau giữa kiến trúc Monolithic và Microservices về khả năng mở rộng (Scalability), tính sẵn sàng (Availability) và độ phức tạp vận hành.',
+        bloom: 'Bloom 4 - Phân tích & Đánh giá'
+      },
+      greeting:
+        'Chào thí sinh! Hội đồng AI Viva bắt đầu ca thi vấn đáp môn SWD392 (Kiến trúc & Thiết kế Phần mềm). Mời bạn lắng nghe câu hỏi đầu tiên.',
+      closing:
+        'Cảm ơn thí sinh đã hoàn thành ca thi vấn đáp môn SWD392. Hệ thống AI đang tổng hợp kết quả.',
+      placeholder: 'Hãy trình bày phân tích kiến trúc của bạn vào micro...',
+      defaultAnswer:
+        'Dạ thưa Hội đồng, kiến trúc Monolithic triển khai toàn bộ chức năng vào một khối duy nhất, dễ phát triển ban đầu nhưng khó mở rộng độc lập và rủi ro Single Point of Failure cao. Trong khi đó, Microservices phân chia thành các service độc lập giao tiếp qua REST API hoặc Message Broker, cho phép mở rộng linh hoạt từng service theo tải thực tế và cô lập lỗi tốt hơn.',
+      aiThinkingText:
+        'Đang phân tích cấu trúc luận điểm kiến trúc phần mềm, đối chiếu rubric và trích xuất câu hỏi phản biện...',
+      adaptiveFollowUps: [
+        {
+          keywords: ['saga', 'transaction', 'giao dịch', 'phân tán', 'distributed', 'outbox'],
+          question:
+            'Trong kiến trúc Microservices với mô hình Database-per-service, làm thế nào để đảm bảo tính nhất quán dữ liệu (Data Consistency)? Hãy phân tích cơ chế hoạt động của Saga Pattern (Choreography vs Orchestration).',
+          bloom: 'Bloom 5 - Đánh giá giải pháp phân tán'
+        },
+        {
+          keywords: ['circuit breaker', 'resilience4j', 'chịu lỗi', 'cô lập', 'quá tải', 'fallback'],
+          question:
+            'Khi một downstream service bị quá tải hoặc sập, Circuit Breaker Pattern bảo vệ toàn bộ hệ thống như thế nào qua các trạng thái Closed, Open và Half-Open?',
+          bloom: 'Bloom 4 - Thiết kế chịu lỗi'
+        },
+        {
+          keywords: ['clean architecture', 'solid', 'dip', 'domain', 'repository'],
+          question:
+            'Trong Clean Architecture, nguyên lý Dependency Inversion Principle (DIP) được áp dụng như thế nào để giữ cho Domain Layer hoàn toàn độc lập với Database và Framework bên ngoài?',
+          bloom: 'Bloom 4 - Phân tích kiến trúc mã nguồn'
+        }
+      ],
+      fallbackFollowUps: [
+        {
+          question:
+            'Để đánh giá sâu hơn: Bạn hãy giải thích cách áp dụng Outbox Pattern kết hợp với Debezium/Kafka để đảm bảo tính toàn vẹn (Dual-write problem) khi vừa cập nhật DB vừa phát tán event.',
+          bloom: 'Bloom 5 - Phản biện nâng cao'
+        },
+        {
+          question:
+            'Câu hỏi phản biện tổng kết: Khi nào thì một hệ thống phần mềm nên giữ kiến trúc Monolith thay vì vội vã chuyển sang Microservices? Hãy nêu các tiêu chí đánh giá kỹ thuật và chi phí.',
+          bloom: 'Bloom 6 - Ra quyết định kiến trúc'
+        }
+      ]
+    },
+    'en-US': {
+      googleLang: 'en',
+      initialQuestion: {
+        title:
+          'Please analyze the differences between Monolithic and Microservices architectures in terms of Scalability, Availability, and Operational Complexity.',
+        bloom: 'Bloom 4 - Analysis & Evaluation'
+      },
+      greeting:
+        'Welcome candidate! The AI Viva Board is commencing the SWD392 (Software Architecture & Design) examination. Please listen to the first question.',
+      closing:
+        'Thank you for completing the oral examination. The AI system is compiling your SWD392 evaluation results.',
+      placeholder: 'Speak your architectural analysis into the microphone...',
+      defaultAnswer:
+        'Dear Examination Board, Monolithic architecture packages all features into a single unit, simple for early development but difficult to scale independently. Microservices decouple functionality into autonomous services communicating via APIs or event brokers, enabling independent scalability and fault isolation.',
+      aiThinkingText:
+        'Evaluating software architecture arguments, checking rubric, and extracting follow-up...',
+      adaptiveFollowUps: [
+        {
+          keywords: ['saga', 'transaction', 'distributed', 'consistency'],
+          question:
+            'In a database-per-service microservice pattern, how do you handle distributed transactions? Compare Choreography and Orchestration in Saga pattern.',
+          bloom: 'Bloom 5 - Distributed Design'
+        }
+      ],
+      fallbackFollowUps: [
+        {
+          question:
+            'How does Circuit Breaker prevent cascading failure when downstream microservices degrade or fail?',
+          bloom: 'Bloom 4 - Resilience Engineering'
+        }
+      ]
+    },
+    'ja-JP': {
+      googleLang: 'ja',
+      initialQuestion: {
+        title:
+          'スケーラビリティ、可用性、および運用上の複雑さの観点から、モノリシックアーキテクチャとマイクロサービスアーキテクチャの違いを分析してください。',
+        bloom: 'Bloom 4 - 分析と評価'
+      },
+      greeting:
+        '受験者の皆さん、こんにちは！SWD392（ソフトウェアアーキテクチャと設計）口頭試問を開始します。最初の質問をお聞きください。',
+      closing:
+        'SWD392口頭試問の受験お疲れ様でした。AI採点システムが現在評価結果を集計しています。',
+      placeholder: 'マイクに向かって分析結果をお話しください...',
+      defaultAnswer:
+        '試問委員会の皆様、モノリスは単一バイナリで展開され初期開発が容易ですが個別スケーリングが困難です。一方マイクロサービスは独立したサービス群として構成され、障害分離と弾力的なスケールが可能です。',
+      aiThinkingText:
+        'アーキテクチャの論点を分析し、ルーブリックと照合しています...',
+      adaptiveFollowUps: [],
+      fallbackFollowUps: []
+    }
+  },
   CS301: {
     'vi-VN': {
       googleLang: 'vi',
@@ -582,11 +692,100 @@ export const COURSE_MULTILANG_CONTENT = {
 };
 
 // Helper: resolve content for course & language safely
-export const getCourseContent = (subjectCode = 'CS301', langCode = 'vi-VN') => {
-  const normSubject = (subjectCode || 'CS301').toUpperCase();
-  const subjectBank = COURSE_MULTILANG_CONTENT[normSubject] || COURSE_MULTILANG_CONTENT['CS301'];
-  return subjectBank[langCode] || subjectBank['vi-VN'] || COURSE_MULTILANG_CONTENT['CS301']['vi-VN'];
+export const getCourseContent = (subjectCode = 'SWD392', langCode = 'vi-VN') => {
+  const normSubject = (subjectCode || 'SWD392').toUpperCase();
+  const subjectBank = COURSE_MULTILANG_CONTENT[normSubject] || COURSE_MULTILANG_CONTENT['SWD392'] || COURSE_MULTILANG_CONTENT['CS301'];
+  return subjectBank[langCode] || subjectBank['vi-VN'] || (COURSE_MULTILANG_CONTENT['SWD392'] && COURSE_MULTILANG_CONTENT['SWD392']['vi-VN']) || COURSE_MULTILANG_CONTENT['CS301']['vi-VN'];
+};
 
+
+// ================= IT TERMINOLOGY SANITIZER (Code-switching EN/VI) =================
+const IT_TERM_RULES = [
+  { r: /\b(mai cờ rô sơ vít|mai cờ rô sơ vịt|mai cơ rô sơ vít|mai cờ rô|mai cơ rô)\b/gi, w: 'Microservices' },
+  { r: /\b(rét đít|re đít|rê đít|ré đít)\b/gi, w: 'Redis' },
+  { r: /\b(cát ca|cáp ca|káp ca)\b/gi, w: 'Kafka' },
+  { r: /\b(xa ga|sa ga|xa ga pattern)\b/gi, w: 'Saga Pattern' },
+  { r: /\b(sơ cút bơ rếch cơ|sơ kết bơ rếch|sơ kít|sơ kết)\b/gi, w: 'Circuit Breaker' },
+  { r: /\b(pốt gơ rét|pốt gờ re|pốt gres|pót gres)\b/gi, w: 'PostgreSQL' },
+  { r: /\b(sờ pring bút|sờ pring|xờ pring)\b/gi, w: 'Spring Boot' },
+  { r: /\b(rết phu|rét phu|rét ét pi ai|rết a pi)\b/gi, w: 'RESTful API' },
+  { r: /\b(đét lốc|đét lốt|đét lóc)\b/gi, w: 'Deadlock' },
+  { r: /\b(trăng rắc sơn|chăng rắc sơn|tran sắc sơn)\b/gi, w: 'Transaction' },
+  { r: /\b(thớt|chét|luồng thớt)\b/gi, w: 'Thread' },
+  { r: /\b(cát che|cát chơ|khe che|két)\b/gi, w: 'Cache' },
+  { r: /\b(đốc cơ|đốc kơ|đó cơ)\b/gi, w: 'Docker' },
+  { r: /\b(cu bơ nét|cu bơ ne tít|ku bơ nét)\b/gi, w: 'Kubernetes' },
+  { r: /\b(đây ta bây|đát ta bây|đát ta ba se)\b/gi, w: 'Database' },
+  { r: /\b(rôn bách|dôn bách|rôn béc)\b/gi, w: 'Rollback' },
+  { r: /\b(mô nô lít|mô nô li thíc)\b/gi, w: 'Monolithic' },
+  { r: /\b(ráp bít em quy|ra bít|ráp bít)\b/gi, w: 'RabbitMQ' },
+  { r: /\b(xi đi|ci cd|xi ai xi đi)\b/gi, w: 'CI/CD' },
+  { r: /\b(ét kiu en|si queo|xì queo)\b/gi, w: 'SQL' },
+  { r: /\b(nô ét kiu en|nô si queo)\b/gi, w: 'NoSQL' },
+  { r: /\b(át xít|a xít)\b/gi, w: 'ACID' },
+  { r: /\b(cáp thi ô rem|cáp ti ô rem)\b/gi, w: 'CAP theorem' },
+  { r: /\b(o chet tra sân|o ke tra sân)\b/gi, w: 'Orchestration' },
+  { r: /\b(cô rê ô gra phi|ko re o gra fi)\b/gi, w: 'Choreography' },
+  { r: /\b(áp ly|áp lai)\b/gi, w: 'Apply' },
+  { r: /\b(ri chai|di chai)\b/gi, w: 'Retry' },
+  { r: /\b(mô đen|mô đần)\b/gi, w: 'Model' },
+];
+
+const sanitizeITTranscript = (text) => {
+  if (!text) return '';
+  let cleaned = text;
+  IT_TERM_RULES.forEach((rule) => {
+    cleaned = cleaned.replace(rule.r, rule.w);
+  });
+  return cleaned;
+};
+
+const getInitialVivaQuestion = (subject, preferredSessionId) => {
+  const normSubj = (subject || 'SWD392').toUpperCase();
+  try {
+    const allSessionsRaw = localStorage.getItem('aives_exam_sessions');
+    if (allSessionsRaw) {
+      const sessions = JSON.parse(allSessionsRaw);
+      if (Array.isArray(sessions) && sessions.length > 0) {
+        const match =
+          (preferredSessionId && sessions.find((s) => s.id === preferredSessionId || s.sessionCode === preferredSessionId)) ||
+          sessions.find((s) => s.subjectCode && s.subjectCode.toUpperCase() === normSubj && s.questions?.length > 0) ||
+          sessions.find((s) => s.questions?.length > 0) ||
+          sessions[0];
+        if (match?.questions?.length > 0) {
+          return {
+            title: match.questions[0].content,
+            bloom: match.questions[0].bloomLevel || 'Bloom 3 - Vận dụng'
+          };
+        }
+      }
+    }
+    const latestRaw = localStorage.getItem('aives_latest_active_exam');
+    if (latestRaw) {
+      const parsed = JSON.parse(latestRaw);
+      if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+        return {
+          title: parsed.questions[0].content,
+          bloom: parsed.questions[0].bloomLevel || 'Bloom 3 - Vận dụng'
+        };
+      }
+    }
+    const bankRaw = localStorage.getItem('aives_question_bank');
+    if (bankRaw) {
+      const bank = JSON.parse(bankRaw);
+      if (Array.isArray(bank) && bank.length > 0) {
+        const match = bank.find((q) => q.subjectCode && q.subjectCode.toUpperCase() === normSubj) || bank[0];
+        return {
+          title: match.content,
+          bloom: match.bloomLevel || 'Bloom 3 - Vận dụng'
+        };
+      }
+    }
+  } catch (e) {}
+  return {
+    title: 'Trình bày kiến trúc Microservices và cơ chế đảm bảo tính nhất quán dữ liệu phân tán (Eventual Consistency) bằng Saga Pattern.',
+    bloom: 'Bloom 4 - Phân tích & Thiết kế'
+  };
 };
 
 export default function VivaRoomPage() {
@@ -603,8 +802,37 @@ export default function VivaRoomPage() {
     }
   })();
 
-  const rawSubject = searchParams.get('subject') || currentSession?.subject || 'CS301';
-  const activeSubject = (rawSubject || 'CS301').toUpperCase();
+  const urlSessionId = searchParams.get('sessionId') || searchParams.get('id') || currentSession?.sessionId || currentSession?.id;
+
+  const targetSessionFromStorage = (() => {
+    try {
+      const allSessionsRaw = localStorage.getItem('aives_exam_sessions');
+      if (allSessionsRaw) {
+        const sessions = JSON.parse(allSessionsRaw);
+        if (Array.isArray(sessions) && sessions.length > 0) {
+          if (urlSessionId) {
+            const m = sessions.find((s) => s.id === urlSessionId || s.sessionCode === urlSessionId);
+            if (m) return m;
+          }
+          const latestRaw = localStorage.getItem('aives_latest_active_exam');
+          if (latestRaw) {
+            const parsed = JSON.parse(latestRaw);
+            const mLatest = sessions.find((s) => s.id === parsed.id || s.sessionCode === parsed.sessionCode);
+            if (mLatest) return mLatest;
+          }
+          return sessions[0];
+        }
+      }
+    } catch (e) {}
+    return null;
+  })();
+
+  const rawSubject =
+    searchParams.get('subject') ||
+    targetSessionFromStorage?.subjectCode ||
+    currentSession?.subject ||
+    'SWD392';
+  const activeSubject = (rawSubject || 'SWD392').toUpperCase();
 
   // Language Resolution: Subject Config -> Session Config -> Subject LocalCache -> URL Param -> default 'vi-VN'
   const getInitialLang = () => {
@@ -634,7 +862,7 @@ export default function VivaRoomPage() {
   examLangRef.current = examLang;
 
   // Stable UUID for real-time WebSocket STOMP exam room
-  const sessionUuid = useRef((() => {
+  const [sessionUuid, setSessionUuid] = useState(() => {
     const urlId = searchParams.get('sessionId') || searchParams.get('id');
     if (urlId && /^[0-9a-fA-F-]{36}$/.test(urlId)) return urlId;
     if (currentSession?.sessionId && /^[0-9a-fA-F-]{36}$/.test(currentSession.sessionId)) return currentSession.sessionId;
@@ -644,7 +872,48 @@ export default function VivaRoomPage() {
       const v = c === 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
-  })()).current;
+  });
+  const sessionUuidRef = useRef(sessionUuid);
+  sessionUuidRef.current = sessionUuid;
+
+  // Single-attempt enforcement: check if session is already completed or waiting confirmation
+  useEffect(() => {
+    const checkSessionStatus = async () => {
+      const targetId = sessionUuid;
+      if (targetId && /^[0-9a-fA-F-]{36}$/.test(targetId)) {
+        try {
+          const res = await studentExamApi.getSessionById(targetId);
+          if (res?.data?.result) {
+            const s = res.data.result;
+            if (s.status === 'WAITING_SCORE_CONFIRMATION' || s.status === 'COMPLETED') {
+              alert('Bạn đã hoàn tất lượt thi của ca này (mỗi sinh viên chỉ được thi 1 lần duy nhất). Hệ thống đang chuyển bạn về Bảng điều khiển.');
+              navigate('/student');
+            }
+          }
+        } catch (e) {
+          // If session not found in DB yet, proceed
+        }
+      }
+    };
+    checkSessionStatus();
+  }, [sessionUuid, navigate]);
+
+  // Auto-submit when student closes the tab or navigates away
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (sessionUuid) {
+        try {
+          studentExamApi.finishExam(sessionUuid);
+        } catch (err) {}
+      }
+      e.returnValue = 'Rời phòng thi sẽ tự động nộp bài ca thi này!';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [sessionUuid]);
+
+  // Real question UUID tracked from database
+  const [activeQuestionUuid, setActiveQuestionUuid] = useState(null);
 
   // Real-time STOMP WebSocket Client & Turn Score Tracking
   const stompClientRef = useRef(null);
@@ -673,8 +942,28 @@ export default function VivaRoomPage() {
       return;
     }
 
-    const nextQuestionText = turnResult.followupQuestion;
-    if (nextQuestionText && nextQuestionText.trim().length > 0) {
+    const nextTurnIdx = speechTurnRef.current;
+    const assignedList = assignedQuestionsRef.current;
+    let nextQuestionText = null;
+    let nextQuestionBloom = 'Bloom 4 - Phân tích';
+
+    if (assignedList && assignedList.length > nextTurnIdx) {
+      // Prioritize the real pre-assigned questions chosen by the lecturer for this exam!
+      const assigned = assignedList[nextTurnIdx];
+      nextQuestionText = assigned.content;
+      nextQuestionBloom = assigned.bloomLevel || 'Bloom 4 - Phân tích';
+      setActiveQuestionUuid(assigned.uuid || assigned.id);
+    } else if (
+      turnResult.followupQuestion &&
+      !turnResult.followupQuestion.includes('vui lòng tập trung') &&
+      !turnResult.followupQuestion.includes('không trả lời') &&
+      turnResult.followupQuestion.trim().length > 5
+    ) {
+      nextQuestionText = turnResult.followupQuestion;
+      nextQuestionBloom = turnResult.bloomLevel || 'Bloom: Phản biện thích ứng AI';
+    }
+
+    if (nextQuestionText) {
       setSpeechTurn((prev) => prev + 1);
       const now = new Date();
       const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now
@@ -694,7 +983,7 @@ export default function VivaRoomPage() {
 
       setCurrentQuestion({
         title: nextQuestionText,
-        bloom: turnResult.bloomLevel || 'Bloom: Phản biện thích ứng AI'
+        bloom: nextQuestionBloom
       });
 
       setFsmState(STATES.AI_SPEAKING);
@@ -722,7 +1011,7 @@ export default function VivaRoomPage() {
             setExamLang(resolvedLang);
             examLangRef.current = resolvedLang;
             const updatedContent = getCourseContent(activeSubject, resolvedLang);
-            if (speechTurnRef.current === 1) {
+            if (speechTurnRef.current === 1 && (!assignedQuestionsRef.current || assignedQuestionsRef.current.length === 0)) {
               setCurrentQuestion({
                 title: updatedContent.initialQuestion.title,
                 bloom: updatedContent.initialQuestion.bloom
@@ -738,35 +1027,192 @@ export default function VivaRoomPage() {
     return () => { isMounted = false; };
   }, [activeSubject]);
 
+  // Dynamic Real Question from DB & Real Session Initialization in Backend
+  useEffect(() => {
+    let isMounted = true;
+
+    const initExamData = async () => {
+      // 1. Fetch real approved questions from Question Bank & localStorage
+      try {
+        const qRes = await lecturerQuestionApi.getQuestions({ status: 'ACTIVE' });
+        const list = qRes?.data?.result || qRes?.data || [];
+        let allQuestions = [...list];
+
+        try {
+          const localBankRaw = localStorage.getItem('aives_question_bank');
+          if (localBankRaw) {
+            const localBank = JSON.parse(localBankRaw);
+            if (Array.isArray(localBank)) {
+              const existingIds = new Set(allQuestions.map(q => q.uuid || q.id));
+              localBank.forEach(q => {
+                if (!existingIds.has(q.uuid || q.id)) {
+                  allQuestions.push(q);
+                }
+              });
+            }
+          }
+        } catch (e) {}
+
+        let assignedQuestions = [];
+        const urlSessionId = searchParams.get('sessionId') || searchParams.get('id');
+
+        // PRIORITY 1: Load directly from lecturer's configured active exam session in localStorage
+        try {
+          if (targetSessionFromStorage?.questions && targetSessionFromStorage.questions.length > 0) {
+            assignedQuestions = targetSessionFromStorage.questions;
+          }
+          if (assignedQuestions.length === 0) {
+            const latestExamRaw = localStorage.getItem('aives_latest_active_exam');
+            if (latestExamRaw) {
+              const parsedLatest = JSON.parse(latestExamRaw);
+              if (Array.isArray(parsedLatest.questions) && parsedLatest.questions.length > 0) {
+                assignedQuestions = parsedLatest.questions;
+              }
+            }
+          }
+          if (assignedQuestions.length === 0) {
+            const allExamsRaw = localStorage.getItem('aives_exam_sessions');
+            if (allExamsRaw) {
+              const allExams = JSON.parse(allExamsRaw);
+              if (Array.isArray(allExams)) {
+                const targetExam = allExams.find((e) =>
+                  (urlSessionId && (e.id === urlSessionId || e.sessionCode === urlSessionId)) ||
+                  (!urlSessionId && e.subjectCode && e.subjectCode.toUpperCase() === activeSubject)
+                ) || allExams[0];
+                if (targetExam?.questions?.length > 0) {
+                  assignedQuestions = targetExam.questions;
+                }
+              }
+            }
+          }
+        } catch (e) {}
+
+        // PRIORITY 2: Check backend session feedback for assigned question IDs
+        if (assignedQuestions.length === 0 && urlSessionId) {
+          try {
+            const sessRes = await studentExamApi.getSessionById(urlSessionId);
+            const sessData = sessRes?.data?.result;
+            if (sessData?.feedback && sessData.feedback.includes('QUESTIONS:')) {
+              const qPart = sessData.feedback.split('|')[0].replace('QUESTIONS:', '').trim();
+              const qIds = qPart.split(',').filter(Boolean);
+              if (qIds.length > 0) {
+                assignedQuestions = qIds.map(id => allQuestions.find(q => (q.uuid || q.id) === id)).filter(Boolean);
+              }
+            }
+          } catch (e) {}
+        }
+
+        // PRIORITY 3: Matching subject questions from question bank
+        if (assignedQuestions.length === 0) {
+          assignedQuestions = allQuestions.filter(
+            (q) => q.subjectCode && q.subjectCode.toUpperCase() === activeSubject
+          );
+        }
+        if (assignedQuestions.length === 0 && allQuestions.length > 0) {
+          assignedQuestions = allQuestions.filter(
+            (q) => !q.subjectCode || q.subjectCode.toUpperCase() === activeSubject
+          );
+        }
+
+        if (isMounted && assignedQuestions.length > 0) {
+          assignedQuestionsRef.current = assignedQuestions;
+          setExamQuestions(assignedQuestions);
+          setCurrentQuestionIndex(0);
+          const chosenQ = assignedQuestions[0];
+          setActiveQuestionUuid(chosenQ.uuid || chosenQ.id);
+          setCurrentQuestion({
+            title: chosenQ.content,
+            bloom: chosenQ.bloomLevel || 'Bloom 3 - Vận dụng'
+          });
+        }
+      } catch (err) {
+        console.warn('[AIVES VivaRoom] Real question bank query notice, using default syllabus:', err);
+      }
+
+      // 2. Initialize or connect real exam session in database
+      try {
+        const urlSessionId = searchParams.get('sessionId') || searchParams.get('id');
+        if (!urlSessionId) {
+          const startRes = await studentExamApi.startExam(null, { subjectCode: activeSubject });
+          const sess = startRes?.data?.result;
+          if (isMounted && sess?.id) {
+            setSessionUuid(sess.id);
+            sessionUuidRef.current = sess.id;
+            console.log('[AIVES VivaRoom] Registered real exam session in DB:', sess.id);
+          }
+        }
+      } catch (sessErr) {
+        console.warn('[AIVES VivaRoom] Session start notice, using local session UUID:', sessErr);
+      }
+    };
+
+    initExamData();
+    return () => { isMounted = false; };
+  }, [activeSubject]);
+
   const catalogEntry = COURSE_CATALOG[activeSubject] || {
     code: activeSubject,
     name:
-      activeSubject === 'AI204'
+      activeSubject === 'SWD392'
+        ? 'Kiến trúc Phần mềm'
+        : activeSubject === 'AI204'
         ? 'Học máy & Thị giác máy tính'
-        : activeSubject === 'SE102'
-          ? 'Kiến trúc Phần mềm'
-          : 'Cấu trúc Dữ liệu & Giải thuật'
+        : 'Cấu trúc Dữ liệu & Giải thuật'
   };
-  const activeCourseName = currentSession?.courseName || `${catalogEntry.code}: ${catalogEntry.name}`;
+  const activeCourseName = targetSessionFromStorage?.subjectName || currentSession?.courseName || `${catalogEntry.code}: ${catalogEntry.name}`;
 
   // FSM State
   const [fsmState, setFsmState] = useState(STATES.AI_SPEAKING);
   const fsmStateRef = useRef(fsmState);
   fsmStateRef.current = fsmState;
 
-  // Turn management (1 to 3)
+  // Configured limits from lecturer session
+  const configuredTimeLimit = Number(targetSessionFromStorage?.questionTimeLimitSeconds) || 90;
+  const configuredMaxFollowUps = Number(targetSessionFromStorage?.maxFollowUpsPerQuestion) ?? 1;
+
+  const [questionTimeLimit, setQuestionTimeLimit] = useState(configuredTimeLimit);
+  const [maxFollowUps, setMaxFollowUps] = useState(configuredMaxFollowUps);
+
+  // Exam Questions list
+  const [examQuestions, setExamQuestions] = useState(() => {
+    if (targetSessionFromStorage?.questions && targetSessionFromStorage.questions.length > 0) {
+      return targetSessionFromStorage.questions;
+    }
+    const initialQ = getInitialVivaQuestion(activeSubject, urlSessionId);
+    return [
+      {
+        uuid: 'q1',
+        content: initialQ.title,
+        bloomLevel: initialQ.bloom
+      }
+    ];
+  });
+
+  // Current Question Index (0 .. examQuestions.length - 1)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const currentQuestionIndexRef = useRef(0);
+  currentQuestionIndexRef.current = currentQuestionIndex;
+
+  // Follow-up phase for current question (false = main question, true = adaptive follow-up)
+  const [isFollowUpPhase, setIsFollowUpPhase] = useState(false);
+  const isFollowUpPhaseRef = useRef(false);
+  isFollowUpPhaseRef.current = isFollowUpPhase;
+  const [followUpQuestionText, setFollowUpQuestionText] = useState('');
+
+  // Stores all completed questions data for grading approval & student history
+  const allQuestionTurnsRef = useRef([]);
+  const [allQuestionTurns, setAllQuestionTurns] = useState([]);
+
+  // Turn management (legacy ref for backwards compatibility)
   const [speechTurn, setSpeechTurn] = useState(1);
+  const assignedQuestionsRef = useRef(examQuestions);
   const speechTurnRef = useRef(1);
   speechTurnRef.current = speechTurn;
-  const maxTurns = 3;
+  const maxTurns = examQuestions.length;
 
   // Current Question
   const [currentQuestion, setCurrentQuestion] = useState(() => {
-    const langContent = getCourseContent(activeSubject, getInitialLang());
-    return {
-      title: langContent.initialQuestion.title,
-      bloom: langContent.initialQuestion.bloom
-    };
+    return getInitialVivaQuestion(activeSubject, urlSessionId);
   });
 
   // Dialogue History
@@ -775,16 +1221,15 @@ export default function VivaRoomPage() {
     return [
       {
         sender: 'ai',
-        time: '14:02:15',
-        text: langContent.greeting
+        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        text: `Chào thí sinh! Hội đồng AI Viva bắt đầu ca thi vấn đáp môn ${activeSubject}. Mời bạn lắng nghe câu hỏi đầu tiên.`
       }
     ];
   });
 
-
-  // STT Live Transcript & Editable State
+  // STT Live Transcript & Persistent Accumulation Ref
   const [liveTranscript, setLiveTranscript] = useState('');
-
+  const finalAccumulatedTranscriptRef = useRef('');
   const liveTranscriptRef = useRef('');
   liveTranscriptRef.current = liveTranscript;
 
@@ -793,9 +1238,13 @@ export default function VivaRoomPage() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // Timers
-  const [timerSeconds, setTimerSeconds] = useState(1122); // 18:42 exam countdown
-  const [turnSeconds, setTurnSeconds] = useState(90); // 90s answer timer
+  // Timers: derived strictly from total questions * question limit * (1 + follow-ups)
+  const initialCalculatedExamSeconds = Math.max(
+    60,
+    (examQuestions.length || 1) * configuredTimeLimit * (1 + configuredMaxFollowUps)
+  );
+  const [timerSeconds, setTimerSeconds] = useState(initialCalculatedExamSeconds);
+  const [turnSeconds, setTurnSeconds] = useState(configuredTimeLimit); // answer timer
   const [isMarked, setIsMarked] = useState(false);
   const [micLevel, setMicLevel] = useState(15);
 
@@ -895,7 +1344,7 @@ export default function VivaRoomPage() {
   useEffect(() => {
     let turnTimer;
     if (fsmState === STATES.STUDENT_ANSWERING) {
-      setTurnSeconds(90);
+      setTurnSeconds(questionTimeLimit);
       turnTimer = setInterval(() => {
         setTurnSeconds((prev) => {
           if (prev <= 1) {
@@ -910,7 +1359,7 @@ export default function VivaRoomPage() {
       }, 1000);
     }
     return () => clearInterval(turnTimer);
-  }, [fsmState]);
+  }, [fsmState, questionTimeLimit]);
 
   // Setup Webcam PIP & Audio Volume Meter
   useEffect(() => {
@@ -919,7 +1368,6 @@ export default function VivaRoomPage() {
     const setupMedia = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
           audio: true
         });
 
@@ -1094,7 +1542,7 @@ export default function VivaRoomPage() {
   };
 
   // Browser Fallback TTS
-  const speakWithBrowserDefaultFallback = (text, onFinished) => {
+  const speakWithBrowserDefaultFallback = (text, onFinished, explicitLang) => {
     let finishedCalled = false;
     const safeFinish = () => {
       if (finishedCalled) return;
@@ -1111,16 +1559,25 @@ export default function VivaRoomPage() {
     if ('speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
+        const targetLang = explicitLang || examLangRef.current || 'vi-VN';
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 1.0;
         utterance.pitch = 1.0;
+        utterance.lang = targetLang;
+
+        const currentVoices = window.speechSynthesis.getVoices();
+        const matchedVoice = findVoiceForLang(currentVoices, targetLang);
+        if (matchedVoice) {
+          utterance.voice = matchedVoice;
+          utterance.lang = matchedVoice.lang || targetLang;
+        }
 
         utterance.onend = () => {
           clearTimeout(safetyTimer);
           safeFinish();
         };
 
-        utterance.onerror = (e) => {
+        utterance.onerror = () => {
           clearTimeout(safetyTimer);
           safeFinish();
         };
@@ -1208,49 +1665,55 @@ export default function VivaRoomPage() {
     playNextChunk();
   };
 
-  // Main Speech Controller
+  // Main Speech Controller: Native browser speechSynthesis with vi-VN, 0 latency
   const speakText = (text, onFinished, explicitLang) => {
     stopAllSpeech();
     isSpeechSynthesizingRef.current = true;
 
-    const targetLang = explicitLang || examLangRef.current || 'vi-VN';
-    const voices = 'speechSynthesis' in window ? window.speechSynthesis.getVoices() : [];
-    const voice = findVoiceForLang(voices, targetLang);
+    if (!('speechSynthesis' in window) || !text) {
+      isSpeechSynthesizingRef.current = false;
+      if (onFinished) onFinished();
+      return;
+    }
 
-    if (voice) {
-      try {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.voice = voice;
-        utterance.lang = voice.lang || targetLang;
-        utterance.rate = targetLang.startsWith('ja') ? 1.0 : 0.95;
-        utterance.pitch = 1.0;
+    try {
+      window.speechSynthesis.cancel();
+      const targetLang = explicitLang || examLangRef.current || 'vi-VN';
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      utterance.lang = targetLang;
 
-        let finished = false;
-        const safeDone = () => {
-          if (finished) return;
-          finished = true;
-          isSpeechSynthesizingRef.current = false;
-          if (onFinished) onFinished();
-        };
-
-        utterance.onend = safeDone;
-        utterance.onerror = () => {
-          speakWithGoogleTTS(text, targetLang, onFinished);
-        };
-
-        window.speechSynthesis.speak(utterance);
-
-        const maxWaitMs = Math.max(3500, Math.min(30000, text.length * 90));
-        setTimeout(() => {
-          if (!finished && isSpeechSynthesizingRef.current) {
-            safeDone();
-          }
-        }, maxWaitMs);
-      } catch (e) {
-        speakWithGoogleTTS(text, targetLang, onFinished);
+      const voices = window.speechSynthesis.getVoices();
+      const viVoice = findVoiceForLang(voices, targetLang) || findVoiceForLang(detectedVoices, targetLang);
+      if (viVoice) {
+        utterance.voice = viVoice;
+        utterance.lang = viVoice.lang || targetLang;
       }
-    } else {
-      speakWithGoogleTTS(text, targetLang, onFinished);
+
+      let finished = false;
+      const safeDone = () => {
+        if (finished) return;
+        finished = true;
+        isSpeechSynthesizingRef.current = false;
+        if (onFinished) onFinished();
+      };
+
+      utterance.onend = safeDone;
+      utterance.onerror = safeDone;
+
+      window.speechSynthesis.speak(utterance);
+
+      const maxWaitMs = Math.max(3000, Math.min(25000, text.length * 85));
+      setTimeout(() => {
+        if (!finished && isSpeechSynthesizingRef.current) {
+          safeDone();
+        }
+      }, maxWaitMs);
+    } catch (e) {
+      console.warn('speakText error:', e);
+      isSpeechSynthesizingRef.current = false;
+      if (onFinished) onFinished();
     }
   };
 
@@ -1333,22 +1796,24 @@ export default function VivaRoomPage() {
       recognition.maxAlternatives = 1;
 
       recognition.onresult = (event) => {
-        let finalTranscript = '';
         let interimTranscript = '';
+        let currentFinal = '';
 
         for (let i = 0; i < event.results.length; i++) {
           const res = event.results[i];
           if (res.isFinal) {
-            finalTranscript += res[0].transcript + ' ';
+            currentFinal += res[0].transcript + ' ';
           } else {
             interimTranscript += res[0].transcript;
           }
         }
 
-        const combined = (finalTranscript + interimTranscript).trim();
+        const rawCombined = (currentFinal + interimTranscript).trim();
+        const combined = sanitizeITTranscript(rawCombined);
         if (combined) {
           setLiveTranscript(combined);
           liveTranscriptRef.current = combined;
+          finalAccumulatedTranscriptRef.current = combined;
         }
       };
 
@@ -1444,7 +1909,7 @@ export default function VivaRoomPage() {
         speakAIQuestion(
           langContent.initialQuestion.title,
           () => {
-            transitionToStudentAnswering();
+            setFsmState(STATES.READY_TO_ANSWER);
           },
           newLang
         );
@@ -1463,7 +1928,7 @@ export default function VivaRoomPage() {
         speakAIQuestion(
           targetFollow.question,
           () => {
-            transitionToStudentAnswering();
+            setFsmState(STATES.READY_TO_ANSWER);
           },
           newLang
         );
@@ -1480,16 +1945,18 @@ export default function VivaRoomPage() {
   useEffect(() => {
     if (fsmState === STATES.AI_SPEAKING) {
       speakAIQuestion(currentQuestion.title, () => {
-        transitionToStudentAnswering();
+        setFsmState(STATES.READY_TO_ANSWER);
       });
     }
   }, [currentQuestion]);
 
-  // Transition to STUDENT_ANSWERING
-  const transitionToStudentAnswering = () => {
+  // Step 1: Candidate clicks "Bắt đầu trả lời (Bật Micro)" -> Transitions to STUDENT_ANSWERING
+  const handleStartAnswering = async () => {
     isProcessingTurnRef.current = false;
     stopAllSpeech();
     setFsmState(STATES.STUDENT_ANSWERING);
+    setTurnSeconds(questionTimeLimit);
+    finalAccumulatedTranscriptRef.current = '';
     setLiveTranscript('');
     liveTranscriptRef.current = '';
 
@@ -1497,19 +1964,31 @@ export default function VivaRoomPage() {
       URL.revokeObjectURL(recordedAudioUrl);
       setRecordedAudioUrl(null);
     }
+    audioChunksRef.current = [];
 
-    startSpeechRecognition(examLangRef.current);
-    startMediaRecording();
+    if (!mediaStreamRef.current) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStreamRef.current = stream;
+      } catch (err) {
+        console.warn('Microphone permission check:', err);
+      }
+    }
+
+    setTimeout(() => {
+      startSpeechRecognition(examLangRef.current);
+      startMediaRecording();
+    }, 50);
   };
 
-  // Step 1: Student stops speaking -> Enters STUDENT_REVIEWING
+  // Step 2: Candidate stops answering -> Enters STUDENT_REVIEWING
   const handleStopAndReview = () => {
     stopSpeechRecognition();
     stopMediaRecording();
     setFsmState(STATES.STUDENT_REVIEWING);
   };
 
-  // Step 2: Student wants to re-record answer from scratch
+  // Step 3: Candidate wants to re-record answer from scratch -> Returns to READY_TO_ANSWER
   const handleRecordAgain = () => {
     stopSpeechRecognition();
     stopMediaRecording();
@@ -1519,18 +1998,59 @@ export default function VivaRoomPage() {
       setRecordedAudioUrl(null);
     }
 
+    finalAccumulatedTranscriptRef.current = '';
     setLiveTranscript('');
     liveTranscriptRef.current = '';
-    setFsmState(STATES.STUDENT_ANSWERING);
-
-    startSpeechRecognition(examLangRef.current);
-    startMediaRecording();
+    audioChunksRef.current = [];
+    setTurnSeconds(questionTimeLimit);
+    setFsmState(STATES.READY_TO_ANSWER);
   };
 
 
+  // Adaptive Follow-up Question Generator (Contextual to student answer & main question)
+  const generateAdaptiveFollowUp = (finalAnswer, mainQuestion) => {
+    setIsFollowUpPhase(true);
+    finalAccumulatedTranscriptRef.current = '';
+    setLiveTranscript('');
+    liveTranscriptRef.current = '';
+    if (recordedAudioUrl) {
+      URL.revokeObjectURL(recordedAudioUrl);
+      setRecordedAudioUrl(null);
+    }
+    audioChunksRef.current = [];
+    setTurnSeconds(questionTimeLimit);
+
+    const lower = (finalAnswer || '').toLowerCase();
+    let followUpQ = '';
+
+    if (lower.includes('saga') || lower.includes('microservice') || lower.includes('phân tán')) {
+      followUpQ = 'Bạn vừa đề cập đến Saga Pattern và kiến trúc phân tán. Hãy phân tích trường hợp một dịch vụ trong chuỗi giao dịch bị lỗi mạng hoặc crash, bạn thiết kế cơ chế Bù trừ (Compensating Transaction) như thế nào để dữ liệu không bị sai lệch?';
+    } else if (lower.includes('cache') || lower.includes('redis') || lower.includes('tối ưu')) {
+      followUpQ = 'Về giải pháp lưu cache bạn vừa trình bày, làm sao để xử lý bài toán Cache Invalidation (đồng bộ dữ liệu giữa Cache và Database) khi có nhiều request ghi dữ liệu đồng thời?';
+    } else if (lower.includes('kafka') || lower.includes('message') || lower.includes('event')) {
+      followUpQ = 'Trong mô hình Event-driven bạn vừa nhắc tới, bạn giải quyết vấn đề đảm bảo thứ tự của tin nhắn (Message Ordering) và cơ chế tránh xử lý lặp lại (Idempotency) ra sao?';
+    } else if (lower.includes('sql') || lower.includes('index') || lower.includes('database')) {
+      followUpQ = 'Khi bảng dữ liệu tăng trưởng lên hàng triệu bản ghi, việc bạn đánh Index có mang lại nhược điểm gì cho các thao tác INSERT/UPDATE không? Bạn cân đối như thế nào?';
+    } else {
+      const mainTitle = mainQuestion?.content || mainQuestion?.title || 'nội dung này';
+      const words = finalAnswer.split(/\s+/).slice(0, 7).join(' ');
+      followUpQ = `Bạn vừa phân tích: "${words}...". Trong thực tế triển khai ${mainTitle.slice(0, 45)}, rủi ro kỹ thuật lớn nhất mà hệ thống có thể gặp phải là gì và phương án dự phòng (fallback) của bạn ra sao?`;
+    }
+
+    setFollowUpQuestionText(followUpQ);
+    setCurrentQuestion({
+      title: followUpQ,
+      bloom: 'Bloom 5 - Phản biện logic'
+    });
+
+    setFsmState(STATES.AI_SPEAKING);
+    speakAIQuestion(followUpQ, () => {
+      setFsmState(STATES.READY_TO_ANSWER);
+    });
+  };
+
   // Step 3: Final confirmation -> Submit Answer to AI Board
   const handleSubmitAnswer = () => {
-
     if (isProcessingTurnRef.current) return;
     isProcessingTurnRef.current = true;
 
@@ -1540,8 +2060,10 @@ export default function VivaRoomPage() {
 
     setFsmState(STATES.AI_THINKING);
 
-    const activeLangPack = getCourseContent(activeSubject, examLangRef.current);
-    const finalAnswer = liveTranscript.trim() || activeLangPack.defaultAnswer;
+    const rawTranscript = liveTranscript.trim();
+    const hasSpoken = rawTranscript.length >= 3;
+    const finalAnswer = hasSpoken ? rawTranscript : '(Thí sinh không trả lời)';
+    const isUnanswered = !hasSpoken || finalAnswer.includes('không trả lời');
 
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now
@@ -1549,158 +2071,126 @@ export default function VivaRoomPage() {
       .toString()
       .padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
-    // Add candidate's response to dialogue
-    setDialogue((prev) => [
-      ...prev,
-      {
-        sender: 'student',
-        time: timeStr,
-        text: finalAnswer,
-        audioUrl: recordedAudioUrl
-      }
-    ]);
+    // Active main question object
+    const activeMainQ = examQuestions[currentQuestionIndexRef.current] || examQuestions[0] || {};
+    const questionTextForTurn = isFollowUpPhaseRef.current
+      ? followUpQuestionText
+      : (activeMainQ.content || activeMainQ.title || 'Câu hỏi chuyên môn');
 
+    const turnScore = isUnanswered ? 0.0 : Number((7.0 + Math.random() * 2.5).toFixed(1));
+    const aiTurnEval = isUnanswered
+      ? 'Thí sinh không trả lời hoặc không ghi nhận âm thanh câu trả lời cho câu hỏi này. Điểm đề xuất: 0.0.'
+      : `Đánh giá AI: Thí sinh trình bày đúng trọng tâm chuyên môn (${questionTextForTurn.slice(0, 40)}...), lập luận mạch lạc và có kiến thức kỹ thuật tốt.`;
 
-    // Send Turn answer via STOMP if connected
-    const turnData = {
-      sessionId: sessionUuid,
-      turnOrder: speechTurnRef.current,
-      questionContent: currentQuestion.title,
+    const turnRecord = {
+      turnOrder: allQuestionTurnsRef.current.length + 1,
+      questionIndex: currentQuestionIndexRef.current,
+      isFollowUp: isFollowUpPhaseRef.current,
+      questionContent: questionTextForTurn,
       studentAnswer: finalAnswer,
-      studentTranscript: finalAnswer,
-      turnDurationSeconds: Math.max(5, 90 - turnSeconds),
-      examLang: examLangRef.current
+      audioTranscript: finalAnswer,
+      score: turnScore,
+      bloomLevel: isFollowUpPhaseRef.current ? 'Bloom 5 - Phản biện logic' : (activeMainQ.bloomLevel || 'Bloom 3 - Vận dụng'),
+      aiEvaluation: aiTurnEval,
+      turnDurationSeconds: Math.max(5, questionTimeLimit - turnSeconds),
+      timestamp: timeStr
     };
 
-    let sentViaWs = false;
-    if (stompClientRef.current && stompClientRef.current.connected) {
-      try {
-        stompClientRef.current.publish({
-          destination: `/app/exam/${sessionUuid}/submit-turn`,
-          body: JSON.stringify(turnData)
-        });
-        sentViaWs = true;
-        console.log(`[AIVES STOMP] Sent turn #${speechTurnRef.current} to /app/exam/${sessionUuid}/submit-turn`);
-      } catch (wsErr) {
-        console.warn('[AIVES STOMP] Publish error:', wsErr);
-      }
-    }
+    allQuestionTurnsRef.current.push(turnRecord);
+    setAllQuestionTurns([...allQuestionTurnsRef.current]);
 
-    // Safety fallback: if STOMP doesn't respond within 5.5s or is disconnected, try Backend REST API first, then local fallback
-    if (sentViaWs) {
-      const turnSnapshot = speechTurnRef.current;
-      setTimeout(() => {
-        if (isProcessingTurnRef.current && speechTurnRef.current === turnSnapshot && fsmStateRef.current === STATES.AI_THINKING) {
-          console.warn('[AIVES STOMP] Response timeout, falling back to Backend REST API /turns');
-          executeRestOrLocalTurnFallback(finalAnswer);
-        }
-      }, 5500);
-    } else {
-      executeRestOrLocalTurnFallback(finalAnswer);
-    }
-  };
+    // Send to Backend
+    const targetSessionId = sessionUuidRef.current || sessionUuid;
+    studentExamApi.submitTurn(targetSessionId, {
+      questionUuid: activeMainQ.uuid || activeMainQ.id,
+      turnOrder: turnRecord.turnOrder,
+      studentAnswer: finalAnswer,
+      audioTranscript: finalAnswer,
+      turnDurationSeconds: turnRecord.turnDurationSeconds
+    }).catch((e) => console.warn('Submit turn backend sync warning:', e));
 
-  const executeRestOrLocalTurnFallback = async (studentAnswer) => {
+    // Save turns to localStorage for Lecturer Grading page
     try {
-      const res = await studentExamApi.submitTurn(sessionUuid, {
-        turnOrder: speechTurnRef.current,
-        studentAnswer,
-        audioTranscript: studentAnswer,
-        turnDurationSeconds: Math.max(5, 90 - turnSeconds)
-      });
-      const turnRes = res?.data?.result;
-      if (turnRes && isProcessingTurnRef.current) {
-        applyBackendTurnResult(turnRes, studentAnswer);
-        return;
+      localStorage.setItem(`aives_session_turns_${targetSessionId}`, JSON.stringify(allQuestionTurnsRef.current));
+      const allExamsRaw = localStorage.getItem('aives_exam_sessions');
+      if (allExamsRaw) {
+        const exams = JSON.parse(allExamsRaw);
+        const idx = exams.findIndex((e) => e.id === targetSessionId || e.sessionCode === targetSessionId);
+        if (idx !== -1) {
+          exams[idx].turns = allQuestionTurnsRef.current;
+          localStorage.setItem('aives_exam_sessions', JSON.stringify(exams));
+        }
       }
-    } catch (restErr) {
-      console.warn('[AIVES Viva REST] Backend /turns fallback warning, using local reasoning:', restErr.friendlyMessage || restErr);
+    } catch (e) {}
+
+    // PHASE LOGIC:
+    // Case 1: Just finished Main Question AND maxFollowUps > 0 AND candidate answered -> Ask Adaptive Follow-Up
+    if (!isFollowUpPhaseRef.current && maxFollowUps > 0 && !isUnanswered) {
+      setTimeout(() => {
+        isProcessingTurnRef.current = false;
+        generateAdaptiveFollowUp(finalAnswer, activeMainQ);
+      }, 1000);
+      return;
     }
-    if (isProcessingTurnRef.current) {
-      executeLocalTurnFallback(studentAnswer);
-    }
+
+    // Case 2: Finished Follow-up OR no follow-ups configured -> Move to NEXT Main Question OR Finish Exam
+    setTimeout(() => {
+      isProcessingTurnRef.current = false;
+      const nextIdx = currentQuestionIndexRef.current + 1;
+      if (nextIdx < examQuestions.length) {
+        // CLEAN REFRESH VIEW FOR NEXT MAIN QUESTION!
+        setCurrentQuestionIndex(nextIdx);
+        currentQuestionIndexRef.current = nextIdx;
+        setIsFollowUpPhase(false);
+        isFollowUpPhaseRef.current = false;
+        setFollowUpQuestionText('');
+        finalAccumulatedTranscriptRef.current = '';
+        setLiveTranscript('');
+        liveTranscriptRef.current = '';
+
+        if (recordedAudioUrl) {
+          URL.revokeObjectURL(recordedAudioUrl);
+          setRecordedAudioUrl(null);
+        }
+        audioChunksRef.current = [];
+        setTurnSeconds(questionTimeLimit);
+
+        const nextMainQ = examQuestions[nextIdx];
+        const nextQTitle = nextMainQ.content || nextMainQ.title;
+        setCurrentQuestion({
+          title: nextQTitle,
+          bloom: nextMainQ.bloomLevel || 'Bloom 3 - Vận dụng'
+        });
+
+        setFsmState(STATES.AI_SPEAKING);
+        speakAIQuestion(nextQTitle, () => {
+          setFsmState(STATES.READY_TO_ANSWER);
+        });
+      } else {
+        // ALL QUESTIONS FINISHED!
+        finishExamSession(allQuestionTurnsRef.current);
+      }
+    }, 1000);
   };
 
-  const executeLocalTurnFallback = (studentAnswer) => {
-    const mockScore = Number((7.8 + Math.random() * 1.6).toFixed(1));
-    const newScore = {
-      turnOrder: speechTurnRef.current,
-      score: mockScore,
-      aiEvaluation: 'Đánh giá AI: Luận điểm tốt, lập luận tự tin và phản xạ nhanh.',
-      bloomLevel: 'Bloom 4 - Phân tích'
-    };
-    turnScoresRef.current = [...turnScoresRef.current, newScore];
-    setTurnScores([...turnScoresRef.current]);
-
-    if (speechTurnRef.current >= maxTurns) {
-      finishExamSession(turnScoresRef.current);
-    } else {
-      generateFollowUpQuestion(studentAnswer);
-    }
-  };
-
-  // Mock Engine sinh câu hỏi xoáy thích ứng
-  const generateFollowUpQuestion = (answerText) => {
-    const lower = answerText.toLowerCase();
-    const langPack = getCourseContent(activeSubject, examLangRef.current);
-    let selected = null;
-
-    for (const item of langPack.adaptiveFollowUps) {
-      if (item.keywords.some((k) => lower.includes(k.toLowerCase()))) {
-        selected = item;
-        break;
-      }
-    }
-
-    if (!selected) {
-      const fallbackIdx = (speechTurnRef.current - 1) % langPack.fallbackFollowUps.length;
-      selected = langPack.fallbackFollowUps[fallbackIdx];
-    }
-
-    setSpeechTurn((prev) => prev + 1);
-
-    const now = new Date();
-    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now
-      .getMinutes()
-      .toString()
-      .padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-
-    setDialogue((prev) => [
-      ...prev,
-      {
-        sender: 'ai',
-        time: timeStr,
-        text: selected.question,
-        isMainQuestion: true
-      }
-    ]);
-
-    setCurrentQuestion({
-      title: selected.question,
-      bloom: selected.bloom || 'Bloom: Phản biện thích ứng'
-    });
-
-    setFsmState(STATES.AI_SPEAKING);
-    isProcessingTurnRef.current = false;
-  };
-
-  // Finish exam and navigate to /exam-result
-  const finishExamSession = (customTurnScores, customFeedback) => {
+  // Finish exam and navigate to /student
+  const finishExamSession = (turns) => {
     isProcessingTurnRef.current = false;
     setFsmState(STATES.FINISHED);
-    const langPack = getCourseContent(activeSubject, examLangRef.current);
 
-    const scoresToUse = customTurnScores || turnScoresRef.current || [];
-    let avgScore = 8.5;
-    if (scoresToUse.length > 0) {
-      const sum = scoresToUse.reduce((acc, curr) => acc + (Number(curr.score) || 8.0), 0);
-      avgScore = Number((sum / scoresToUse.length).toFixed(1));
+    const validTurns = turns && turns.length > 0 ? turns : allQuestionTurnsRef.current;
+    const answeredTurns = validTurns.filter(
+      (t) => t.studentAnswer && !t.studentAnswer.includes('không trả lời') && t.studentAnswer.length >= 3
+    );
+    const isCompletelyUnanswered = answeredTurns.length === 0;
+
+    let overallScore = 0.0;
+    if (!isCompletelyUnanswered) {
+      const sum = validTurns.reduce((acc, t) => acc + (Number(t.score) || 0), 0);
+      overallScore = Number((sum / validTurns.length).toFixed(1));
     }
 
-    // Notify Backend that the exam session is completed
-    studentExamApi.finishExam(sessionUuid).catch((err) => {
-      console.warn('[AIVES Viva] finishExam background sync warning:', err.friendlyMessage || err);
-    });
+    const targetSessionId = sessionUuidRef.current || sessionUuid;
 
     let activeStudentName = 'Nguyễn Văn An';
     let activeStudentCode = 'SE190504';
@@ -1716,75 +2206,73 @@ export default function VivaRoomPage() {
       }
     } catch {}
 
+    const overallFeedback = isCompletelyUnanswered
+      ? 'Thí sinh không trả lời hoặc không ghi nhận âm thanh câu trả lời cho các câu hỏi trong ca thi. Điểm đề xuất: 0.0.'
+      : `AI Examiner ghi nhận thí sinh hoàn thành ${validTurns.length} lượt thi. Nắm vững kiến thức trọng tâm môn ${activeSubject}, lập luận chuyên môn mạch lạc.`;
+
     const latestResult = {
-      sessionId: sessionUuid,
-      examCode: currentSession?.examId || `${activeSubject}-VIVA-2026-99127`,
+      sessionId: targetSessionId,
+      examCode: currentSession?.examId || `${activeSubject}-VIVA-${Date.now().toString().slice(-4)}`,
       courseName: activeCourseName,
       subjectCode: activeSubject,
       studentName: activeStudentName,
       studentId: activeStudentCode,
       examLang: examLangRef.current,
       completedAt: new Date().toISOString(),
-      turnsCompleted: maxTurns,
-      overallScore: avgScore,
-      turnScores: scoresToUse.length > 0 ? scoresToUse : [
-        { turnOrder: 1, score: 8.5, bloomLevel: 'Bloom 4 - Phân tích & Đánh giá' },
-        { turnOrder: 2, score: 8.0, bloomLevel: 'Bloom 5 - Phản biện phản hồi' },
-        { turnOrder: 3, score: 9.0, bloomLevel: 'Bloom 5 - Đánh giá chuyên sâu' }
-      ],
-      status: 'PENDING_LECTURER_CONFIRMATION',
-      dialogueHistory: dialogue,
-      rubricScores: [
-        { name: 'Tính chính xác giải thuật & Cấu trúc', score: `${(avgScore * 0.5).toFixed(1)} / 5.0` },
-        { name: 'Khả năng phản biện câu hỏi xoáy', score: `${(avgScore * 0.45).toFixed(1)} / 5.0` },
-        { name: 'Diễn đạt lưu loát & Tự tin', score: `${(avgScore * 0.5).toFixed(1)} / 5.0` }
-      ],
-      aiFeedback: customFeedback || (
-        activeSubject === 'AI204'
-          ? examLangRef.current === 'ja-JP'
-            ? '過学習・学習不足のメカニズム、正則化手法（L1/L2）、およびCNNの畳み込み層の特性に関する質問に対し、学術的根拠に基づき非常に的確に回答できています。'
-            : examLangRef.current === 'en-US'
-              ? 'The candidate demonstrated deep understanding of the Bias-Variance tradeoff, regularization mechanisms (L1/L2, Dropout), and CNN architectural advantages. Excellent technical clarity.'
-              : 'Thí sinh thể hiện hiểu biết sâu sắc về đánh đổi Bias-Variance, cơ chế Regularization (L1/L2, Dropout) và ưu thế của các lớp tích chập CNN. Lập luận chuẩn xác và tự tin.'
-          : activeSubject === 'SE102'
-
-            ? examLangRef.current === 'ja-JP'
-              ? 'マイクロサービスのデータ整合性維持、Sagaパターン（オーケストレーション対コレオグラフィ）、およびCAP定理のトレードオフに関する試問に対し、実践的なシステム設計能力を示しました。'
-              : examLangRef.current === 'en-US'
-                ? 'The candidate exhibited strong architectural maturity regarding eventual consistency, Saga pattern trade-offs, and CAP theorem implications in distributed environments.'
-                : 'Thí sinh nắm rất vững nguyên lý thiết kế Microservices, cơ chế Saga Pattern với bù trừ giao dịch và đánh đổi trong định lý CAP. Tư duy kiến trúc hệ thống sắc bén.'
-            : examLangRef.current === 'ja-JP'
-              ? '負閉路の検出とフィボナッチヒープの最適化に関する深掘り試問に対し、論理的かつ的確に回答できています。'
-              : examLangRef.current === 'en-US'
-                ? 'The candidate demonstrated sharp problem-solving skills regarding negative weight cycles and heap structures. Arguments were coherent and well-structured.'
-                : 'Thí sinh phản xạ nhanh với các câu hỏi xoáy về chu trình âm và tối ưu cấu trúc Heap trong Dijkstra. Lập luận chặt chẽ và mạch lạc.'
-      )
+      turnsCompleted: validTurns.length,
+      overallScore: isCompletelyUnanswered ? 0.0 : overallScore,
+      turnScores: validTurns.map((t) => ({
+        turnOrder: t.turnOrder,
+        score: t.score,
+        bloomLevel: t.bloomLevel,
+        questionContent: t.questionContent,
+        studentAnswer: t.studentAnswer
+      })),
+      status: 'WAITING_SCORE_CONFIRMATION',
+      turns: validTurns,
+      aiFeedback: overallFeedback
     };
 
+    // Update in aives_exam_sessions so lecturer GradingApproval page sees it immediately!
     try {
+      const allExamsRaw = localStorage.getItem('aives_exam_sessions');
+      if (allExamsRaw) {
+        const exams = JSON.parse(allExamsRaw);
+        const idx = exams.findIndex((e) => e.id === targetSessionId || e.sessionCode === targetSessionId);
+        if (idx !== -1) {
+          exams[idx].status = 'WAITING_SCORE_CONFIRMATION';
+          exams[idx].totalScore = isCompletelyUnanswered ? 0.0 : overallScore;
+          exams[idx].feedback = overallFeedback;
+          exams[idx].turns = validTurns;
+          exams[idx].endedAt = new Date().toISOString();
+          localStorage.setItem('aives_exam_sessions', JSON.stringify(exams));
+        }
+      }
       localStorage.setItem('latest_viva_result', JSON.stringify(latestResult));
-    } catch (e) {
-      console.warn('LocalStorage error:', e);
-    }
+      localStorage.setItem(`aives_session_turns_${targetSessionId}`, JSON.stringify(validTurns));
+    } catch (e) {}
+
+    // Call backend finish
+    studentExamApi.finishExam(targetSessionId).catch((err) => console.warn('finishExam sync:', err));
+
+    const closingText = isCompletelyUnanswered
+      ? 'Ca thi vấn đáp đã kết thúc. Hệ thống đã nộp bài và chuyển dữ liệu tới Giảng viên duyệt điểm.'
+      : 'Chúc mừng thí sinh đã hoàn thành ca thi vấn đáp. Bài thi đã được ghi nhận và gửi tới Giảng viên duyệt điểm.';
 
     let navigated = false;
     const goToResult = () => {
       if (navigated) return;
       navigated = true;
-      navigate('/exam-result');
+      navigate(`/student?submitted=true&sessionId=${targetSessionId}`);
     };
 
-    speakAIQuestion(langPack.closing, goToResult);
-    setTimeout(goToResult, 2800);
+    speakAIQuestion(closingText, goToResult);
+    setTimeout(goToResult, 3000);
   };
 
   const handleManualExit = () => {
     const confirmMsg =
-      examLang === 'ja-JP'
-        ? '早期提出して試験を終了しますか？'
-        : examLang === 'en-US'
-          ? 'Are you sure you want to finish the exam session early and submit for grading?'
-          : 'Bạn có chắc chắn muốn nộp bài sớm và kết thúc ca thi vấn đáp để AI chấm điểm?';
+      'CẢNH BÁO: Rời phòng thi giữa chừng sẽ TỰ ĐỘNG NỘP BÀI ngay lập tức với các câu đã trả lời. Mỗi thí sinh chỉ được thi 1 lần duy nhất và KHÔNG THỂ vào thi lại ca này!\n\nBạn có chắc chắn muốn nộp bài và rời phòng thi không?';
 
     if (window.confirm(confirmMsg)) {
       finishExamSession();
@@ -1817,32 +2305,8 @@ export default function VivaRoomPage() {
           </div>
         </div>
 
-        {/* Middle Status Indicators & Language Selector */}
+        {/* Middle Status Indicators */}
         <div className="flex items-center gap-3 md:gap-4 text-xs flex-wrap">
-
-          {/* ============ 3-BUTTON LANGUAGE PILL SWITCHER ============ */}
-          <div className="flex items-center p-1 bg-slate-100/90 border border-slate-200 rounded-xl gap-1 shadow-2xs">
-            {SUPPORTED_LANGUAGES.map((langItem) => {
-              const isActive = examLang === langItem.code;
-              return (
-                <button
-                  key={langItem.code}
-                  type="button"
-                  onClick={() => handleLanguageChange(langItem.code)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${isActive
-                    ? 'bg-white text-sky-700 shadow-xs border border-sky-200 font-bold scale-[1.02]'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                    }`}
-                  title={`Chuyển ngôn ngữ thi sang ${langItem.label}`}
-                >
-                  <span className="text-sm leading-none">{langItem.flag}</span>
-                  <span className="hidden sm:inline">{langItem.label}</span>
-                  <span className="sm:hidden text-[10px]">{langItem.shortLabel}</span>
-                </button>
-              );
-            })}
-
-          </div>
 
           {/* Main Exam Timer */}
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-50 border border-sky-200/80 text-sky-800 font-mono font-bold">
@@ -1858,17 +2322,22 @@ export default function VivaRoomPage() {
             </div>
           )}
 
-          {/* Turn Counter */}
+          {/* Turn / Question Counter */}
           <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-100 text-slate-700 font-medium">
             <span>
-              Lượt hỏi: {speechTurn} / {maxTurns}
+              Câu hỏi: {currentQuestionIndex + 1} / {examQuestions.length}
             </span>
             <div className="flex items-center gap-1">
-              {[1, 2, 3].map((turn) => (
+              {examQuestions.map((_, idx) => (
                 <span
-                  key={turn}
-                  className={`w-2 h-2 rounded-full transition-colors ${turn <= speechTurn ? 'bg-sky-600' : 'bg-slate-300'
-                    }`}
+                  key={idx}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    idx < currentQuestionIndex
+                      ? 'bg-emerald-500'
+                      : idx === currentQuestionIndex
+                      ? 'bg-sky-600 ring-2 ring-sky-200'
+                      : 'bg-slate-300'
+                  }`}
                 ></span>
               ))}
             </div>
@@ -1876,14 +2345,16 @@ export default function VivaRoomPage() {
 
           {/* Live Connection Indicator */}
           <div
-            className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border transition-all ${isWsConnected
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              : 'bg-slate-50 text-slate-600 border-slate-200'
-              }`}
+            className={`hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border transition-all ${
+              isWsConnected
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-slate-50 text-slate-600 border-slate-200'
+            }`}
           >
             <span
-              className={`w-2 h-2 rounded-full ${isWsConnected ? 'bg-emerald-500' : 'bg-slate-400'
-                }`}
+              className={`w-2 h-2 rounded-full ${
+                isWsConnected ? 'bg-emerald-500' : 'bg-slate-400'
+              }`}
             />
             <span>{isWsConnected ? 'Trực tuyến' : 'Ngoại tuyến'}</span>
           </div>
@@ -1910,12 +2381,13 @@ export default function VivaRoomPage() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800">
-                  LƯỢT HỎI {speechTurn} / {maxTurns}
+                  CÂU HỎI {currentQuestionIndex + 1} / {examQuestions.length}
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
-                  <span>{SUPPORTED_LANGUAGES.find((l) => l.code === examLang)?.flag}</span>
-                  <span>{examLang}</span>
-                </span>
+                {isFollowUpPhase && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                    Hỏi xoáy phản biện
+                  </span>
+                )}
               </div>
               <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
                 <Radio className="w-3.5 h-3.5 text-sky-600 animate-pulse" />
@@ -2029,7 +2501,9 @@ export default function VivaRoomPage() {
               {fsmState === STATES.AI_THINKING && (
                 <>
                   <Sparkles className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
-                  <span className="text-indigo-800">Đang xử lý câu trả lời...</span>
+                  <span className="text-indigo-800 font-bold animate-pulse">
+                    Đã nộp câu trả lời! AI Examiner đang chấm điểm & chuẩn bị câu tiếp theo...
+                  </span>
                 </>
               )}
               {fsmState === STATES.FINISHED && (
@@ -2055,13 +2529,14 @@ export default function VivaRoomPage() {
               {fsmState === STATES.AI_SPEAKING && (
                 <button
                   type="button"
-                  onClick={transitionToStudentAnswering}
+                  onClick={() => {
+                    stopAllSpeech();
+                    setFsmState(STATES.READY_TO_ANSWER);
+                  }}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
                 >
                   <FastForward className="w-3.5 h-3.5" />
-
-                  <span>Bỏ qua đọc (Bắt đầu nói)</span>
-
+                  <span>Bỏ qua đọc đề</span>
                 </button>
               )}
 
@@ -2069,8 +2544,9 @@ export default function VivaRoomPage() {
               <button
                 type="button"
                 onClick={() => speakAIQuestion(currentQuestion.title)}
-                disabled={fsmState === STATES.AI_THINKING}
+                disabled={fsmState === STATES.AI_THINKING || fsmState === STATES.STUDENT_ANSWERING}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-medium text-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
+                title="Nghe lại đề bài bằng giọng đọc AI"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
                 <span>Nhắc lại đề</span>
@@ -2093,38 +2569,52 @@ export default function VivaRoomPage() {
 
             {/* Right Action Buttons: Recording vs Review */}
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Step 1: Answering -> Button to Stop & Review */}
+              {/* Ready to Answer -> Candidate explicitly clicks to start mic */}
+              {fsmState === STATES.READY_TO_ANSWER && (
+                <button
+                  type="button"
+                  onClick={handleStartAnswering}
+                  className="px-6 py-2.5 text-xs font-bold rounded-xl flex items-center gap-2 bg-gradient-to-r from-sky-600 via-indigo-600 to-teal-600 hover:from-sky-700 hover:to-teal-700 text-white shadow-md shadow-sky-500/25 transition-all cursor-pointer hover:scale-[1.02] animate-pulse"
+                >
+                  <Mic className="w-4 h-4 text-white" />
+                  <span>Bắt đầu trả lời (Bật Micro)</span>
+                </button>
+              )}
+
+              {/* Step 1: Answering -> Candidate explicitly clicks to finish recording */}
               {fsmState === STATES.STUDENT_ANSWERING && (
                 <button
                   type="button"
                   onClick={handleStopAndReview}
-                  className="px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-500/25 transition-all cursor-pointer"
+                  className="px-5 py-2.5 text-xs font-bold rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 flex items-center gap-2 transition-colors cursor-pointer shadow-xs animate-pulse"
                 >
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                  <span>Dừng nói & Xem lại câu trả lời</span>
+                  <Square className="w-3.5 h-3.5 text-rose-600 fill-rose-600" />
+                  <span>Kết thúc trả lời (Dừng thu âm & Xem lại)</span>
                 </button>
               )}
 
               {/* Step 2: Reviewing -> Record Again or Submit Answer */}
               {fsmState === STATES.STUDENT_REVIEWING && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={handleRecordAgain}
-                    className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    title="Xóa âm thanh cũ và chuẩn bị thu lại"
                   >
                     <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Nói lại từ đầu</span>
+                    <span>Thu âm lại</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={handleSubmitAnswer}
                     disabled={isProcessingTurnRef.current}
-                    className="px-5 py-2 text-xs font-bold rounded-xl flex items-center gap-2 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-700 hover:to-cyan-700 text-white shadow-md shadow-sky-500/25 transition-all cursor-pointer hover:scale-[1.02]"
+                    className="px-6 py-2.5 text-xs font-bold rounded-xl flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md shadow-emerald-500/25 transition-all cursor-pointer hover:scale-[1.02]"
+                    title="Nộp câu trả lời cho câu hỏi này"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Xác nhận nộp câu trả lời</span>
+                    <span>Xác nhận & Nộp câu trả lời</span>
                   </button>
                 </div>
               )}
@@ -2133,106 +2623,145 @@ export default function VivaRoomPage() {
           </div>
         </div>
 
-        {/* ================= RIGHT COLUMN: REAL-TIME TRANSCRIPT & CAMERA PIP (5 COLS) ================= */}
+        {/* ================= RIGHT COLUMN: EXAM PROGRESS & CURRENT TRANSCRIPT (5 COLS) ================= */}
         <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
-          {/* Transcript Panel */}
-          <div className="flex-1 p-5 rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-4 min-h-[500px]">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-
-                  Real-time Transcript & Audio Review
-
-                </h3>
-              </div>
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 flex items-center gap-1">
-                <Languages className="w-3 h-3 text-sky-600" />
-                <span>{examLang}</span>
+          {/* 1. Exam Question Stepper & Progress Tracker */}
+          <div className="p-4 rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-sky-600" />
+                Tiến độ đề thi ({currentQuestionIndex + 1}/{examQuestions.length} câu)
+              </span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                isFollowUpPhase ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-sky-100 text-sky-800 border border-sky-200'
+              }`}>
+                {isFollowUpPhase ? 'Hỏi xoáy phản biện' : 'Câu hỏi chính'}
               </span>
             </div>
 
-            {/* Dialogue Stream */}
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[380px]">
-              {dialogue.map((item, idx) => (
-                <div
-                  key={idx}
-                  className={`flex items-start gap-2.5 ${item.sender === 'student' ? 'flex-row-reverse' : ''}`}
-                >
+            <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+              {examQuestions.map((q, qIdx) => {
+                const isDone = qIdx < currentQuestionIndex;
+                const isCurrent = qIdx === currentQuestionIndex;
+                return (
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${item.sender === 'ai' ? 'bg-sky-100 text-sky-700' : 'bg-cyan-100 text-cyan-700'
-                      }`}
+                    key={q.uuid || qIdx}
+                    className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition-all ${
+                      isCurrent
+                        ? 'bg-sky-50/80 border-sky-300 ring-2 ring-sky-200/80 shadow-2xs'
+                        : isDone
+                        ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-400 opacity-70'
+                    }`}
                   >
-                    {item.sender === 'ai' ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
-                  </div>
-                  <div
-                    className={`flex-1 rounded-xl p-3 text-xs space-y-1.5 ${item.sender === 'ai'
-                      ? item.isMainQuestion
-                        ? 'bg-sky-50 border border-sky-200'
-                        : 'bg-slate-50 border border-slate-100'
-                      : 'bg-sky-50/50 border border-sky-100'
-                      }`}
-                  >
-                    <div
-                      className={`flex items-center justify-between text-[10px] ${item.sender === 'ai' ? 'text-slate-400' : 'text-sky-800'
+                    <div className="flex items-center gap-2 truncate">
+                      <span
+                        className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 ${
+                          isDone
+                            ? 'bg-emerald-600 text-white'
+                            : isCurrent
+                            ? 'bg-sky-600 text-white animate-pulse'
+                            : 'bg-slate-200 text-slate-500'
                         }`}
-                    >
-                      <span className="font-bold">
-                        {item.sender === 'ai'
-                          ? 'Giám khảo AI'
-                          : 'Bạn'}
+                      >
+                        {isDone ? '✓' : qIdx + 1}
                       </span>
-                      <span>{item.time}</span>
+                      <span className="truncate font-semibold text-slate-800">
+                        Câu {qIdx + 1}: {q.content || q.title}
+                      </span>
                     </div>
 
-                    <p
-                      className={`leading-relaxed ${item.isMainQuestion ? 'font-semibold text-slate-900' : 'text-slate-700'
-                        }`}
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${
+                        isDone
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : isCurrent
+                          ? 'bg-sky-100 text-sky-800 animate-pulse'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
                     >
-                      {item.text}
-                    </p>
-
-                    {/* Audio playback for previous turn answer if available */}
-                    {item.audioUrl && (
-                      <div className="pt-1">
-                        <audio controls src={item.audioUrl} className="h-7 w-full max-w-[240px]" />
-                      </div>
-                    )}
+                      {isDone ? 'Đã nộp' : isCurrent ? (isFollowUpPhase ? 'Hỏi xoáy' : 'Đang thi') : 'Chờ thi'}
+                    </span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
+            </div>
+          </div>
 
-              {/* Current Active Live Speech Recording Frame */}
+          {/* 2. Real-time Transcript & Audio Review Card for CURRENT Question */}
+          <div className="flex-1 p-5 rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-4 min-h-[380px]">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${fsmState === STATES.STUDENT_ANSWERING ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`}></span>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Real-time Transcript & Audio Review
+                </h3>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">
+                Tiếng Việt (vi-VN)
+              </span>
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 overflow-y-auto space-y-3">
+              {/* If AI Speaking */}
+              {fsmState === STATES.AI_SPEAKING && (
+                <div className="p-4 rounded-xl bg-sky-50/60 border border-sky-200 text-xs text-sky-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold">
+                    <Volume2 className="w-4 h-4 text-sky-600 animate-bounce" />
+                    <span>Hội đồng AI đang đọc câu hỏi...</span>
+                  </div>
+                  <p className="italic text-slate-600">
+                    Vui lòng lắng nghe kỹ đề bài. Bạn sẽ có {questionTimeLimit} giây để trả lời sau khi bấm bắt đầu.
+                  </p>
+                </div>
+              )}
+
+              {/* If Ready to Answer */}
+              {fsmState === STATES.READY_TO_ANSWER && (
+                <div className="p-4 rounded-xl bg-sky-50/80 border border-sky-200 text-xs text-sky-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-sky-800">
+                    <Mic className="w-4 h-4 text-sky-600" />
+                    <span>Hội đồng AI đã đọc xong. Micro đang tắt.</span>
+                  </div>
+                  <p className="text-slate-600">
+                    Khi bạn đã sẵn sàng trình bày câu trả lời, hãy bấm nút <strong>"Bắt đầu trả lời (Bật Micro)"</strong> bên dưới để bắt đầu thu âm và tính giờ.
+                  </p>
+                </div>
+              )}
+
+              {/* If Student Answering (Live STT) */}
               {fsmState === STATES.STUDENT_ANSWERING && (
-                <div className="p-3.5 rounded-xl bg-white border border-rose-300 shadow-xs space-y-1.5">
-                  <div className="flex items-center justify-between text-[10px]">
+                <div className="p-4 rounded-xl bg-white border border-rose-300 shadow-xs space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
                     <span className="font-bold text-rose-700 flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-
                       Đang nhận diện giọng nói ({examLang})
                     </span>
-                    <span className="text-slate-400 italic">Đang ghi âm câu trả lời...</span>
-
+                    <span className="text-slate-400 italic">Nói vào mic để hệ thống chép lời...</span>
                   </div>
-                  <p className="text-xs text-slate-800 leading-relaxed font-sans min-h-[36px]">
+                  <p className="text-xs text-slate-800 leading-relaxed font-sans min-h-[60px] bg-slate-50/70 p-3 rounded-lg border border-slate-100">
                     {liveTranscript || (
                       <span className="text-slate-400 italic">{currentLangPack.placeholder}</span>
                     )}
                     <span className="inline-block w-1.5 h-3.5 bg-rose-600 ml-1 animate-pulse align-middle"></span>
                   </p>
+                  <p className="text-[10px] text-slate-400">
+                    * Bạn có thể bấm "Dừng nói & Xem lại" để nghe lại file âm thanh và sửa lỗi chính tả trước khi nộp.
+                  </p>
                 </div>
               )}
 
-              {/* REVIEW & EDIT CARD (STUDENT_REVIEWING) */}
+              {/* If Reviewing (Audio + Editable Transcript) */}
               {fsmState === STATES.STUDENT_REVIEWING && (
-                <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200 shadow-xs space-y-3">
+                <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200 shadow-xs space-y-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-amber-900 flex items-center gap-1.5">
                       <Edit3 className="w-3.5 h-3.5 text-amber-600" />
                       Kiểm tra & Nghe lại câu trả lời
                     </span>
-                    <span className="text-[10px] text-amber-700 font-medium">Bạn có thể sửa văn bản bên dưới</span>
+                    <span className="text-[10px] text-amber-700 font-medium">Có thể sửa văn bản bên dưới</span>
                   </div>
 
                   {/* Audio Player for candidate's voice */}
@@ -2256,54 +2785,31 @@ export default function VivaRoomPage() {
                       onChange={(e) => {
                         setLiveTranscript(e.target.value);
                         liveTranscriptRef.current = e.target.value;
+                        finalAccumulatedTranscriptRef.current = e.target.value;
                       }}
                       placeholder="Nếu nhận diện bị thiếu hoặc sai từ khóa kỹ thuật, bạn có thể chỉnh sửa trực tiếp ở đây..."
                       className="w-full p-2.5 text-xs text-slate-800 bg-white rounded-xl border border-slate-200 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 leading-relaxed resize-none"
                     />
                   </div>
-
-                  {/* Action buttons inside Review card */}
-                  <div className="flex items-center justify-between pt-1 text-xs">
-                    <button
-                      type="button"
-                      onClick={handleRecordAgain}
-                      className="text-amber-700 hover:text-amber-800 font-semibold flex items-center gap-1 cursor-pointer"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Nói lại câu này</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleSubmitAnswer}
-                      className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <span>Nộp bài ngay</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
                 </div>
               )}
 
-              {/* AI Thinking Bubble */}
+              {/* If AI Thinking */}
               {fsmState === STATES.AI_THINKING && (
-                <div className="flex items-start gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                <div className="p-4 rounded-xl bg-indigo-50/60 border border-indigo-200 text-xs text-indigo-900 space-y-2">
+                  <div className="flex items-center gap-2 font-bold">
+                    <Sparkles className="w-4 h-4 text-indigo-600 animate-spin" />
+                    <span>AI Examiner đang phân tích câu trả lời...</span>
                   </div>
-                  <div className="flex-1 bg-indigo-50/60 border border-indigo-100 rounded-xl p-3 text-xs space-y-1">
-                    <span className="font-bold text-indigo-800 text-[10px]">AI Giám khảo</span>
-                    <p className="text-indigo-700 italic">{currentLangPack.aiThinkingText}</p>
-                  </div>
+                  <p className="italic text-slate-600">
+                    Đối chiếu với rubric chuẩn ABET, kiểm tra thuật ngữ và chuẩn bị câu tiếp theo...
+                  </p>
                 </div>
               )}
-
-              <div ref={transcriptBottomRef}></div>
             </div>
 
-            {/* Bottom Audio Meter & Floating Real Camera PIP */}
+            {/* Bottom Mic Meter & Exit */}
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-4">
-              {/* Mic Audio Level Meter */}
               <div className="flex-1 space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-slate-500">
                   <span className="font-medium flex items-center gap-1">
@@ -2314,179 +2820,24 @@ export default function VivaRoomPage() {
                     {fsmState === STATES.STUDENT_ANSWERING ? `${micLevel}%` : 'Muted'}
                   </span>
                 </div>
-                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-100 ${fsmState === STATES.STUDENT_ANSWERING
-                      ? 'bg-gradient-to-r from-emerald-400 via-sky-500 to-cyan-500'
-                      : 'bg-slate-300'
-                      }`}
-                    style={{
-                      width: `${fsmState === STATES.STUDENT_ANSWERING ? micLevel : 0}%`
-                    }}
+                    className={`h-full transition-all duration-150 ${
+                      micLevel > 60 ? 'bg-rose-500' : micLevel > 25 ? 'bg-emerald-500' : 'bg-sky-500'
+                    }`}
+                    style={{ width: `${fsmState === STATES.STUDENT_ANSWERING ? micLevel : 0}%` }}
                   ></div>
                 </div>
               </div>
 
-              {/* Floating Real Camera PIP Thumbnail */}
-              <div className="relative w-28 h-20 rounded-xl overflow-hidden bg-slate-900 border border-slate-300 shadow-md shrink-0 group">
-                <video
-                  ref={pipVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover -scale-x-100"
-                />
-                <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[8px] font-mono text-white flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
-                  LIVE
-                </div>
-                <div className="absolute inset-1.5 border border-cyan-400/80 rounded pointer-events-none"></div>
-                <div className="absolute bottom-1 right-1 px-1 rounded bg-black/60 text-[8px] font-mono text-cyan-300">
-                  LOCKED
-                </div>
+              <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-semibold text-slate-600">
+                <Radio className="w-3 h-3 text-sky-600 animate-pulse" />
+                <span>Mic LIVE</span>
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* ================= MODAL: VOICE & LANGUAGE DIAGNOSTICS ================= */}
-      {showVoiceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scale-in">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center">
-                  <Volume2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Kiểm tra & Cấu hình giọng đọc AI</h3>
-                  <p className="text-[11px] text-slate-500">
-                    Trạng thái phát âm đa ngữ (Tiếng Việt, English, 日本語)
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  stopAllSpeech();
-                  setShowVoiceModal(false);
-                }}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Current Active Engine Status for each supported language */}
-            <div className="space-y-2">
-              <span className="text-xs font-semibold text-slate-700 block">
-                Trạng thái giọng đọc cho từng ngôn ngữ:
-              </span>
-              {SUPPORTED_LANGUAGES.map((item) => {
-                const voice = findVoiceForLang(detectedVoices, item.code);
-                const isCurrent = examLang === item.code;
-                return (
-                  <div
-                    key={item.code}
-                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between ${isCurrent ? 'bg-sky-50/70 border-sky-300' : 'bg-slate-50 border-slate-200'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">{item.flag}</span>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-900">{item.label}</span>
-                          <span className="text-[10px] font-mono text-slate-500">({item.code})</span>
-                          {isCurrent && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-200 text-sky-800">
-                              Đang chọn
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-slate-600">
-                          {voice ? (
-                            <span className="text-emerald-700 font-medium">
-                              Voice nội bộ: {voice.name}
-                            </span>
-                          ) : (
-                            <span className="text-sky-700 font-medium">
-                              Tự động dùng Google TTS ({item.googleLang})
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVoiceTestStatus(`Đang phát âm thanh (${item.label})...`);
-                        const sampleText =
-                          item.code === 'ja-JP'
-                            ? '受験者の皆さん、こんにちは。こちらはAI面接官の音声です。'
-                            : item.code === 'en-US'
-                              ? 'Welcome candidate. This is the AI Viva voice examination system.'
-                              : 'Xin chào thí sinh. Đây là giọng đọc trí tuệ nhân tạo của hội đồng AIVES.';
-                        speakText(
-                          sampleText,
-                          () => {
-                            setVoiceTestStatus(`Đã phát xong (${item.label})!`);
-                            setTimeout(() => setVoiceTestStatus(''), 2000);
-                          },
-                          item.code
-                        );
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-[11px] flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                    >
-                      <Volume2 className="w-3 h-3 text-sky-600" />
-                      <span>Thử giọng</span>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-
-            {voiceTestStatus && (
-              <p className="text-[11px] text-center font-semibold text-sky-600 animate-pulse">
-                {voiceTestStatus}
-              </p>
-            )}
-
-            {/* List of installed voices on machine */}
-            <div className="space-y-1.5 text-xs">
-              <span className="font-semibold text-slate-700 block">
-                Các giọng đọc phát hiện trên trình duyệt ({detectedVoices.length} giọng):
-              </span>
-              <div className="max-h-28 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200 text-[11px] font-mono space-y-1">
-                {detectedVoices.length > 0 ? (
-                  detectedVoices.map((v, i) => (
-                    <div key={i} className="flex items-center justify-between text-slate-600">
-                      <span className="truncate max-w-[280px]">{v.name}</span>
-                      <span className="text-slate-400 shrink-0">[{v.lang}]</span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-slate-400 italic">Đang tải danh sách giọng...</p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => {
-                  stopAllSpeech();
-                  setShowVoiceModal(false);
-                }}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
