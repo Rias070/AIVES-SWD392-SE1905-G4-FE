@@ -104,7 +104,10 @@ function PaginationBar({ currentPage, totalPages, totalItems, itemsPerPage, onPa
 export default function StudentDashboardPage({ currentUser }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+<<<<<<< HEAD
 
+=======
+>>>>>>> main
   const resolvedUser = currentUser || (() => {
     try {
       const raw = sessionStorage.getItem('aives_user') || localStorage.getItem('aives_user');
