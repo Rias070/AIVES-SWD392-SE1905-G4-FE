@@ -39,7 +39,7 @@ export default function LecturerRAGPage({ onSwitchTab, onSelectDocForGen }) {
     criterionName: '',
     description: '',
     maxScore: 3.0,
-    weight: 1.0,
+    weight: 0,
   });
 
   // Subjects & Examination Language Configuration (STT/TTS)
@@ -123,15 +123,17 @@ export default function LecturerRAGPage({ onSwitchTab, onSelectDocForGen }) {
     if (subjId) {
       try {
         const res = await lecturerRubricApi.getRubricsBySubject(subjId);
-        if (res?.data?.result && res.data.result.length > 0) {
-          const local = loadStoredRubrics(targetCode);
-          const backendIds = new Set(res.data.result.map(r => r.id || r.criterionName));
-          const unsynced = local.filter(r => !backendIds.has(r.id || r.criterionName));
-          const merged = [...res.data.result, ...unsynced];
-          saveStoredRubrics(targetCode, merged);
-          setActiveRubrics(merged);
-          return;
-        }
+        const backend = (res?.data?.result || []).map((r) => ({
+          id: r.uuid || r.id,
+          uuid: r.uuid || r.id,
+          criterionName: r.criterionName || '',
+          description: r.description || '',
+          maxScore: Number(r.maxScore) || 0,
+          weight: Number(r.weight) || 0,
+        }));
+        setActiveRubrics(backend);
+        saveStoredRubrics(targetCode, backend);
+        return;
       } catch (err) {
         console.warn('API getRubricsBySubject error, using local cached rubrics:', err);
       }
@@ -271,58 +273,93 @@ export default function LecturerRAGPage({ onSwitchTab, onSelectDocForGen }) {
   const handleCreateRubric = async (e) => {
     e.preventDefault();
     if (!newRubricForm.criterionName.trim()) return;
+    if (!courseSubjectId) {
+      setLangToast('Không xác định được môn học hiện tại.');
+      setTimeout(() => setLangToast(null), 3500);
+      return;
+    }
 
     const payload = {
       subjectUuid: courseSubjectId,
       criterionName: newRubricForm.criterionName.trim(),
       description: newRubricForm.description.trim(),
       maxScore: Number(newRubricForm.maxScore) || 3.0,
-      weight: Number(newRubricForm.weight) || 1.0,
     };
 
-    let createdId = 'rub-' + Date.now();
     try {
       const res = await lecturerRubricApi.createRubric(payload);
-      if (res?.data?.result?.id) {
-        createdId = res.data.result.id;
-      }
+      const created = res?.data?.result;
+      const createdId = created?.uuid || created?.id;
+      const newItem = {
+        id: createdId,
+        uuid: createdId,
+        criterionName: created?.criterionName || payload.criterionName,
+        description: created?.description || payload.description,
+        maxScore: Number(created?.maxScore) || payload.maxScore,
+        weight: Number(created?.weight) || 0,
+      };
+      const updatedRubrics = [...activeRubrics, newItem];
+      setActiveRubrics(updatedRubrics);
+      saveStoredRubrics(courseCode, updatedRubrics);
+      setIsAddRubricOpen(false);
+      setNewRubricForm({ criterionName: '', description: '', maxScore: 3.0, weight: 0 });
+      setLangToast('Đã thêm tiêu chí Rubric mới và lưu vào Barem thành công!');
     } catch (err) {
-      console.warn('API createRubric fallback:', err);
+      console.error('API createRubric failed:', err);
+      setLangToast(err?.response?.data?.message || 'Không thêm được tiêu chí Rubric.');
     }
-
-    const created = {
-      id: createdId,
-      criterionName: payload.criterionName,
-      description: payload.description,
-      maxScore: payload.maxScore,
-      weight: payload.weight,
-      strictness: 'Chuẩn',
-    };
-
-    const updatedRubrics = [...activeRubrics, created];
-    setActiveRubrics(updatedRubrics);
-    saveStoredRubrics(courseCode, updatedRubrics);
-    setIsAddRubricOpen(false);
-    setNewRubricForm({ criterionName: '', description: '', maxScore: 3.0, weight: 1.0 });
-    setLangToast('Đã thêm tiêu chí Rubric mới và lưu vào Barem thành công!');
     setTimeout(() => setLangToast(null), 3500);
   };
 
   const handleDeleteRubric = async (rubricId) => {
+    if (!rubricId) return;
     try {
       await lecturerRubricApi.deleteRubric(rubricId);
     } catch (err) {
-      console.warn('API deleteRubric fallback:', err);
+      console.error('API deleteRubric failed:', err);
+      setLangToast(err?.response?.data?.message || 'Không xóa được tiêu chí Rubric.');
+      setTimeout(() => setLangToast(null), 3500);
+      return;
     }
-    const updatedRubrics = activeRubrics.filter((r) => r.id !== rubricId);
+    const updatedRubrics = activeRubrics.filter((r) => (r.uuid || r.id) !== rubricId);
     setActiveRubrics(updatedRubrics);
     saveStoredRubrics(courseCode, updatedRubrics);
     setLangToast('Đã xóa tiêu chí Rubric khỏi Barem.');
     setTimeout(() => setLangToast(null), 3500);
   };
 
-  const handleSaveAllRubrics = () => {
-    setLangToast('Barem điểm chấm thi đã được đồng bộ và lưu trữ lên cơ sở dữ liệu!');
+  const handleSaveAllRubrics = async () => {
+    if (!courseSubjectId) {
+      setLangToast('Không xác định được môn học hiện tại.');
+      setTimeout(() => setLangToast(null), 3500);
+      return;
+    }
+    try {
+      const res = await lecturerRubricApi.bulkSaveRubrics({
+        subjectUuid: courseSubjectId,
+        questionUuid: null,
+        rubrics: activeRubrics.map((r) => ({
+          uuid: r.uuid || r.id || undefined,
+          criterionName: r.criterionName,
+          description: r.description,
+          maxScore: r.maxScore,
+        })),
+      });
+      const saved = (res?.data?.result || []).map((r) => ({
+        id: r.uuid || r.id,
+        uuid: r.uuid || r.id,
+        criterionName: r.criterionName || '',
+        description: r.description || '',
+        maxScore: Number(r.maxScore) || 0,
+        weight: Number(r.weight) || 0,
+      }));
+      setActiveRubrics(saved);
+      saveStoredRubrics(courseCode, saved);
+      setLangToast('Barem điểm chấm thi đã được đồng bộ và lưu trữ lên cơ sở dữ liệu!');
+    } catch (err) {
+      console.error('API bulkSaveRubrics failed:', err);
+      setLangToast(err?.response?.data?.message || 'Không lưu được Barem.');
+    }
     setTimeout(() => setLangToast(null), 4000);
   };
 
@@ -602,7 +639,7 @@ export default function LecturerRAGPage({ onSwitchTab, onSelectDocForGen }) {
                   </div>
                 ) : (
                   activeRubrics.map((r, idx) => (
-                    <div key={r.id || idx} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1.5">
+                    <div key={r.uuid || r.id || idx} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-100 text-[11px]">
                           Tiêu chí {idx + 1}: {r.criterionName}
@@ -610,7 +647,7 @@ export default function LecturerRAGPage({ onSwitchTab, onSelectDocForGen }) {
                         <div className="flex items-center gap-2">
                           <span className="font-mono font-bold text-sky-700 text-xs">{r.maxScore || 3}đ</span>
                           <button
-                            onClick={() => handleDeleteRubric(r.id)}
+                            onClick={() => handleDeleteRubric(r.uuid || r.id)}
                             className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                             title="Xóa tiêu chí này"
                           >
@@ -621,11 +658,11 @@ export default function LecturerRAGPage({ onSwitchTab, onSelectDocForGen }) {
                       <p className="text-[11px] text-slate-600 leading-snug">
                         {r.description || 'Chưa có mô tả chi tiết cho tiêu chí này.'}
                       </p>
-                      {r.weight && (
+                      {r.weight ? (
                         <div className="text-[10px] text-slate-500 pt-0.5">
-                          Trọng số: <strong className="text-slate-700">{r.weight}</strong>
+                          Trọng số: <strong className="text-slate-700">{Number(r.weight).toFixed(1)}%</strong>
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   ))
                 )}

@@ -23,8 +23,19 @@ import {
 import { lecturerQuestionApi, subjectApi } from '../../services/api';
 import LecturerRAGPage from './LecturerRAGPage';
 import LecturerAIGenerationTab from './LecturerAIGenerationTab';
+import LecturerRubricManagementPage from './LecturerRubricManagementPage';
+import RubricBuilder from '../../components/lecturer/RubricBuilder';
 
 const QUESTION_BANK_KEY = 'aives_question_bank';
+
+const BLOOM_LEVELS = [
+  { value: 'Bloom 1', label: 'Bloom 1 - Nhận biết' },
+  { value: 'Bloom 2', label: 'Bloom 2 - Thông hiểu' },
+  { value: 'Bloom 3', label: 'Bloom 3 - Vận dụng' },
+  { value: 'Bloom 4', label: 'Bloom 4 - Phân tích' },
+  { value: 'Bloom 5', label: 'Bloom 5 - Đánh giá' },
+  { value: 'Bloom 6', label: 'Bloom 6 - Sáng tạo' },
+];
 
 export default function QuestionBankPage({ defaultTab = 'bank' }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -46,6 +57,7 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('ALL');
   const [difficultyFilter, setDifficultyFilter] = useState('ALL');
+  const [bloomFilter, setBloomFilter] = useState('ALL');
   const [loading, setLoading] = useState(false);
   const [subjectsList, setSubjectsList] = useState([]);
   const [questions, setQuestions] = useState([]);
@@ -55,6 +67,9 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
   const [importJsonText, setImportJsonText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [selectedRubricQuestion, setSelectedRubricQuestion] = useState(null);
+  const [isRubricEditMode, setIsRubricEditMode] = useState(false);
+  const [rubricEditDraft, setRubricEditDraft] = useState([]);
+  const [isSavingRubric, setIsSavingRubric] = useState(false);
   const [pageToast, setPageToast] = useState(null);
 
   // Subject Exam Language Configuration State
@@ -77,9 +92,9 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
     keywords: '',
     expectedAnswer: '',
     rubrics: [
-      { criterionName: 'Tính chính xác & Bản chất khái niệm', description: 'Nêu đúng định nghĩa, các thành phần và cơ chế hoạt động', maxScore: 4.0, weight: 1.0 },
-      { criterionName: 'Vận dụng thực tế & Triển khai', description: 'Đưa ra ví dụ minh họa và giải quyết tình huống kỹ thuật', maxScore: 3.5, weight: 1.0 },
-      { criterionName: 'Phản biện & Tối ưu hóa', description: 'So sánh giải pháp thay thế, trade-offs và tối ưu hiệu năng', maxScore: 2.5, weight: 1.0 },
+      { criterionName: 'Tính chính xác & Bản chất khái niệm', description: 'Nêu đúng định nghĩa, các thành phần và cơ chế hoạt động', maxScore: 4.0, weight: 40 },
+      { criterionName: 'Vận dụng thực tế & Triển khai', description: 'Đưa ra ví dụ minh họa và giải quyết tình huống kỹ thuật', maxScore: 3.5, weight: 35 },
+      { criterionName: 'Phản biện & Tối ưu hóa', description: 'So sánh giải pháp thay thế, trade-offs và tối ưu hiệu năng', maxScore: 2.5, weight: 25 },
     ],
   });
 
@@ -264,9 +279,9 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
       keywords: '',
       expectedAnswer: '',
       rubrics: [
-        { criterionName: 'Tính chính xác & Bản chất khái niệm', description: 'Nêu đúng định nghĩa, các thành phần và cơ chế hoạt động', maxScore: 4.0, weight: 1.0 },
-        { criterionName: 'Vận dụng thực tế & Triển khai', description: 'Đưa ra ví dụ minh họa và giải quyết tình huống kỹ thuật', maxScore: 3.5, weight: 1.0 },
-        { criterionName: 'Phản biện & Tối ưu hóa', description: 'So sánh giải pháp thay thế, trade-offs và tối ưu hiệu năng', maxScore: 2.5, weight: 1.0 },
+        { criterionName: 'Tính chính xác & Bản chất khái niệm', description: 'Nêu đúng định nghĩa, các thành phần và cơ chế hoạt động', maxScore: 4.0, weight: 40 },
+        { criterionName: 'Vận dụng thực tế & Triển khai', description: 'Đưa ra ví dụ minh họa và giải quyết tình huống kỹ thuật', maxScore: 3.5, weight: 35 },
+        { criterionName: 'Phản biện & Tối ưu hóa', description: 'So sánh giải pháp thay thế, trade-offs và tối ưu hiệu năng', maxScore: 2.5, weight: 25 },
       ],
     });
     showToast('Đã tạo câu hỏi và thiết lập Barem Rubric thành công!');
@@ -276,7 +291,7 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
 
   const handleOpenEditModal = (q) => {
     setEditingQuestion({
-      id: q.id,
+      id: q.id || q.uuid,
       code: q.code || '',
       subjectCode: q.subjectCode || 'PRJ301',
       content: q.content || '',
@@ -284,6 +299,13 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
       bloomLevel: q.bloomLevel || 'Bloom 3 - Vận dụng',
       keywords: Array.isArray(q.keywords) ? q.keywords.join(', ') : (q.keywords || ''),
       expectedAnswer: q.expectedAnswer || '',
+      rubrics: (q.rubrics || []).map((r) => ({
+        uuid: r.uuid || r.id || null,
+        criterionName: r.criterionName || '',
+        description: r.description || '',
+        maxScore: Number(r.maxScore) || 0,
+        weight: Number(r.weight) || 0,
+      })),
     });
     setIsEditModalOpen(true);
   };
@@ -303,21 +325,31 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
       bloomLevel: editingQuestion.bloomLevel,
       keywords: editingQuestion.keywords,
       expectedAnswer: editingQuestion.expectedAnswer,
+      rubrics: (editingQuestion.rubrics || []).map((r) => ({
+        uuid: r.uuid || undefined,
+        criterionName: r.criterionName,
+        description: r.description,
+        maxScore: Number(r.maxScore) || 0,
+      })),
     };
 
+    let backendRubrics = null;
     try {
-      await lecturerQuestionApi.updateQuestion(editingQuestion.id, payload);
+      const res = await lecturerQuestionApi.updateQuestion(editingQuestion.id, payload);
+      backendRubrics = res?.data?.result?.rubrics || null;
     } catch (err) {
       console.warn('API updateQuestion fallback:', err);
     }
 
     const updatedList = questions.map(q => {
-      if (q.id === editingQuestion.id) {
+      if ((q.id || q.uuid) === editingQuestion.id) {
         return {
           ...q,
           ...payload,
           subject: editingQuestion.subjectCode,
           keywords: editingQuestion.keywords.split(',').map(s => s.trim()).filter(Boolean),
+          rubrics: backendRubrics || payload.rubrics,
+          rubricCount: (backendRubrics || payload.rubrics)?.length || 0,
         };
       }
       return q;
@@ -326,6 +358,63 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
     saveQuestions(updatedList);
     setIsEditModalOpen(false);
     showToast('Cập nhật câu hỏi thành công!');
+  };
+
+  const handleOpenRubricModal = (q) => {
+    setSelectedRubricQuestion(q);
+    setIsRubricEditMode(false);
+    setRubricEditDraft(
+      (q.rubrics || []).map((r) => ({
+        uuid: r.uuid || r.id || null,
+        criterionName: r.criterionName || '',
+        description: r.description || '',
+        maxScore: Number(r.maxScore) || 0,
+        weight: Number(r.weight) || 0,
+      }))
+    );
+  };
+
+  const handleSaveRubricFromModal = async () => {
+    const qid = selectedRubricQuestion?.id || selectedRubricQuestion?.uuid;
+    if (!qid) return;
+    setIsSavingRubric(true);
+    try {
+      const res = await lecturerQuestionApi.updateQuestion(qid, {
+        subjectCode: selectedRubricQuestion.subjectCode,
+        questionCode: selectedRubricQuestion.code,
+        content: selectedRubricQuestion.content,
+        difficulty: selectedRubricQuestion.difficulty,
+        bloomLevel: selectedRubricQuestion.bloomLevel,
+        keywords: Array.isArray(selectedRubricQuestion.keywords)
+          ? selectedRubricQuestion.keywords.join(', ')
+          : selectedRubricQuestion.keywords,
+        expectedAnswer: selectedRubricQuestion.expectedAnswer,
+        rubrics: rubricEditDraft.map((r) => ({
+          uuid: r.uuid || undefined,
+          criterionName: r.criterionName,
+          description: r.description,
+          maxScore: Number(r.maxScore) || 0,
+        })),
+      });
+      const savedRubrics = res?.data?.result?.rubrics || rubricEditDraft;
+      const updatedList = questions.map((q) =>
+        (q.id || q.uuid) === qid
+          ? { ...q, rubrics: savedRubrics, rubricCount: savedRubrics.length }
+          : q
+      );
+      saveQuestions(updatedList);
+      setSelectedRubricQuestion((prev) =>
+        prev ? { ...prev, rubrics: savedRubrics, rubricCount: savedRubrics.length } : prev
+      );
+      setIsRubricEditMode(false);
+      showToast('Đã cập nhật Rubric của câu hỏi!');
+      fetchQuestions();
+    } catch (err) {
+      console.error('Save rubric failed:', err);
+      showToast(err?.response?.data?.message || 'Không lưu được Rubric.', 'error');
+    } finally {
+      setIsSavingRubric(false);
+    }
   };
 
   const handleDeleteQuestion = async (id) => {
@@ -387,8 +476,8 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
         const targetSubjectCode = item.subjectCode || (selectedSubject === 'ALL' ? (subjectsList[0]?.code || 'PRJ301') : selectedSubject);
         const currentSubj = subjectsList.find(s => s.code === targetSubjectCode);
         const rubricsList = Array.isArray(item.rubrics) ? item.rubrics : [
-          { criterionName: 'Tính chính xác kiến thức', description: 'Nêu đúng định nghĩa và giải pháp', maxScore: 5.0, weight: 1.0 },
-          { criterionName: 'Khả năng phản biện & vận dụng', description: 'Phân tích tình huống thực tế', maxScore: 5.0, weight: 1.0 }
+          { criterionName: 'Tính chính xác kiến thức', description: 'Nêu đúng định nghĩa và giải pháp', maxScore: 5.0, weight: 50 },
+          { criterionName: 'Khả năng phản biện & vận dụng', description: 'Phân tích tình huống thực tế', maxScore: 5.0, weight: 50 }
         ];
 
         const payload = {
@@ -454,7 +543,10 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
     const matchesSubject =
       selectedSubject === 'ALL' || q.subjectCode === selectedSubject || (q.subject && q.subject.includes(selectedSubject));
     const matchesDifficulty = difficultyFilter === 'ALL' || q.difficulty === difficultyFilter;
-    return matchesSearch && matchesSubject && matchesDifficulty;
+    const matchesBloom =
+      bloomFilter === 'ALL' ||
+      (q.bloomLevel || '').toLowerCase().startsWith(bloomFilter.toLowerCase());
+    return matchesSearch && matchesSubject && matchesDifficulty && matchesBloom;
   });
   return (
     <div className="space-y-6">
@@ -526,6 +618,19 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
         >
           <Sparkles className="w-4 h-4 text-indigo-600" />
           <span>Sinh Đề AI & Kiểm Duyệt</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('rubrics')}
+          className={`flex-1 min-w-[170px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === 'rubrics'
+              ? 'bg-sky-50 text-sky-700 shadow-xs border border-sky-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <Layers className="w-4 h-4 text-violet-600" />
+          <span>Quản Lý Rubric</span>
         </button>
       </div>
 
@@ -622,6 +727,20 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
             <option value="EASY">Dễ</option>
             <option value="MEDIUM">Trung bình</option>
             <option value="HARD">Nâng cao</option>
+          </select>
+
+          <select
+            value={bloomFilter}
+            onChange={(e) => setBloomFilter(e.target.value)}
+            className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs focus:outline-none focus:border-sky-500 font-medium"
+            title="Lọc theo chuẩn Bloom"
+          >
+            <option value="ALL">Mọi chuẩn Bloom</option>
+            {BLOOM_LEVELS.map((b) => (
+              <option key={b.value} value={b.value}>
+                {b.label}
+              </option>
+            ))}
           </select>
 
           {selectedSubject !== 'ALL' && (
@@ -724,7 +843,7 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
                     <Layers className="w-3.5 h-3.5 text-sky-600" /> {q.rubrics?.length || q.rubricCount || 0} tiêu chí Rubric
                   </span>
                   <button 
-                    onClick={() => setSelectedRubricQuestion(q)}
+                    onClick={() => handleOpenRubricModal(q)}
                     className="text-sky-600 hover:text-sky-800 font-bold ml-1 text-xs cursor-pointer"
                   >
                     Xem Rubric →
@@ -793,6 +912,7 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
                     <option value="Bloom 3 - Vận dụng">Bloom 3 - Vận dụng</option>
                     <option value="Bloom 4 - Phân tích">Bloom 4 - Phân tích</option>
                     <option value="Bloom 5 - Đánh giá">Bloom 5 - Đánh giá</option>
+                    <option value="Bloom 6 - Sáng tạo">Bloom 6 - Sáng tạo</option>
                   </select>
                 </div>
               </div>
@@ -821,96 +941,13 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
               </div>
 
               {/* Rubric Criteria Builder */}
-              <div className="pt-2 border-t border-slate-100 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-sky-600" />
-                    Barem Tiêu Chí Chấm Điểm (Rubrics)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNewQuestion({
-                        ...newQuestion,
-                        rubrics: [
-                          ...newQuestion.rubrics,
-                          {
-                            criterionName: `Tiêu chí #${newQuestion.rubrics.length + 1}`,
-                            description: 'Mô tả yêu cầu đạt điểm',
-                            maxScore: 3.0,
-                            weight: 1.0,
-                          },
-                        ],
-                      });
-                    }}
-                    className="text-[11px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Thêm tiêu chí
-                  </button>
-                </div>
-
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {newQuestion.rubrics.map((rubric, rIdx) => (
-                    <div key={rIdx} className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          required
-                          value={rubric.criterionName}
-                          onChange={(e) => {
-                            const updated = [...newQuestion.rubrics];
-                            updated[rIdx].criterionName = e.target.value;
-                            setNewQuestion({ ...newQuestion, rubrics: updated });
-                          }}
-                          placeholder="Tên tiêu chí (ví dụ: Tính chính xác)"
-                          className="flex-1 px-2.5 py-1 text-xs rounded-lg bg-white border border-slate-200 font-semibold focus:outline-none focus:border-sky-500"
-                        />
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            step="0.5"
-                            min="0.5"
-                            max="10"
-                            value={rubric.maxScore}
-                            onChange={(e) => {
-                              const updated = [...newQuestion.rubrics];
-                              updated[rIdx].maxScore = parseFloat(e.target.value) || 0;
-                              setNewQuestion({ ...newQuestion, rubrics: updated });
-                            }}
-                            className="w-16 px-2 py-1 text-xs font-mono font-bold rounded-lg bg-white border border-slate-200 text-center text-sky-700"
-                            title="Điểm tối đa"
-                          />
-                          <span className="text-[10px] text-slate-500">đ</span>
-                        </div>
-                        {newQuestion.rubrics.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = newQuestion.rubrics.filter((_, idx) => idx !== rIdx);
-                              setNewQuestion({ ...newQuestion, rubrics: updated });
-                            }}
-                            className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
-                            title="Xóa tiêu chí này"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                      <input
-                        type="text"
-                        value={rubric.description}
-                        onChange={(e) => {
-                          const updated = [...newQuestion.rubrics];
-                          updated[rIdx].description = e.target.value;
-                          setNewQuestion({ ...newQuestion, rubrics: updated });
-                        }}
-                        placeholder="Mô tả chuẩn đạt điểm cho sinh viên..."
-                        className="w-full px-2.5 py-1 text-[11px] rounded-lg bg-white border border-slate-200 text-slate-600 focus:outline-none"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <RubricBuilder
+                value={newQuestion.rubrics}
+                onChange={(rubrics) => setNewQuestion({ ...newQuestion, rubrics })}
+                title="Barem Tiêu Chí Chấm Điểm (Rubrics)"
+                emptyHint="Chưa có tiêu chí nào. Bấm 'Thêm tiêu chí' để bắt đầu."
+                compact
+              />
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
@@ -999,6 +1036,7 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
                     <option value="Bloom 3 - Vận dụng">Bloom 3 - Vận dụng</option>
                     <option value="Bloom 4 - Phân tích">Bloom 4 - Phân tích</option>
                     <option value="Bloom 5 - Đánh giá">Bloom 5 - Đánh giá</option>
+                    <option value="Bloom 6 - Sáng tạo">Bloom 6 - Sáng tạo</option>
                   </select>
                 </div>
               </div>
@@ -1036,6 +1074,15 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:border-sky-500 focus:outline-none"
                 />
               </div>
+
+              {/* Rubric Criteria Builder - cho phép sửa rubric của câu hỏi đã tồn tại */}
+              <RubricBuilder
+                value={editingQuestion.rubrics || []}
+                onChange={(rubrics) => setEditingQuestion({ ...editingQuestion, rubrics })}
+                title="Barem Tiêu Chí Chấm Điểm của câu hỏi"
+                emptyHint="Câu hỏi này chưa có rubric riêng. Bấm 'Thêm tiêu chí' để tạo."
+                compact
+              />
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
@@ -1160,42 +1207,39 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
               {(() => {
                 const rubricsList = (selectedRubricQuestion.rubrics && selectedRubricQuestion.rubrics.length > 0)
                   ? selectedRubricQuestion.rubrics
-                  : [
-                      {
-                        criterionName: 'Tính chính xác & Bản chất khái niệm (Bloom 2 - Hiểu)',
-                        description: 'Định nghĩa chuẩn xác, hiểu rõ các thành phần cấu tạo và cơ chế hoạt động cốt lõi',
-                        maxScore: 4.0,
-                        weight: 40
-                      },
-                      {
-                        criterionName: 'Khả năng vận dụng & Triển khai thực tiễn (Bloom 3 - Vận dụng)',
-                        description: 'Đưa ra ví dụ minh họa cụ thể, giải quyết bài toán nghiệp vụ trong môi trường thực tế',
-                        maxScore: 3.5,
-                        weight: 35
-                      },
-                      {
-                        criterionName: 'Phân tích & Phản biện mở rộng (Bloom 4/5 - Phân tích & Đánh giá)',
-                        description: 'So sánh giải pháp thay thế, đánh giá trade-offs về hiệu năng và các giới hạn kỹ thuật',
-                        maxScore: 2.5,
-                        weight: 25
-                      }
-                    ];
+                  : [];
+
+                if (isRubricEditMode) {
+                  return (
+                    <RubricBuilder
+                      value={rubricEditDraft}
+                      onChange={setRubricEditDraft}
+                      title="Tiêu chí đánh giá"
+                      emptyHint="Chưa có tiêu chí nào cho câu hỏi này. Bấm 'Thêm tiêu chí' để tạo."
+                    />
+                  );
+                }
 
                 return (
                   <div className="space-y-3">
                     <span className="text-xs font-bold text-slate-700 block">
                       Tiêu chí đánh giá chuẩn Bloom ({rubricsList.length})
                     </span>
+                    {rubricsList.length === 0 && (
+                      <div className="p-3 rounded-xl border border-dashed border-slate-200 text-center text-[11px] text-slate-500">
+                        Câu hỏi này chưa có Rubric riêng. Bấm "Sửa Rubric" để thêm tiêu chí.
+                      </div>
+                    )}
                     {rubricsList.map((r, rIdx) => (
-                      <div key={r.id || rIdx} className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-1.5">
+                      <div key={r.uuid || r.id || rIdx} className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-1.5">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-slate-900">{r.criterionName || `Tiêu chí #${rIdx + 1}`}</span>
                           <div className="flex items-center gap-2">
-                            {r.weight && (
+                            {r.weight ? (
                               <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                                Trọng số: {r.weight}%
+                                Trọng số: {Number(r.weight).toFixed(1)}%
                               </span>
-                            )}
+                            ) : null}
                             <span className="text-xs font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-md">
                               Tối đa: {r.maxScore || 10}đ
                             </span>
@@ -1211,13 +1255,39 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
               })()}
             </div>
 
-            <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
-              <button
-                onClick={() => setSelectedRubricQuestion(null)}
-                className="btn-glacier-secondary px-4 py-2 text-xs font-semibold cursor-pointer"
-              >
-                Đóng
-              </button>
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-between gap-2">
+              {isRubricEditMode ? (
+                <>
+                  <button
+                    onClick={() => setIsRubricEditMode(false)}
+                    className="btn-glacier-secondary px-4 py-2 text-xs font-semibold cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={handleSaveRubricFromModal}
+                    disabled={isSavingRubric}
+                    className="btn-glacier-primary px-5 py-2 text-xs font-semibold disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSavingRubric ? 'Đang lưu...' : 'Lưu Rubric'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setSelectedRubricQuestion(null)}
+                    className="btn-glacier-secondary px-4 py-2 text-xs font-semibold cursor-pointer"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    onClick={() => setIsRubricEditMode(true)}
+                    className="btn-glacier-primary px-5 py-2 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" /> Sửa Rubric
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1272,8 +1342,8 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
                           keywords: ["HttpSession", "Session Replication", "Cookies"],
                           expectedAnswer: "HttpSession được khởi tạo khi request.getSession() được gọi...",
                           rubrics: [
-                            { criterionName: "Bản chất HTTP Session", description: "Nêu đúng lifecycle và timeout", maxScore: 5.0, weight: 1.0 },
-                            { criterionName: "Cơ chế phân tán", description: "Mô tả replication trong cluster", maxScore: 5.0, weight: 1.0 }
+                            { criterionName: "Bản chất HTTP Session", description: "Nêu đúng lifecycle và timeout", maxScore: 5.0, weight: 50 },
+                            { criterionName: "Cơ chế phân tán", description: "Mô tả replication trong cluster", maxScore: 5.0, weight: 50 }
                           ]
                         }
                       ], null, 2));
@@ -1346,6 +1416,9 @@ export default function QuestionBankPage({ defaultTab = 'bank' }) {
           onQuestionsApproved={handleQuestionsApprovedFromTab}
         />
       )}
+
+      {/* ================= TAB 4: RUBRIC MANAGEMENT ================= */}
+      {activeTab === 'rubrics' && <LecturerRubricManagementPage />}
     </div>
   );
 }

@@ -961,15 +961,19 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
                 <span>Tham khảo tài liệu RAG</span>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={useRag}
                   onClick={() => setUseRag((prev) => !prev)}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors cursor-pointer ${
-                    useRag
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                      : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
+                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ${
+                    useRag ? 'bg-emerald-500' : 'bg-slate-300'
                   }`}
                   title={useRag ? 'Đang bật tham khảo RAG - bấm để tắt' : 'Đang tắt RAG - bấm để bật'}
                 >
-                  {useRag ? 'ĐANG BẬT' : 'ĐANG TẮT'}
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                      useRag ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
                 </button>
               </label>
               {useRag ? (
@@ -1036,19 +1040,12 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
               value={customContext}
               onChange={(e) => setCustomContext(e.target.value)}
               rows={5}
-              placeholder={'Ví dụ:\n- Định nghĩa Session Replication và cơ chế Session Replication trong Spring Session\n- Các chiến lược: Jetty Session Replication, Redis Session Store, Sticky Session\n- Case study: hệ thống phân tán 3 node gặp lỗi mất session khi restart container'}
               className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-medium focus:outline-none focus:border-sky-500 resize-y leading-relaxed"
             />
-            <p className="text-[10px] text-slate-400 mt-1 italic">
-              Context này được ưu tiên cao nhất - AI chỉ dựa vào đây để đặt câu hỏi, tuyệt đối không dùng tên file làm chủ đề.
-            </p>
           </div>
 
           {/* Action Button & Progress */}
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <span className="text-[11px] text-slate-500 italic">
-              AI sẽ phân tích giáo trình, sinh câu hỏi phản biện, đáp án mẫu và barem điểm Rubric chi tiết.
-            </span>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-3">
 
             <button
               type="submit"
@@ -1131,9 +1128,6 @@ export default function LecturerAIGenerationTab({ onSwitchTab, preselectedDoc, o
                   {filteredReviewQuestions.length} câu hỏi
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500">
-                Hiệu đính nội dung, kiểm tra barem điểm và bấm phê duyệt để lưu chính thức vào Ngân hàng
-              </p>
             </div>
           </div>
 
