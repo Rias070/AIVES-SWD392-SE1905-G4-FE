@@ -1380,6 +1380,7 @@ export default function VivaRoomPage() {
   const isProcessingTurnRef = useRef(false);
   const isManuallyStoppedRef = useRef(false);
   const recognitionRef = useRef(null);
+  const restartRecognitionTimerRef = useRef(null);
   const isSpeechSynthesizingRef = useRef(false);
   const currentAudioRef = useRef(null);
 
@@ -1895,6 +1896,7 @@ export default function VivaRoomPage() {
   // ================= SPEECH-TO-TEXT (STT) ENGINE =================
   const startSpeechRecognition = (overrideLang) => {
     isManuallyStoppedRef.current = false;
+    clearTimeout(restartRecognitionTimerRef.current);
     const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognitionClass) {
       console.warn('Trình duyệt không hỗ trợ Web SpeechRecognition');
@@ -1904,8 +1906,12 @@ export default function VivaRoomPage() {
     try {
       if (recognitionRef.current) {
         try {
+          recognitionRef.current.onend = null;
+          recognitionRef.current.onerror = null;
+          recognitionRef.current.onresult = null;
           recognitionRef.current.stop();
         } catch (e) { }
+        recognitionRef.current = null;
       }
 
       // Preserve existing text in textarea as the base before starting
@@ -1951,7 +1957,7 @@ export default function VivaRoomPage() {
       };
 
       recognition.onerror = (event) => {
-        // Ignorable non-fatal errors
+        // Non-fatal ignorable errors
         if (event.error !== 'no-speech') {
           console.warn('SpeechRecognition error:', event.error);
         }
@@ -1966,16 +1972,31 @@ export default function VivaRoomPage() {
           sessionFinalTextRef.current = '';
         }
 
+        // Auto-reconnect seamlessly if candidate is still in answering mode!
+        // Debounce gives Chromium time to cleanly free the audio session and avoids InvalidStateError.
         if (!isManuallyStoppedRef.current && fsmStateRef.current === STATES.STUDENT_ANSWERING) {
-          try {
-            recognition.start();
-          } catch (e) { }
+          clearTimeout(restartRecognitionTimerRef.current);
+          restartRecognitionTimerRef.current = setTimeout(() => {
+            if (!isManuallyStoppedRef.current && fsmStateRef.current === STATES.STUDENT_ANSWERING) {
+              startSpeechRecognition(activeLang);
+            }
+          }, 150);
         }
       };
 
       try {
         recognition.start();
-      } catch (startErr) { }
+      } catch (startErr) {
+        console.warn('SpeechRecognition start failed, retrying in 200ms:', startErr);
+        if (!isManuallyStoppedRef.current && fsmStateRef.current === STATES.STUDENT_ANSWERING) {
+          clearTimeout(restartRecognitionTimerRef.current);
+          restartRecognitionTimerRef.current = setTimeout(() => {
+            if (!isManuallyStoppedRef.current && fsmStateRef.current === STATES.STUDENT_ANSWERING) {
+              startSpeechRecognition(activeLang);
+            }
+          }, 200);
+        }
+      }
       recognitionRef.current = recognition;
     } catch (err) {
       console.error('Lỗi khi bắt đầu nhận diện giọng nói:', err);
@@ -1984,14 +2005,23 @@ export default function VivaRoomPage() {
 
   const stopSpeechRecognition = () => {
     isManuallyStoppedRef.current = true;
+    clearTimeout(restartRecognitionTimerRef.current);
     if (recognitionRef.current) {
       try {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onresult = null;
         recognitionRef.current.stop();
       } catch (e) { }
       recognitionRef.current = null;
     }
+    if (sessionFinalTextRef.current) {
+      const base = (accumulatedBaseRef.current || '').trim();
+      const newlyFinal = sessionFinalTextRef.current.trim();
+      accumulatedBaseRef.current = base ? `${base} ${newlyFinal}` : newlyFinal;
+      sessionFinalTextRef.current = '';
+    }
   };
-
 
   // Dynamic Language Switching Handler
   const handleLanguageChange = (newLang) => {
@@ -2095,11 +2125,17 @@ export default function VivaRoomPage() {
   const handleStartAnswering = async () => {
     isProcessingTurnRef.current = false;
     stopAllSpeech();
+    isManuallyStoppedRef.current = false;
+    fsmStateRef.current = STATES.STUDENT_ANSWERING;
     setFsmState(STATES.STUDENT_ANSWERING);
     setTurnSeconds(questionTimeLimit);
+
+    // Reset transcript collectors for this turn
     finalAccumulatedTranscriptRef.current = '';
     setLiveTranscript('');
     liveTranscriptRef.current = '';
+    accumulatedBaseRef.current = '';
+    sessionFinalTextRef.current = '';
 
     if (recordedAudioUrl) {
       URL.revokeObjectURL(recordedAudioUrl);
@@ -2107,19 +2143,30 @@ export default function VivaRoomPage() {
     }
     audioChunksRef.current = [];
 
-    if (!mediaStreamRef.current) {
-      try {
+    // Ensure mic stream is active and unmuted
+    try {
+      if (!mediaStreamRef.current || !mediaStreamRef.current.getAudioTracks().some((t) => t.readyState === 'live')) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaStreamRef.current = stream;
-      } catch (err) {
-        console.warn('Microphone permission check:', err);
+      } else {
+        mediaStreamRef.current.getAudioTracks().forEach((t) => {
+          t.enabled = true;
+        });
       }
+    } catch (err) {
+      console.warn('Microphone permission check:', err);
     }
 
-    setTimeout(() => {
-      startSpeechRecognition(examLangRef.current);
-      startMediaRecording();
-    }, 50);
+    // Ensure AudioContext is running for volume meter
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      try {
+        await audioContextRef.current.resume();
+      } catch (e) { }
+    }
+
+    // Start STT and audio recording immediately with zero delay
+    startMediaRecording();
+    startSpeechRecognition(examLangRef.current);
   };
 
   // Step 2: Candidate stops answering -> Enters STUDENT_REVIEWING
