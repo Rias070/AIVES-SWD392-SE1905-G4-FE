@@ -326,7 +326,8 @@ export default function PreExamDeviceCheckPage() {
       if (allExamsRaw) {
         const exams = JSON.parse(allExamsRaw);
         const match = exams.find((e) => e.id === sessId || e.sessionCode === sessId);
-        if (match?.endedAt && new Date(match.endedAt) < new Date()) {
+        // Only block as overdue if endedAt is in past AND exam actually had turns or was submitted
+        if (match?.endedAt && new Date(match.endedAt) < new Date() && (match.turns && match.turns.length > 0)) {
           return true;
         }
       }
@@ -346,11 +347,14 @@ export default function PreExamDeviceCheckPage() {
     }
     if (!params.get('sessionId')) {
       try {
-        const latestExamRaw = localStorage.getItem('aives_latest_active_exam');
-        if (latestExamRaw) {
-          const ex = JSON.parse(latestExamRaw);
-          if (ex.id) params.set('sessionId', ex.id);
-          if (ex.subjectCode && !params.get('subject')) params.set('subject', ex.subjectCode);
+        const allExamsRaw = localStorage.getItem('aives_exam_sessions');
+        if (allExamsRaw) {
+          const exams = JSON.parse(allExamsRaw);
+          const active = exams.find((e) => e.status !== 'COMPLETED' && (!e.turns || e.turns.length === 0));
+          if (active) {
+            params.set('sessionId', active.id || active.sessionCode);
+            if (active.subjectCode && !params.get('subject')) params.set('subject', active.subjectCode);
+          }
         }
       } catch (e) {}
     }

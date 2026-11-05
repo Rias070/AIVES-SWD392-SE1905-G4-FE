@@ -178,7 +178,8 @@ export default function StudentDashboardPage({ currentUser }) {
   }, [recentExams]);
 
   // Modals state
-  const [activeModal, setActiveModal] = useState(null); // 'mic-check' | 'ai-feedback' | 'course-detail' | 'mock-register'
+  const [activeModal, setActiveModal] = useState(null);
+  const [selectedExamForMic, setSelectedExamForMic] = useState(null); // 'mic-check' | 'ai-feedback' | 'course-detail' | 'mock-register'
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [selectedExamReview, setSelectedExamReview] = useState(null);
 
@@ -309,6 +310,31 @@ export default function StudentDashboardPage({ currentUser }) {
 
       if (rawSessions.length > 0) {
         if (Array.isArray(rawSessions) && rawSessions.length > 0) {
+          // Auto-heal sessions that were corrupted with WAITING_SCORE_CONFIRMATION but have 0 turns
+          let hasHealed = false;
+          rawSessions.forEach((s) => {
+            const hasTurns = s.turns && Array.isArray(s.turns) && s.turns.length > 0;
+            if (s.status === 'WAITING_SCORE_CONFIRMATION' && !hasTurns && !s.totalScore) {
+              s.status = 'SCHEDULED';
+              hasHealed = true;
+            }
+          });
+          if (hasHealed) {
+            try {
+              const localRaw = localStorage.getItem('aives_exam_sessions');
+              if (localRaw) {
+                const arr = JSON.parse(localRaw);
+                arr.forEach((it) => {
+                  const ht = it.turns && Array.isArray(it.turns) && it.turns.length > 0;
+                  if (it.status === 'WAITING_SCORE_CONFIRMATION' && !ht && !it.totalScore) {
+                    it.status = 'SCHEDULED';
+                  }
+                });
+                localStorage.setItem('aives_exam_sessions', JSON.stringify(arr));
+              }
+            } catch (e) {}
+          }
+
           // Scheduled & In-Progress exams for student
           const now = new Date();
           const upcoming = rawSessions.filter(
@@ -853,6 +879,7 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
                             <button
                               onClick={() => {
                                 setIsMicTesting(true);
+                                setSelectedExamForMic(exam);
                                 setActiveModal('mic-check');
                               }}
                               className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors cursor-pointer"
@@ -1189,9 +1216,15 @@ MSSV: <span className="font-semibold text-slate-700">{studentId}</span> • Khoa
               </button>
               <button
                 onClick={() => {
+                  const target = selectedExamForMic;
                   setActiveModal(null);
                   setIsMicTesting(false);
-                  navigate('/device-check');
+                  const q = new URLSearchParams();
+                  if (target) {
+                    if (target.sessionId || target.id) q.set('sessionId', target.sessionId || target.id);
+                    if (target.code || target.subjectCode) q.set('subject', target.code || target.subjectCode);
+                  }
+                  navigate(`/device-check${q.toString() ? `?${q.toString()}` : ''}`);
                 }}
                 className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-xs cursor-pointer"
               >

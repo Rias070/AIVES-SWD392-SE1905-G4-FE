@@ -908,7 +908,13 @@ export default function VivaRoomPage() {
             (s) => s.id === targetId || s.sessionCode === targetId || s.id === urlId || s.sessionCode === urlId
           );
           if (found) {
-            if (found.status === 'WAITING_SCORE_CONFIRMATION' || found.status === 'COMPLETED' || found.status === 'SUBMITTED' || (found.turns && found.turns.length > 0)) {
+            // Check if this was a false WAITING_SCORE_CONFIRMATION from an unmount without any actual turns
+            const hasActualTurns = (found.turns && Array.isArray(found.turns) && found.turns.length > 0);
+            if (found.status === 'WAITING_SCORE_CONFIRMATION' && !hasActualTurns) {
+              // Auto-heal: candidate has NOT answered any questions yet, reset status to IN_PROGRESS so they can take exam
+              found.status = 'IN_PROGRESS';
+              localStorage.setItem('aives_exam_sessions', JSON.stringify(sessions));
+            } else if (found.status === 'COMPLETED' || found.status === 'SUBMITTED' || (found.status === 'WAITING_SCORE_CONFIRMATION' && hasActualTurns)) {
               alert('Ca thi này đã hoàn tất hoặc đã đóng đề (mỗi lượt chỉ được tham gia 1 lần duy nhất). Hệ thống đang chuyển về màn hình chính.');
               const role = sessionStorage.getItem('aives_role') || localStorage.getItem('aives_role');
               navigate(role === 'lecturer' ? '/lecturer/exams' : '/student');
@@ -930,7 +936,8 @@ export default function VivaRoomPage() {
           const res = await studentExamApi.getSessionById(targetId);
           if (res?.data?.result) {
             const s = res.data.result;
-            if (s.status === 'WAITING_SCORE_CONFIRMATION' || s.status === 'COMPLETED' || s.status === 'SUBMITTED') {
+            const hasActualTurns = (s.turns && Array.isArray(s.turns) && s.turns.length > 0) || s.finalScore != null;
+            if ((s.status === 'COMPLETED' || s.status === 'SUBMITTED') && hasActualTurns) {
               alert('Bạn đã hoàn tất lượt thi của ca này (mỗi sinh viên chỉ được thi 1 lần duy nhất). Hệ thống đang chuyển bạn về Bảng điều khiển.');
               const role = sessionStorage.getItem('aives_role') || localStorage.getItem('aives_role');
               navigate(role === 'lecturer' ? '/lecturer/exams' : '/student');
@@ -950,7 +957,7 @@ export default function VivaRoomPage() {
           const idx = sessions.findIndex(
             (s) => s.id === targetId || s.sessionCode === targetId || s.id === urlId || s.sessionCode === urlId
           );
-          if (idx !== -1 && sessions[idx].status === 'SCHEDULED') {
+          if (idx !== -1 && (sessions[idx].status === 'SCHEDULED' || sessions[idx].status === 'WAITING_SCORE_CONFIRMATION')) {
             sessions[idx].status = 'IN_PROGRESS';
             sessions[idx].startedAt = sessions[idx].startedAt || new Date().toISOString();
             localStorage.setItem('aives_exam_sessions', JSON.stringify(sessions));
@@ -961,10 +968,12 @@ export default function VivaRoomPage() {
     checkSessionStatus();
   }, [sessionUuid, navigate, searchParams]);
 
-  // Auto-submit when user navigates away or unmounts before completing
+  // Auto-submit when user navigates away or unmounts ONLY IF THEY ACTUALLY STARTED & ANSWERED TURNS
   useEffect(() => {
     return () => {
-      if (!isExamFinishedRef.current) {
+      // CRITICAL: Only mark as waiting confirmation / auto-submit if candidate has ACTUALLY answered turns!
+      // This protects against React StrictMode double-mounting or accidental back/refresh before answering!
+      if (!isExamFinishedRef.current && allQuestionTurnsRef.current && allQuestionTurnsRef.current.length > 0) {
         isExamFinishedRef.current = true;
         try {
           const targetId = sessionUuidRef.current || sessionUuid;
@@ -987,15 +996,15 @@ export default function VivaRoomPage() {
     };
   }, [sessionUuid, searchParams]);
 
-  // Auto-submit when student closes the tab
+  // Auto-submit when student closes the tab (ONLY IF THEY ANSWERED TURNS)
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      if (sessionUuid) {
+      if (sessionUuid && allQuestionTurnsRef.current && allQuestionTurnsRef.current.length > 0) {
         try {
           studentExamApi.finishExam(sessionUuid);
         } catch (err) {}
+        e.returnValue = 'Rời phòng thi sẽ tự động nộp bài ca thi này!';
       }
-      e.returnValue = 'Rời phòng thi sẽ tự động nộp bài ca thi này!';
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
