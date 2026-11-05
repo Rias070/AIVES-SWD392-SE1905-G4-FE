@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Languages, Mic, Volume2, Save, Check, Info } from 'lucide-react';
-import { PageHeader } from './adminComponents';
+import { Languages, Mic, Volume2, Save, Check, Info, RotateCcw, AlertTriangle } from 'lucide-react';
+import { PageHeader, Modal } from './adminComponents';
+import { adminConfigApi } from '../../services/api';
 
 export default function SettingsPage() {
   const { currentUser } = useOutletContext();
@@ -14,11 +15,38 @@ export default function SettingsPage() {
     sttTimeout: 5,
   });
   const [saved, setSaved] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [resetNotice, setResetNotice] = useState(null);
 
   const save = (e) => {
     e.preventDefault();
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  };
+
+  // Khôi phục cấu hình thông số AI Viva về mặc định của hệ thống
+  const handleResetConfig = async () => {
+    setIsResetting(true);
+    try {
+      const res = await adminConfigApi.resetAIVivaConfigToDefault();
+      const payload = res.data?.result || res.data?.data;
+      if (payload) {
+        setCfg((prev) => ({
+          ...prev,
+          language: payload.defaultLanguage?.toLowerCase().startsWith('en') ? 'en' : 'vi',
+          maxFollowup: payload.maxFollowupTurns ?? prev.maxFollowup,
+          maxAnswerSec: payload.maxAnswerTimeSec ?? prev.maxAnswerSec,
+        }));
+      }
+      setResetNotice({ type: 'success', text: 'Đã khôi phục cấu hình AI Viva về mặc định hệ thống.' });
+    } catch (err) {
+      setResetNotice({ type: 'error', text: err.friendlyMessage || 'Khôi phục mặc định thất bại.' });
+    } finally {
+      setIsResetting(false);
+      setIsResetConfirmOpen(false);
+      setTimeout(() => setResetNotice(null), 3500);
+    }
   };
 
   return (
@@ -27,13 +55,37 @@ export default function SettingsPage() {
         title="Cấu hình hệ thống"
         subtitle="Thiết lập ngôn ngữ và tham số AI Viva"
         action={
-          saved && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
-              <Check className="w-3.5 h-3.5" /> Đã lưu
-            </span>
-          )
+          <div className="flex items-center gap-2">
+            {saved && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
+                <Check className="w-3.5 h-3.5" /> Đã lưu
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsResetConfirmOpen(true)}
+              disabled={isResetting}
+              className="px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 text-sm font-semibold flex items-center gap-1.5 disabled:opacity-60"
+            >
+              <RotateCcw className="w-4 h-4" /> {isResetting ? 'Đang khôi phục...' : 'Khôi phục mặc định'}
+            </button>
+          </div>
         }
       />
+
+      {resetNotice && (
+        <div className={`mb-4 px-4 py-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
+          resetNotice.type === 'success'
+            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            : 'bg-rose-50 text-rose-800 border-rose-200'
+        }`}
+        >
+          {resetNotice.type === 'success'
+            ? <Check className="w-4 h-4 text-emerald-600" />
+            : <AlertTriangle className="w-4 h-4 text-rose-600" />}
+          {resetNotice.text}
+        </div>
+      )}
 
       <form onSubmit={save} className="space-y-5">
         {/* Panel: Ngôn ngữ + AI Viva */}
@@ -216,6 +268,38 @@ export default function SettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* Modal xác nhận khôi phục mặc định */}
+      <Modal
+        open={isResetConfirmOpen}
+        onClose={() => setIsResetConfirmOpen(false)}
+        title="Khôi phục cấu hình mặc định?"
+        size="sm"
+        footer={
+          <>
+            <button
+              onClick={() => setIsResetConfirmOpen(false)}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={handleResetConfig}
+              disabled={isResetting}
+              className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-60"
+            >
+              {isResetting ? 'Đang xử lý...' : 'Khôi phục'}
+            </button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-2.5">
+          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-slate-600">
+            Toàn bộ tham số AI Viva (ngôn ngữ, số lượt hỏi xoáy, thời gian trả lời) sẽ được đặt lại về giá trị mặc định của hệ thống. Thao tác này không thể hoàn tác.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }
